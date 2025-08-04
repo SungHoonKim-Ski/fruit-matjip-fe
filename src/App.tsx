@@ -1,7 +1,7 @@
 // src/App.tsx 또는 src/index.tsx
 
 import React from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import MainPage from './pages/MainPage'; 
 
 function App() {
