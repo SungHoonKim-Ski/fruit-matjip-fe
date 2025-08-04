@@ -28,7 +28,7 @@ jobs:
     - name: Sync S3 Bucket
       uses: jakejarvis/s3-sync-action@v0.5.1
       with:
-        args: --delete
+        args: --delete --exclude "images/*"
       env:
         AWS_S3_BUCKET: onuljang
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
