@@ -20,7 +20,7 @@ export default function MainPage() {
               className="bg-white rounded-lg shadow-md overflow-hidden hover:ring-2 ring-orange-400 transition"
             >
               <img
-                src={`https://onuljang.s3.ap-northeast-2.amazonaws.com/image/image.png`}
+                src={`/image/image.png`}
                 alt={`상품 이미지 ${item}`}
                 className="w-full h-48 object-cover"
               />
