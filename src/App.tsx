@@ -8,8 +8,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/auth/my-store-name" />} />
-        <Route path="/auth/my-store-name" element={<MainPage />} />
+        {/* <Route path="/" element={<Navigate to="/auth/my-store-name" />} /> */}
+        <Route path="/" element={<MainPage />} />
         {/* 다른 라우트들... */}
       </Routes>
     </BrowserRouter>
