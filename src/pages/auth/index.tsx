@@ -5,14 +5,12 @@ import BottomNav from '@/components/BottomNav';
 import { Link, useNavigate } from 'react-router-dom'; 
 
 const MainPage = () => {
-  const navigate = useNavigate(); // ✅ useRouter → useNavigate
+  const navigate = useNavigate();
   const [products, setProducts] = useState<any[]>([]);
   const storeName = "오늘장보기"
 
   useEffect(() => {
     if (!storeName) return;
-
-    // 예시: GET /api/products?store=storeName
     fetch(`/api/products?store=${storeName}`)
       .then(res => res.json())
       .then(data => setProducts(data));
