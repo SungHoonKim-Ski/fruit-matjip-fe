@@ -87,37 +87,69 @@ export default function AdminProductPage() {
         {products.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow p-4 space-y-2">
             <div className="flex items-start gap-4">
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-32 h-32 object-cover rounded border"
-              />
-              <div className="flex-1 space-y-1">
-                <h2 className="text-lg font-semibold">{product.name}</h2>
-                <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
-                <p className="text-sm text-gray-500">재고: {product.stock}개</p>
-                <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
-                <p className="text-sm text-gray-500">
-                  상태:{' '}
-                  <span
-                    className={
-                      product.status === 'active' ? 'text-green-600' : 'text-gray-400'
-                    }
-                  >
-                    {product.status === 'active' ? '활성화' : '비활성화'}
-                  </span>
-                </p>
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-32 h-32 object-cover rounded border"
+        />
+        <div className="flex-1 space-y-1">
+          <h2 className="text-lg font-semibold">{product.name}</h2>
+          <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
+          <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
+          <p className="text-sm text-gray-500">
+            노출:{' '}
+            <span className={product.status === 'active' ? 'text-green-600' : 'text-gray-400'}>
+              {product.status === 'active' ? '활성화' : '비활성화'}
+            </span>
+          </p>
 
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <button onClick={() => toggleStatus(product.id)} className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600">상태 토글</button>
-                  <button onClick={() => updateStock(product.id, product.stock + 1)} className="px-3 py-1 bg-gray-300 text-sm rounded hover:bg-gray-400">재고 +1</button>
-                  <button onClick={() => updateStock(product.id, product.stock - 1)} className="px-3 py-1 bg-gray-300 text-sm rounded hover:bg-gray-400">재고 -1</button>
-                  <button onClick={() => deleteStockOnly(product.id)} className="px-3 py-1 bg-orange-400 text-white text-sm rounded hover:bg-orange-500">재고 삭제</button>
-                  <button onClick={() => deleteProduct(product.id)} className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600">상품 삭제</button>
-                </div>
-              </div>
+          {/* 상태 토글 버튼 */}
+          <button
+            onClick={() => toggleStatus(product.id)}
+            className="mt-2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+          >
+            판매 상태 변경
+          </button>
+
+          {/* 재고 조절 */}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-sm">재고:</span>
+            <div className="flex items-center border rounded overflow-hidden">
+              <button
+                onClick={() => updateStock(product.id, product.stock - 1)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                disabled={product.stock <= 0}
+              >
+                -
+              </button>
+              <span className="w-10 text-center">{product.stock}</span>
+              <button
+                onClick={() => updateStock(product.id, product.stock + 1)}
+                className="w-8 h-8 bg-gray-100 hover:bg-gray-200"
+              >
+                +
+              </button>
             </div>
           </div>
+
+          {/* 삭제 버튼 두 개 수평 정렬 */}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => deleteStockOnly(product.id)}
+              className="flex-1 px-3 py-1 bg-orange-400 text-white text-sm rounded hover:bg-orange-500"
+            >
+              재고 삭제
+            </button>
+            <button
+              onClick={() => deleteProduct(product.id)}
+              className="flex-1 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+            >
+              상품 삭제
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
         ))}
       </div>
 
