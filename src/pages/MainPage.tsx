@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 type Product = {
   id: number;
@@ -51,6 +52,7 @@ const initialProducts: Product[] = [
 
 export default function MainPage() {
   const [products, setProducts] = useState(initialProducts);
+  const navigate = useNavigate();
 
   const handleQuantity = (id: number, diff: number) => {
     setProducts(prev =>
@@ -87,7 +89,7 @@ export default function MainPage() {
         </div>
 
         {/* 상품 목록 */}
-        <div className="space-y-4">
+        <div className="space-y-4 mb-6">
           {products.map((item) => (
             <div
               key={item.id}
@@ -139,6 +141,24 @@ export default function MainPage() {
             </div>
           ))}
         </div>
+
+        {/* 👇 관리자 페이지 이동 버튼 */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => navigate('/admin/login')}
+            className="text-sm text-gray-400 hover:text-gray-600 underline"
+          >
+            관리자 페이지로 이동 →
+          </button>
+        </div>
+        {/* 👇 푸터 */}
+        <footer className="mt-10 text-center text-gray-400 text-xs space-y-1">
+          <p className="font-semibold text-gray-500">과일맛집</p>
+          <p>대표: 김지훈</p>
+          <p>사업자등록번호: 131-47-00411</p>
+          <p>제휴문의: </p>
+          <p className="mt-1">&copy; 2024 All rights reserved.</p>
+        </footer>
       </section>
     </main>
   );
