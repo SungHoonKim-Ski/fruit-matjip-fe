@@ -78,10 +78,11 @@ export default function MainPage() {
       <section className="w-full max-w-md">
         {/* 안내문구 */}
         <div className="bg-white p-5 rounded-xl shadow mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-1">🛒 오늘장보기</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-1">🛒 과일맛집</h1>
           <p className="text-sm text-gray-600">
-            이웃과 함께하는 공동구매 플랫폼<br />
-            합리적인 가격으로 신선한 식재료를 만나보세요!
+            🎁과일맛집1995 현장예약🎁<br />
+            더욱 혜택넘치는 가격으로<br />
+            우리들끼리 예약하고 먹자구요🤣
           </p>
         </div>
 
