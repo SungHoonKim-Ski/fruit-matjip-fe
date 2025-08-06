@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 type Product = {
   id: number;
@@ -69,9 +71,9 @@ export default function MainPage() {
 
   const handleReserve = (product: Product) => {
     if (product.quantity > 0) {
-      alert(`${product.name} ${product.quantity}개 예약 완료`);
+      toast.success(`${product.name} ${product.quantity}개 예약 완료`);
     } else {
-      alert('1개 이상 선택해주세요.');
+      toast.error('1개 이상 선택해주세요.');
     }
   };
 
@@ -141,8 +143,15 @@ export default function MainPage() {
             </div>
           ))}
         </div>
-
-        {/* 👇 관리자 페이지 이동 버튼 */}
+        {/* 👇 푸터 */}
+        <footer className="mt-10 text-center text-gray-400 text-xs space-y-1">
+          <p className="font-semibold text-gray-500">과일맛집</p>
+          <p>대표: 김지훈</p>
+          <p>사업자등록번호: 131-47-00411</p>
+          <p>문의: 02-2666-7412</p>
+          <p className="mt-1">&copy; 2025 All rights reserved.</p>
+        </footer>
+         {/* 👇 관리자 페이지 이동 버튼 */}
         <div className="text-center mt-8">
           <button
             onClick={() => navigate('/admin/login')}
@@ -151,14 +160,6 @@ export default function MainPage() {
             관리자 페이지로 이동 →
           </button>
         </div>
-        {/* 👇 푸터 */}
-        <footer className="mt-10 text-center text-gray-400 text-xs space-y-1">
-          <p className="font-semibold text-gray-500">과일맛집</p>
-          <p>대표: 김지훈</p>
-          <p>사업자등록번호: 131-47-00411</p>
-          <p>제휴문의: </p>
-          <p className="mt-1">&copy; 2024 All rights reserved.</p>
-        </footer>
       </section>
     </main>
   );

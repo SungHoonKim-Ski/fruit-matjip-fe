@@ -3,6 +3,8 @@ import Header from '@/components/header';
 import ProductList from '@/components/ProductList';
 import BottomNav from '@/components/BottomNav';
 import { Link, useNavigate } from 'react-router-dom'; 
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const MainPage = () => {
   const navigate = useNavigate();
@@ -22,7 +24,7 @@ const MainPage = () => {
       method: 'POST',
       body: JSON.stringify({ store: storeName, productId }),
       headers: { 'Content-Type': 'application/json' },
-    }).then(() => alert('예약 완료!'));
+    }).then(() => toast.success('예약 완료!'));
   };
 
   return (

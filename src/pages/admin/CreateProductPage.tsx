@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 
 type ProductForm = {
   name: string;
@@ -33,7 +34,7 @@ export default function ProductCreatePage() {
 
   const handleSubmit = async () => {
     if (!form.name || !form.price || !form.stock || !form.image) {
-      alert('모든 값을 입력해주세요.');
+      toast.error('모든 값을 입력해주세요.');
       return;
     }
 
@@ -72,11 +73,11 @@ export default function ProductCreatePage() {
         },
       });
 
-      alert('상품이 등록되었습니다!');
+      toast.success('상품이 등록되었습니다!');
       setForm({ name: '', price: 0, stock: 0, image: null });
     } catch (err) {
       console.error(err);
-      alert('상품 등록 중 오류가 발생했습니다.');
+      toast.error('상품 등록 중 오류가 발생했습니다.');
     } finally {
       setUploading(false);
     }

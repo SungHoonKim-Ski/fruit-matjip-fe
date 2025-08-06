@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 type Product = {
   id: number;
@@ -68,7 +69,7 @@ export default function AdminProductPage() {
   const handleApply = () => {
     // 실제로는 변경된 상품만 PATCH 등으로 API 전송
     setOriginalProducts(products);
-    alert('변경 사항이 저장되었습니다.');
+    toast.success('변경 사항이 저장되었습니다.');
   };
 
   return (
