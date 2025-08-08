@@ -36,12 +36,7 @@ jobs:
       run: npm install --legacy-peer-deps
 
     - name: Build React App
-      run: |
-        if [[ "${{ steps.extract_env.outputs.env }}" == "DEV" ]]; then
-          PUBLIC_URL=https://dev.onuljang.store npm run build
-        elif [[ "${{ steps.extract_env.outputs.env }}" == "PROD" ]]; then
-          PUBLIC_URL=https://onuljang.store npm run build
-        fi
+      run: npm run build
         
     - name: Sync S3 Bucket
       uses: jakejarvis/s3-sync-action@v0.5.1
