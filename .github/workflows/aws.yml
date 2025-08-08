@@ -36,8 +36,13 @@ jobs:
       run: npm install --legacy-peer-deps
 
     - name: Build React App
-      run: npm run build
-
+      run: |
+        if [[ "$TAG_NAME" == *-d* ]]; then
+          PUBLIC_URL=https://dev.onuljang.store npm run build
+        elif [[ "$TAG_NAME" == *-p* ]]; then
+          PUBLIC_URL=https://onuljang.store npm run build
+        fi
+        
     - name: Sync S3 Bucket
       uses: jakejarvis/s3-sync-action@v0.5.1
       with:
