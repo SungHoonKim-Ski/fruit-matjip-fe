@@ -37,9 +37,9 @@ jobs:
 
     - name: Build React App
       run: |
-        if [[ "$TAG_NAME" == *-d* ]]; then
+        if [[ "${{ steps.extract_env.outputs.env }}" == "DEV" ]]; then
           PUBLIC_URL=https://dev.onuljang.store npm run build
-        elif [[ "$TAG_NAME" == *-p* ]]; then
+        elif [[ "${{ steps.extract_env.outputs.env }}" == "PROD" ]]; then
           PUBLIC_URL=https://onuljang.store npm run build
         fi
         
