@@ -3,8 +3,8 @@ name: Deploy React App to S3 + CloudFront
 on:
   push:
     tags: 
-      - "[0-9]+.[0-9]+.[0-9]+-[d].[0-9]+"
-      
+      - "[0-9]+.[0-9]+.[0-9]+-[dp].[0-9]+"
+
 jobs:
   deploy:
     name: Deploy
@@ -14,6 +14,19 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       
+    - name: Extract Environment from Tag
+      id: extract_env
+      run: |
+        TAG_NAME="${GITHUB_REF##*/}"
+        if [[ "$TAG_NAME" == *-d* ]]; then
+          echo "env=DEV" >> $GITHUB_OUTPUT
+        elif [[ "$TAG_NAME" == *-p* ]]; then
+          echo "env=PROD" >> $GITHUB_OUTPUT
+        else
+          echo "Unknown environment from tag: $TAG_NAME"
+          exit 1
+        fi
+
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
@@ -30,7 +43,7 @@ jobs:
       with:
         args: --delete --exclude "images/*"
       env:
-        AWS_S3_BUCKET: onuljang
+        AWS_S3_BUCKET: ${{ secrets[format('{0}_AWS_S3_BUCKET', steps.extract_env.outputs.env)] }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ap-northeast-2
@@ -40,7 +53,7 @@ jobs:
       uses: chetan/invalidate-cloudfront-action@v2
       env:
         AWS_REGION: ap-northeast-2
-        DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        DISTRIBUTION: ${{ secrets[format('{0}_CLOUDFRONT_DISTRIBUTION_ID', steps.extract_env.outputs.env)] }}
         PATHS: '/*'
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
