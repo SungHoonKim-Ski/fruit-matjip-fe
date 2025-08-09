@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { useSnackbar } from '../../components/snackbar';
+const { show } = useSnackbar(); 
 
 type CartItem = {
   id: number;
@@ -47,7 +48,7 @@ export default function CartPage() {
       if (c.id !== id) return c;
       const max = c.stock ?? Number.POSITIVE_INFINITY;
       if (c.quantity >= max) {
-          toast.error(`재고를 초과할 수 없습니다. (최대 ${max}개)`);
+          show(`재고를 초과할 수 없습니다. (최대 ${max}개)`, { variant: 'error' });
           return c;
       }
       return { ...c, quantity: c.quantity + 1 };
@@ -62,7 +63,7 @@ export default function CartPage() {
 
   const handleConfirm = async () => {
     if (cart.length === 0) {
-      toast.error('장바구니가 비어있어요.');
+      show('장바구니가 비어있어요.', { variant: 'error' });
       return;
     }
     try {
@@ -77,11 +78,11 @@ export default function CartPage() {
       });
       if (!res.ok) throw new Error('예약 생성 실패');
 
-      toast.success('예약이 확정되었습니다!');
+      show('예약이 확정되었습니다!');
       clear();
       navigate('/'); // 메인으로 이동(원하면 완료 페이지로 라우팅)
     } catch (e) {
-      toast.error('예약 중 오류가 발생했습니다.');
+      show('예약 중 오류가 발생했습니다.', { variant: 'error' });
     }
   };
 

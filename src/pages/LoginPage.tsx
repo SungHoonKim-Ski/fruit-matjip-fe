@@ -11,8 +11,8 @@ const KAKAO_SDK_INTEGRITY =
   'sha384-WAtVcQYcmTO/N+C1N+1m6Gp8qxh+3NlnP7X1U7qP6P5dQY/MsRBNTh+e1ahJrkEm';
 
 
-const JS_KAKAO_KEY = process.env.REACT_APP_KAKAO_JAVASCRIPT_KEY;
-const REDIRECT_URI = process.env.REACT_APP_KAKAO_REDIRECT_URI;
+const JS_KAKAO_KEY = process.env.REACT_APP_JS_KAKAO_KEY;
+const REDIRECT_URI = process.env.REACT_APP_REDIRECT_URI;
 const API_BASE = process.env.REACT_APP_API_BASE;
 
 const OAUTH_STATE_KEY = 'kakao_oauth_state_v1';

@@ -12,7 +12,7 @@ type SaleRow = {
 };
 
 const mock: SaleRow[] = [
-  { id: 1, date: '2025-08-07', productName: '신선한 토마토 1kg', buyerName: '김성훈', price: 3000, quantity: 5,  revenue: 15000 },
+  { id: 1, date: '2025-08-07', productName: '신선한 토마토 1kg', buyerName: '홍길동', price: 3000, quantity: 5,  revenue: 15000 },
   { id: 2, date: '2025-08-07', productName: '유기농 감자 2kg',   buyerName: '이민지', price: 3000, quantity: 2,  revenue:  6000 },
   { id: 3, date: '2025-08-08', productName: '햇양파 1.5kg',     buyerName: '박철수', price: 3000, quantity: 10, revenue: 30000 },
 ];
@@ -84,7 +84,7 @@ export default function AdminSalesPage() {
             <input
               value={term}
               onChange={e=>setTerm(e.target.value)}
-              placeholder={field === 'buyerName' ? '예) 김성훈' : '예) 토마토'}
+              placeholder={field === 'buyerName' ? '예) 홍길동' : '예) 토마토'}
               className="mt-1 w-full h-10 border rounded px-3"
             />
           </div>

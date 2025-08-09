@@ -1,6 +1,6 @@
 // src/pages/admin/AdminReservationsPage.tsx
 import React, { useMemo, useState } from 'react';
-import { toast } from 'react-toastify';
+import { useSnackbar } from '../../components/snackbar';
 
 type ReservationRow = {
   id: number;
@@ -13,7 +13,7 @@ type ReservationRow = {
 };
 
 const mock: ReservationRow[] = [
-  { id: 201, date: '2025-08-08', productName: '신선한 토마토 1kg', buyerName: '김성훈', quantity: 2, amount: 6000, pickupStatus: 'pending' },
+  { id: 201, date: '2025-08-08', productName: '신선한 토마토 1kg', buyerName: '홍길동', quantity: 2, amount: 6000, pickupStatus: 'pending' },
   { id: 202, date: '2025-08-08', productName: '햇양파 1.5kg',     buyerName: '이민지', quantity: 1, amount: 3000, pickupStatus: 'picked'  },
 ];
 
@@ -21,6 +21,8 @@ const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 export default function AdminReservationsPage() {
+
+  const { show } = useSnackbar();
   // 필터 (기본값)
   const [from, setFrom] = useState('2025-08-01');
   const [to, setTo]     = useState('2025-08-31');
@@ -95,7 +97,7 @@ export default function AdminReservationsPage() {
   const saveChanges = async () => {
     const changed = Object.entries(dirty).map(([id, status]) => ({ id: Number(id), pickupStatus: status }));
     if (changed.length === 0) {
-      toast.info('변경된 내용이 없습니다.');
+      show('변경된 내용이 없습니다.', { variant: 'info' });
       return;
     }
     try {
@@ -106,13 +108,13 @@ export default function AdminReservationsPage() {
       //   body: JSON.stringify({ updates: changed }),
       // });
       await new Promise(res => setTimeout(res, 400)); // 데모용
-      toast.success('수령 여부가 저장되었습니다.');
+      show('수령 여부가 저장되었습니다.');
 
       // 현재 rows를 새로운 기준으로 확정
       setBaseStatusById(Object.fromEntries(rows.map(r => [r.id, r.pickupStatus])));
       setDirty({});
     } catch {
-      toast.error('저장 중 오류가 발생했습니다.');
+      show('저장 중 오류가 발생했습니다.', { variant: 'error' });
     }
   };
 
@@ -159,7 +161,7 @@ export default function AdminReservationsPage() {
             <input
               value={term}
               onChange={e=>setTerm(e.target.value)}
-              placeholder={field === 'productName' ? '예) 토마토' : '예) 김성훈'}
+              placeholder={field === 'productName' ? '예) 토마토' : '예) 홍길동'}
               className="mt-1 w-full h-10 border rounded px-3"
             />
           </div>
