@@ -57,13 +57,12 @@ export default function AdminLoginPage() {
           </div>
 
           <div className="text-center mt-4">
-            <p className="text-sm text-gray-500">아직 계정이 없으신가요?</p>
             <button
               type="button"
               onClick={() => navigate('/admin/register')}
               className="text-orange-500 hover:underline text-sm font-medium mt-1"
             >
-              관리자 회원가입
+              관리자 회원가입 (직원용)
             </button>
           </div>
 
