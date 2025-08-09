@@ -10,68 +10,56 @@ type ProductForm = {
 };
 
 export default function ProductCreatePage() {
-  const [form, setForm] = useState<ProductForm>({
-    name: '',
-    price: 0,
-    stock: 0,
-    image: null,
-  });
+  const [form, setForm] = useState<ProductForm>({ name: '', price: 0, stock: 0, image: null });
   const [uploading, setUploading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, files } = e.target;
 
     if (name === 'image' && files?.[0]) {
-      setForm({ ...form, image: files[0] });
-    } else if (name === 'price' || name === 'stock') {
-      const num = Number(value);
-      if (!Number.isInteger(num) || num < 1) return; // 자연수만 허용
-      setForm({ ...form, [name]: num });
-    } else {
-      setForm({ ...form, [name]: value });
+      setForm((prev) => ({ ...prev, image: files[0] }));
+      return;
     }
+
+    if (name === 'price' || name === 'stock') {
+      if (value === '') {
+        setForm((prev) => ({ ...prev, [name]: 0 }));
+        return;
+      }
+      const num = Math.max(0, Number(value));
+      if (Number.isNaN(num)) return;
+      setForm((prev) => ({ ...prev, [name]: num }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-
   const handleSubmit = async () => {
-    if (!form.name || !form.price || !form.stock || !form.image) {
-      toast.error('모든 값을 입력해주세요.');
+    if (!form.name || !form.image || form.price <= 0 || form.stock <= 0) {
+      toast.error('모든 값을 올바르게 입력해주세요.');
       return;
     }
 
     try {
       setUploading(true);
-
-      // 1. presigned URL 요청 (서버에서 받아와야 함)
-      const presignedUrlRes = await fetch('/api/admin/presigned-url', {
+      // presigned URL & 등록 API는 실제 백엔드에 맞게 교체
+      const presigned = await fetch('/api/admin/presigned-url', {
         method: 'POST',
         body: JSON.stringify({ fileName: form.image.name }),
         headers: { 'Content-Type': 'application/json' },
-      });
-      const { url, imageUrl } = await presignedUrlRes.json();
+      }).then((r) => r.json());
 
-      // 2. 실제 이미지 업로드 (PUT 요청)
-      await fetch(url, {
+      await fetch(presigned.url, {
         method: 'PUT',
         body: form.image,
-        headers: {
-          'Content-Type': form.image.type,
-        },
+        headers: { 'Content-Type': form.image.type },
       });
 
-      // 3. 상품 등록 요청
-      const productPayload = {
-        name: form.name,
-        price: form.price,
-        stock: form.stock,
-        imageUrl,
-      };
       await fetch('/api/admin/products', {
         method: 'POST',
-        body: JSON.stringify(productPayload),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        body: JSON.stringify({ name: form.name, price: form.price, stock: form.stock, imageUrl: presigned.imageUrl }),
+        headers: { 'Content-Type': 'application/json' },
       });
 
       toast.success('상품이 등록되었습니다!');
@@ -85,7 +73,7 @@ export default function ProductCreatePage() {
   };
 
   return (
-    <main className="max-w-md mx-auto p-6 bg-white mt-10 rounded shadow space-y-4">
+    <main className="w-full px-4 sm:px-6 lg:px-8 max-w-md mx-auto p-6 bg-white mt-10 rounded shadow space-y-4">
       <h1 className="text-xl font-bold">📦 상품 등록</h1>
 
       <div className="space-y-2">
@@ -104,6 +92,10 @@ export default function ProductCreatePage() {
         <input
           type="number"
           name="price"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={form.price}
           onChange={handleChange}
           className="w-full border px-3 py-2 rounded"
@@ -115,6 +107,10 @@ export default function ProductCreatePage() {
         <input
           type="number"
           name="stock"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={form.stock}
           onChange={handleChange}
           className="w-full border px-3 py-2 rounded"
@@ -123,13 +119,7 @@ export default function ProductCreatePage() {
 
       <div className="space-y-2">
         <label className="block text-sm font-medium">상품 이미지</label>
-        <input
-          type="file"
-          name="image"
-          accept="image/*"
-          onChange={handleChange}
-          className="w-full"
-        />
+        <input type="file" name="image" accept="image/*" onChange={handleChange} className="w-full" />
       </div>
 
       <button

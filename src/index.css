@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* 기본 버튼 골격 */
+  .btn {
+    @apply inline-flex items-center justify-center rounded text-sm transition;
+  }
+  /* CTA 사이즈: 모바일 꽉, sm↑ 고정 폭 + 고정 높이 */
+  .btn-cta {
+    @apply h-10 w-full sm:w-28;
+  }
+  /* 색상 Variants */
+  .btn-primary   { @apply text-white bg-orange-400 hover:bg-orange-500; }
+  .btn-secondary { @apply text-white bg-blue-500   hover:bg-blue-600; }
+  .btn-danger    { @apply text-white bg-red-500    hover:bg-red-600; }
+  .btn-muted     { @apply text-gray-800 bg-gray-200 hover:bg-gray-300; }
+
+  /* 상태 */
+  .btn-disabled  { @apply bg-gray-400 text-white cursor-not-allowed hover:bg-gray-400; }
+}

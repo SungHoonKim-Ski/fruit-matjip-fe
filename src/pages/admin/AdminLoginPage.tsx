@@ -13,28 +13,17 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError('');
 
-    const DUMMY_ADMIN = {
-        id: 'admin',
-        pw: 'admin',
-    };    
-    
-    try {
-    //   const response = await axios.post('/admin/login', {
-    //     username: id,
-    //     password,
-    //   });
+    const DUMMY_ADMIN = { id: 'admin', pw: 'admin' };
 
-    //   const { token } = response.data;
-    //   localStorage.setItem('admin_token', token);
-        if (id === DUMMY_ADMIN.id && password === DUMMY_ADMIN.pw) {
-          toast.success('로그인 성공');
-          
-          localStorage.setItem('admin-auth', 'true');
-          navigate('/admin/products');
-        } else {
-          toast.error('아이디 또는 비밀번호가 잘못되었습니다.');
-        }
-    } catch (err: any) {
+    try {
+      if (id === DUMMY_ADMIN.id && password === DUMMY_ADMIN.pw) {
+        toast.success('로그인 성공');
+        localStorage.setItem('admin-auth', 'true');
+        navigate('/admin/products');
+      } else {
+        toast.error('아이디 또는 비밀번호가 잘못되었습니다.');
+      }
+    } catch {
       setError('로그인에 실패했습니다. ID/PW를 확인해주세요.');
     }
   };
@@ -50,6 +39,7 @@ export default function AdminLoginPage() {
               type="text"
               value={id}
               onChange={(e) => setId(e.target.value)}
+              autoComplete="username"
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-orange-400 focus:border-orange-400"
               required
             />
@@ -60,26 +50,27 @@ export default function AdminLoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               className="mt-1 block w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-orange-400 focus:border-orange-400"
               required
             />
           </div>
-        <div className="text-center mt-4">
-          <p className="text-sm text-gray-500">아직 계정이 없으신가요?</p>
-          <button
-            onClick={() => navigate('/admin/register')}
-            className="text-orange-500 hover:underline text-sm font-medium mt-1"
-          >
-            관리자 회원가입
-          </button>
-        </div>          
+
+          <div className="text-center mt-4">
+            <p className="text-sm text-gray-500">아직 계정이 없으신가요?</p>
+            <button
+              type="button"
+              onClick={() => navigate('/admin/register')}
+              className="text-orange-500 hover:underline text-sm font-medium mt-1"
+            >
+              관리자 회원가입
+            </button>
+          </div>
+
           {error && <p className="text-sm text-red-500">{error}</p>}
-          <button
-            type="submit"
-            className="w-full bg-orange-400 text-white py-2 rounded hover:bg-orange-500"
-          >
-            로그인
-          </button>
+            <button type="submit" className="btn btn-cta btn-primary w-full">
+              로그인
+            </button>
         </form>
       </div>
     </main>
