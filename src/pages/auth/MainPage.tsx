@@ -32,7 +32,7 @@ const initialProducts: Product[] = [
 export default function MainPage() {
   const [products, setProducts] = useState(initialProducts);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [nickname, setNickname] = useState('과일러'); // 우상단 표시용 닉네임
+  const [nickname] = useState('과일러'); // 우상단 표시용 닉네임
   const navigate = useNavigate();
 
   // 1) 첫 로드 시 복원
