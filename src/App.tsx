@@ -1,5 +1,7 @@
-import { BrowserRouter, Route, Routes, Navigate} from 'react-router-dom';
-import MainPage from './pages/MainPage'; 
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
+import MainPage from './pages/auth/MainPage';
+import CartPage from './pages/auth/CartPage';
+
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
 import AdminProductPage from './pages/admin/AdminProductPage';
@@ -11,18 +13,18 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* <Route path="/" element={<Navigate to="/auth/my-store-name" />} /> */}
         <Route path="/" element={<MainPage />} />
+        <Route path="/cart" element={<CartPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin/register" element={<AdminRegisterPage />} />
         <Route path="/admin/products" element={<AdminProductPage />} />
         <Route path="/admin/products/new" element={<CreateProductPage />} />
-    
-        {/* 기본 리디렉션 or 404 핸들링 */}
-        <Route path="*" element={<Navigate to="/login" />} />
+        {/* 404 → 관리자 로그인으로 */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
+
       <ToastContainer
-        position="bottom-right"  // 👈 우측 하단
+        position="bottom-right"
         autoClose={3000}
         hideProgressBar={false}
         newestOnTop={false}

@@ -3,12 +3,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function AdminRegisterPage() {
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-  });
-
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,13 +20,10 @@ export default function AdminRegisterPage() {
 
     try {
       setLoading(true);
-
-      // 실제 API 연결 시 이 부분 변경
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      await new Promise((r) => setTimeout(r, 1000));
       toast.success('관리자 계정이 등록되었습니다.');
       setForm({ name: '', email: '', password: '' });
-    } catch (err) {
+    } catch {
       toast.error('등록 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
@@ -39,7 +31,7 @@ export default function AdminRegisterPage() {
   };
 
   return (
-    <main className="max-w-md mx-auto mt-10 bg-white p-6 rounded shadow space-y-4">
+    <main className="w-full px-4 sm:px-6 lg:px-8 max-w-md mx-auto mt-10 bg-white p-6 rounded shadow space-y-4">
       <h1 className="text-xl font-bold text-gray-800">👤 관리자 등록</h1>
 
       <input
@@ -47,6 +39,7 @@ export default function AdminRegisterPage() {
         placeholder="이름"
         value={form.name}
         onChange={handleChange}
+        autoComplete="name"
         className="w-full border px-3 py-2 rounded"
       />
       <input
@@ -55,6 +48,7 @@ export default function AdminRegisterPage() {
         placeholder="이메일"
         value={form.email}
         onChange={handleChange}
+        autoComplete="email"
         className="w-full border px-3 py-2 rounded"
       />
       <input
@@ -63,13 +57,15 @@ export default function AdminRegisterPage() {
         placeholder="비밀번호"
         value={form.password}
         onChange={handleChange}
+        autoComplete="new-password"
         className="w-full border px-3 py-2 rounded"
       />
 
       <button
+        type="button"
         onClick={handleSubmit}
         disabled={loading}
-        className="w-full bg-orange-500 text-white py-2 rounded hover:bg-orange-600 disabled:bg-gray-300"
+        className={`btn btn-cta ${loading ? 'btn-disabled' : 'btn-primary'} w-full`}
       >
         {loading ? '등록 중...' : '관리자 등록'}
       </button>
