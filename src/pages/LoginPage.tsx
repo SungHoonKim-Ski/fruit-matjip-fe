@@ -109,7 +109,7 @@ export default function LoginPage() {
       window.Kakao.Auth.authorize({
         redirectUri: REDIRECT_URI, // 콘솔 등록값과 완전히 동일
         state,
-        scope: 'profile_nickname,account_email', // 필요한 스코프
+        scope: 'profile_nickname', // 필요한 스코프
       });
     } catch (e: any) {
       show(e?.message || '카카오 인증 시작 실패', { variant: 'error' });
