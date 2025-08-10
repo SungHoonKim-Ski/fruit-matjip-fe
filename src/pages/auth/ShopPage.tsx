@@ -48,8 +48,6 @@ export default function ReservePage() {
   const dates = useMemo(() => [d0, d1, d2], []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
 
-  const navigate = useNavigate();
-
   const productsOfDay = useMemo(
     () => products.filter(p => p.sellDate === activeDate),
     [products, activeDate]
