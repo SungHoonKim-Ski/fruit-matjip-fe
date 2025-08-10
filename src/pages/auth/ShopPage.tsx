@@ -1,5 +1,4 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import FloatingActions from '../../components/FloatingActions';
 
