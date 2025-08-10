@@ -16,6 +16,9 @@ const REDIRECT_URI = process.env.REACT_APP_REDIRECT_URI;
 const API_BASE = process.env.REACT_APP_API_BASE;
 
 const OAUTH_STATE_KEY = 'kakao_oauth_state_v1';
+// 중복 요청 방지용 (StrictMode 재마운트/이펙트 재실행 대비)
+const AUTH_LOCK_KEY = 'kakao_oauth_lock_v1';
+const AUTH_START_DELAY_MS = 300;
 
 function genState() {
   const buf = new Uint8Array(16);
@@ -45,6 +48,9 @@ async function ensureKakaoSDK(jsKey: string) {
 export default function LoginPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
+  // show의 참조가 바뀌어도 콜백 이펙트가 재실행되지 않도록 ref로 고정 사용
+  const showRef = React.useRef(show);
+  useEffect(() => { showRef.current = show; }, [show]);
   const location = useLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
@@ -64,13 +70,22 @@ export default function LoginPage() {
 
     (async () => {
       try {
+        // 중복 호출 방지: 세션 락 체크
+        const locked = sessionStorage.getItem(AUTH_LOCK_KEY);
+        if (locked === code) return;
+        sessionStorage.setItem(AUTH_LOCK_KEY, code);
+
         setBusy(true);
 
         const expected = sessionStorage.getItem(OAUTH_STATE_KEY);
         if (expected && stateFromUrl && expected !== stateFromUrl) {
           throw new Error('잘못된 요청입니다. (state mismatch)');
         }
-
+        // 너무 빠른 연속 트리거 방지용 소량의 지연
+        if (AUTH_START_DELAY_MS > 0) {
+          await new Promise(res => setTimeout(res, AUTH_START_DELAY_MS));
+        }
+        
         const res = await fetch(`${API_BASE}/auth/kakao`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -81,20 +96,21 @@ export default function LoginPage() {
         if (!res.ok) throw new Error('로그인 처리에 실패했습니다.');
 
         const data = await res.json() as { id: number; nickname: string; next?: string };
-        show(`${data.nickname}님 환영합니다!`);
+        showRef.current(`${data.nickname}님 환영합니다!`);
         
         window.history.replaceState({}, '', '/login');
         
         nav(data.next || '/shop', { replace: true });
       } catch (e: any) {
-        show(e?.message || '로그인 중 오류가 발생했습니다.', { variant: 'error' });
+        showRef.current(e?.message || '로그인 중 오류가 발생했습니다.', { variant: 'error' });
         window.history.replaceState({}, '', '/login');
       } finally {
         setBusy(false);
         sessionStorage.removeItem(OAUTH_STATE_KEY);
+        sessionStorage.removeItem(AUTH_LOCK_KEY);
       }
     })();
-  }, [params, nav, show]);
+  }, [params, nav]);
 
   const startKakao = useCallback(async () => {
     try {

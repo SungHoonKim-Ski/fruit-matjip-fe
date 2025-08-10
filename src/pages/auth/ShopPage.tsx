@@ -37,7 +37,7 @@ export default function ReservePage() {
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
     const saved = localStorage.getItem('nickname');
-    return saved && saved.trim() ? saved : '성훈';
+    return saved && saved.trim() ? saved : '홍길동';
   });
   const [nickModalOpen, setNickModalOpen] = useState(false);
   const [draftNick, setDraftNick] = useState(nickname);
@@ -344,23 +344,12 @@ export default function ReservePage() {
           <p>사업자등록번호: 131-47-00411</p>
           <p>문의: 02-2666-7412</p>
           <p className="mt-1">&copy; 2025 All rights reserved.</p>
-        </footer>
-        <div className="text-center mt-8">
-          <button
-            onClick={() => navigate('/admin/login')}
-            className="text-sm text-gray-400 hover:text-gray-600 underline"
-            type="button"
-          >
-            관리자 페이지로 이동 →
-          </button>
-        </div>
+        </footer>        
       </section>
 
-      {/* 주문 내역 / 맨위로 FAB */}
+      
       <FloatingActions
-        orderPath="/orders"           // ✅ 경로 오타 수정
-        // reversePositions={false}      // 필요 시 true로 반전
-        // invertColors={false}          // 필요 시 true로 색 반전
+        orderPath="/orders"  
       />
     </main>
   );
