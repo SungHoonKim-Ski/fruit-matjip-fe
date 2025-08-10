@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { useSnackbar } from '../../components/snackbar';
 
 export default function AdminRegisterPage() {
+  const { show } = useSnackbar(); 
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
@@ -14,17 +14,17 @@ export default function AdminRegisterPage() {
   const handleSubmit = async () => {
     const { name, email, password } = form;
     if (!name || !email || !password) {
-      toast.error('모든 필드를 입력해주세요.');
+      show('모든 필드를 입력해주세요.', { variant: 'error' });
       return;
     }
 
     try {
       setLoading(true);
       await new Promise((r) => setTimeout(r, 1000));
-      toast.success('관리자 계정이 등록되었습니다.');
+      show('관리자 계정이 등록되었습니다.');
       setForm({ name: '', email: '', password: '' });
     } catch {
-      toast.error('등록 중 오류가 발생했습니다.');
+      show('등록 중 오류가 발생했습니다.', { variant: 'error' });
     } finally {
       setLoading(false);
     }

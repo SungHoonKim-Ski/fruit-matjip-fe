@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { useSnackbar } from '../../components/snackbar';
 
 export default function AdminLoginPage() {
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
+  const { show } = useSnackbar();
+  
   const handleLogin = async (e: React.FormEvent) => {
+
     e.preventDefault();
     setError('');
 
@@ -17,11 +18,11 @@ export default function AdminLoginPage() {
 
     try {
       if (id === DUMMY_ADMIN.id && password === DUMMY_ADMIN.pw) {
-        toast.success('로그인 성공');
+        show('로그인 성공');
         localStorage.setItem('admin-auth', 'true');
         navigate('/admin/products');
       } else {
-        toast.error('아이디 또는 비밀번호가 잘못되었습니다.');
+        show('아이디 또는 비밀번호가 잘못되었습니다.', { variant: 'error' });
       }
     } catch {
       setError('로그인에 실패했습니다. ID/PW를 확인해주세요.');

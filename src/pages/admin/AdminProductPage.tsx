@@ -1,9 +1,7 @@
 // AdminProductPage.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-
+import { useSnackbar } from '../../components/snackbar';
 type Product = {
   id: number;
   name: string;
@@ -20,6 +18,7 @@ const initialProducts: Product[] = [
 ];
 
 export default function AdminProductPage() {
+  const { show } = useSnackbar(); 
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [originalProducts, setOriginalProducts] = useState<Product[]>(initialProducts);
   const navigate = useNavigate();
@@ -48,7 +47,7 @@ export default function AdminProductPage() {
 
   const handleApply = () => {
     setOriginalProducts(products);
-    toast.success('변경 사항이 저장되었습니다.');
+    show('변경 사항이 저장되었습니다.');
   };
 
   // 우측 상단 메뉴 (모바일: 햄버거 / 데스크탑: 버튼 3개 노출)
