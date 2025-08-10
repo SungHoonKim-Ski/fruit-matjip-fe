@@ -26,6 +26,10 @@ function genState() {
   return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+type UserInfo = {
+  id: number;
+  nick_name: String;
+};
 async function ensureKakaoSDK(jsKey: string) {
   if (window.Kakao?.isInitialized?.()) return;
 
@@ -86,7 +90,7 @@ export default function LoginPage() {
           await new Promise(res => setTimeout(res, AUTH_START_DELAY_MS));
         }
         
-        const res = await fetch(`${API_BASE}/auth/kakao`, {
+        const res = await fetch(`${API_BASE}/api/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -94,15 +98,16 @@ export default function LoginPage() {
         });
 
         if (!res.ok) throw new Error('로그인 처리에 실패했습니다.');
+        const data : UserInfo = await res.json();
+        console.log(data);
 
-        const data = await res.json() as { id: number; nickname: string; next?: string };
-        showRef.current(`${data.nickname}님 환영합니다!`);
+        showRef.current(`${data.nick_name}님 환영합니다!`);
         
         window.history.replaceState({}, '', '/login');
         
-        nav(data.next || '/shop', { replace: true });
+        nav('/shop', { replace: true });
       } catch (e: any) {
-        showRef.current(e?.message || '로그인 중 오류가 발생했습니다.', { variant: 'error' });
+        showRef.current('로그인 중 오류가 발생했습니다.', { variant: 'error' });
         window.history.replaceState({}, '', '/login');
       } finally {
         setBusy(false);
