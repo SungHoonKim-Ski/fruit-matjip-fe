@@ -101,6 +101,12 @@ export default function LoginPage() {
         const data : UserInfo = await res.json();
         console.log(data);
 
+        // 로그인한 사용자 닉네임 저장 → /shop 상단에서 표시
+        try {
+          const nick = String((data as any)?.nick_name ?? '').trim();
+          if (nick) localStorage.setItem('nickname', nick);
+        } catch {}
+
         showRef.current(`${data.nick_name}님 환영합니다!`);
         
         window.history.replaceState({}, '', '/login');
@@ -140,8 +146,13 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-        <h1 className="text-2xl font-bold text-center">로그인</h1>
-        <p className="text-sm text-gray-500 text-center mt-1">카카오로 간편 로그인</p>
+        {/* 상단 브랜딩 */}
+        <div className="text-center">
+          <img src="/onuljang.png" alt="과일맛집 로고" className="mx-auto w-16 h-16" />
+          <h1 className="mt-3 text-xl font-bold">🎁과일맛집1995 현장예약🎁</h1>
+          <p className="mt-1 text text-gray-600">더욱 혜택넘치는 가격으로</p>
+          <p className="mt-1 text text-gray-600">우리들끼리 예약하고 먹자구요🤣</p>
+        </div>
 
         {busy && (
           <div className="mt-6 rounded-lg border bg-orange-50 text-orange-700 text-sm p-3">
@@ -149,14 +160,22 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* 카카오 로그인 이미지 버튼 (모바일: small / 데스크톱: large) */}
         <button
           type="button"
           onClick={startKakao}
           disabled={busy}
-          className={`mt-6 w-full h-12 rounded-xl border shadow-sm active:scale-[0.99] transition
-            ${busy ? 'bg-gray-200' : 'bg-[#FEE500] hover:brightness-95'}`}
+          className="mt-6 w-full rounded-xl overflow-hidden active:scale-[0.99] transition shadow-sm border"
+          aria-label="카카오로 로그인"
         >
-          <span className="text-black font-semibold">카카오로 시작하기</span>
+          <picture>
+            <source media="(min-width: 768px)" srcSet="/kakao_login_large.png" />
+            <img
+              src="/kakao_login_small.png"
+              alt="카카오 로그인"
+              className={`block w-full h-auto ${busy ? 'opacity-70' : ''}`}
+            />
+          </picture>
         </button>
       </div>
     </main>

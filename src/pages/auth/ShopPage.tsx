@@ -1,6 +1,9 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import FloatingActions from '../../components/FloatingActions';
+import { USE_MOCKS } from '../../config';
+import { listProducts } from '../../mocks/products';
 
 type Product = {
   id: number;
@@ -10,6 +13,7 @@ type Product = {
   stock: number;
   imageUrl: string;
   sellDate: string; // YYYY-MM-DD
+  totalSold?: number;
 };
 
 const formatPrice = (price: number) =>
@@ -19,19 +23,17 @@ const d0 = '2025-08-13';
 const d1 = '2025-08-14';
 const d2 = '2025-08-15';
 
-const initialProducts: Product[] = [
-  { id: 1, name: '신선한 토마토 1kg', quantity: 0, price: 3000, stock: 8,  imageUrl: '/images/image1.png', sellDate: d0 },
-  { id: 2, name: '유기농 감자 2kg',   quantity: 0, price: 3000, stock: 0,  imageUrl: '/images/image2.png', sellDate: d1 },
-  { id: 3, name: '햇양파 1.5kg',     quantity: 0, price: 3000, stock: 12, imageUrl: '/images/image3.png', sellDate: d2 },
-];
+// 초기 값은 빈 배열. 데이터는 mock 또는 API에서 주입
 
 const storeTitle = '과일맛집 1955';
 const branchName = '';
 
 export default function ReservePage() {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const { show } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const nav = useNavigate();
+  const API_BASE = process.env.REACT_APP_API_BASE || '';
 
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
@@ -46,6 +48,55 @@ export default function ReservePage() {
   // 날짜 탭
   const dates = useMemo(() => [d0, d1, d2], []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
+  // Load data from mock or API
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        if (USE_MOCKS) {
+          const mocked = listProducts();
+          const dates = [d0, d1, d2];
+          const mapped = mocked.map((p, idx) => ({
+            id: p.id,
+            name: p.name,
+            quantity: 0,
+            price: p.price,
+            stock: p.stock,
+            imageUrl: p.imageUrl,
+            sellDate: dates[idx % dates.length],
+            totalSold: p.totalSold,
+          }));
+          if (alive) setProducts(mapped);
+        } else {
+          const res = await fetch(`${API_BASE}/api/products`);
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            await res.text();
+            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+          }
+          if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
+          const data = await res.json();
+          const mapped: Product[] = Array.isArray(data)
+            ? data.map((p: any) => ({
+                id: Number(p.id),
+                name: String(p.name ?? ''),
+                quantity: 0,
+                price: Number(p.price ?? 0),
+                stock: Number(p.stock ?? 0),
+                imageUrl: String(p.imageUrl ?? ''),
+                sellDate: String(p.sellDate ?? d0),
+                totalSold: typeof p.totalSold === 'number' ? p.totalSold : 0,
+              }))
+            : [];
+          if (alive) setProducts(mapped);
+        }
+      } catch (e) {
+        // 에러는 스낵바로만 알림
+        show('상품 목록을 불러오지 못했습니다.', { variant: 'error' });
+      }
+    })();
+    return () => { alive = false; };
+  }, [API_BASE, show]);
 
   const productsOfDay = useMemo(
     () => products.filter(p => p.sellDate === activeDate),
@@ -88,12 +139,29 @@ export default function ReservePage() {
     }
   }, [nickModalOpen]);
 
+  // 로그인 후 저장된 닉네임 반영
+  useEffect(() => {
+    const handle = () => {
+      const saved = localStorage.getItem('nickname');
+      if (saved && saved.trim() && saved !== nickname) setNickname(saved);
+    };
+    window.addEventListener('storage', handle);
+    // 초기에 한 번 동기화
+    handle();
+    return () => window.removeEventListener('storage', handle);
+  }, [nickname]);
+
   const onNickModalKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
     if (e.key === 'Escape') setNickModalOpen(false);
   };
 
   const checkNicknameUnique = async (value: string) => {
-    const res = await fetch(`/api/nickname/check?nickname=${encodeURIComponent(value)}`);
+    const res = await fetch(`${API_BASE}/api/nickname/check?nickname=${encodeURIComponent(value)}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      await res.text();
+      throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+    }
     if (!res.ok) throw new Error('중복 검사 실패');
     const data = await res.json();
     return Boolean(data.unique);
@@ -118,11 +186,16 @@ export default function ReservePage() {
         return;
       }
 
-      const res = await fetch('/api/nickname', {
+      const res = await fetch(`${API_BASE}/api/nickname`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nickname: value }),
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        await res.text();
+        throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+      }
       if (!res.ok) throw new Error('닉네임 저장 실패');
 
       setNickname(value);
@@ -155,9 +228,16 @@ export default function ReservePage() {
             </button>
           </div>
 
-          {/* 중: 상호/지점 */}
+          {/* 중: 상호/지점 (클릭 시 메인으로 이동) */}
           <div className="flex-1 flex flex-col items-center leading-tight">
-            <div className="text-lg font-bold text-gray-800">{storeTitle}</div>
+            <button
+              type="button"
+              onClick={() => nav('/shop')}
+              className="text-lg font-bold text-gray-800 hover:underline"
+              aria-label="메인으로 이동"
+            >
+              {storeTitle}
+            </button>
             {branchName ? <div className="text-xs text-gray-600">- {branchName} -</div> : null}
           </div>
 
@@ -248,8 +328,7 @@ export default function ReservePage() {
       <section className="w-full max-w-md">
         {/* 안내 카드 */}
         <div className="bg-white p-5 rounded-xl shadow mb-6 text-center">
-          <h1 className="text-lg font-bold text-gray-800 mb-1">🎁과일맛집1995 현장예약🎁</h1>
-          <p className="text-sm text-gray-600">더욱 혜택넘치는 가격으로 우리들끼리 예약하고 먹자구요🤣</p>
+          <h1 className="text-lg font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
         </div>
 
         {/* 날짜 탭 */}
@@ -285,14 +364,27 @@ export default function ReservePage() {
               <img
                 src={item.imageUrl}
                 alt={item.name}
-                className="w-full aspect-[4/3] object-cover"
+                className="w-full aspect-[4/3] object-cover cursor-pointer"
+                onClick={() => nav(`/products/${item.id}`)}
+                role="button"
+                aria-label={`${item.name} 상세보기`}
               />
               <div className="p-4">
-                <h2 className="text-lg font-semibold">{item.name}</h2>
+                <h2
+                  className="text-xl font-semibold cursor-pointer hover:underline"
+                  onClick={() => nav(`/products/${item.id}`)}
+                  role="button"
+                >
+                  {item.name}
+                </h2>
+
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>재고: {item.stock}개</span>
-                  <span className="text-sm text-orange-500 font-semibold">{formatPrice(item.price)}</span>
+                  <span className="text-l font-semibold">{item.stock}개 남았어요!</span>
                 </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>누적 판매 수량 : {item.totalSold ?? 0}개</span>
+                  <span className="text-xl text-orange-500 font-semibold">{formatPrice(item.price)}</span>
+                </div>                
 
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-10">
@@ -316,9 +408,16 @@ export default function ReservePage() {
                   </div>
 
                   <button
+                    onClick={() => nav(`/products/${item.id}`)}
+                    className="w-full sm:w-28 h-10 rounded border border-gray-300 hover:bg-gray-50 order-2 sm:order-none text-sm font-medium"
+                    type="button"
+                  >
+                    자세히 보기
+                  </button>
+                  <button
                     onClick={() => handleReserve(item)}
                     disabled={item.stock === 0}
-                    className={`btn btn-cta ${item.stock === 0 ? 'btn-disabled' : 'btn-primary'} w-full sm:w-28`}
+                    className={`w-full sm:w-28 h-10 rounded order-1 sm:order-none text-sm font-medium ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                   >
                     {item.stock === 0 ? '품절' : '예약하기'}
                   </button>
@@ -333,7 +432,6 @@ export default function ReservePage() {
             </div>
           )}
         </div>
-
         {/* 푸터 */}
         <footer className="mt-10 text-center text-gray-400 text-xs sm:text-sm space-y-1">
           <p className="font-semibold text-gray-500">과일맛집</p>
@@ -342,9 +440,7 @@ export default function ReservePage() {
           <p>문의: 02-2666-7412</p>
           <p className="mt-1">&copy; 2025 All rights reserved.</p>
         </footer>        
-      </section>
-
-      
+      </section>      
       <FloatingActions
         orderPath="/orders"  
       />
