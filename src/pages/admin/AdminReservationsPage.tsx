@@ -1,6 +1,8 @@
 // src/pages/admin/AdminReservationsPage.tsx
 import React, { useMemo, useState } from 'react';
 import { useSnackbar } from '../../components/snackbar';
+import { USE_MOCKS } from '../../config';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
 type ReservationRow = {
   id: number;
@@ -13,8 +15,31 @@ type ReservationRow = {
 };
 
 const mock: ReservationRow[] = [
-  { id: 201, date: '2025-08-08', productName: '신선한 토마토 1kg', buyerName: '홍길동', quantity: 2, amount: 6000, pickupStatus: 'pending' },
-  { id: 202, date: '2025-08-08', productName: '햇양파 1.5kg',     buyerName: '이민지', quantity: 1, amount: 3000, pickupStatus: 'picked'  },
+  // 오늘 날짜 기준으로 다양한 데이터 생성
+  { id: 201, date: '2025-01-15', productName: '신선한 토마토 1kg', buyerName: '홍길동', quantity: 2, amount: 6000, pickupStatus: 'pending' },
+  { id: 202, date: '2025-01-15', productName: '햇양파 1.5kg', buyerName: '이민지', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+  { id: 203, date: '2025-01-15', productName: '유기농 감자 2kg', buyerName: '박철수', quantity: 3, amount: 9000, pickupStatus: 'pending' },
+  { id: 204, date: '2025-01-15', productName: '제주 감귤 3kg', buyerName: '김영희', quantity: 1, amount: 5000, pickupStatus: 'picked' },
+  { id: 205, date: '2025-01-15', productName: 'GAP 사과 2kg', buyerName: '최민수', quantity: 2, amount: 14000, pickupStatus: 'pending' },
+  
+  // 어제 날짜
+  { id: 206, date: '2025-01-14', productName: '신선한 토마토 1kg', buyerName: '정수진', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+  { id: 207, date: '2025-01-14', productName: '친환경 바나나 1송이', buyerName: '한지민', quantity: 2, amount: 9000, pickupStatus: 'picked' },
+  { id: 208, date: '2025-01-14', productName: '햇양파 1.5kg', buyerName: '송민호', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+  
+  // 그제 날짜
+  { id: 209, date: '2025-01-13', productName: '복숭아 6입', buyerName: '윤서연', quantity: 1, amount: 12000, pickupStatus: 'picked' },
+  { id: 210, date: '2025-01-13', productName: '귤 2kg', buyerName: '임태현', quantity: 2, amount: 12000, pickupStatus: 'picked' },
+  { id: 211, date: '2025-01-13', productName: '샤인머스켓 1송이', buyerName: '오승우', quantity: 1, amount: 25000, pickupStatus: 'picked' },
+  
+  // 내일 날짜 (예약)
+  { id: 212, date: '2025-01-16', productName: '신선한 토마토 1kg', buyerName: '강동원', quantity: 2, amount: 6000, pickupStatus: 'pending' },
+  { id: 213, date: '2025-01-16', productName: '유기농 감자 2kg', buyerName: '배두나', quantity: 1, amount: 3000, pickupStatus: 'pending' },
+  { id: 214, date: '2025-01-16', productName: 'GAP 사과 2kg', buyerName: '류준열', quantity: 3, amount: 21000, pickupStatus: 'pending' },
+  
+  // 모레 날짜 (예약)
+  { id: 215, date: '2025-01-17', productName: '제주 감귤 3kg', buyerName: '김태희', quantity: 2, amount: 10000, pickupStatus: 'pending' },
+  { id: 216, date: '2025-01-17', productName: '친환경 바나나 1송이', buyerName: '원빈', quantity: 1, amount: 4500, pickupStatus: 'pending' },
 ];
 
 const formatKRW = (n: number) =>
@@ -23,41 +48,75 @@ const formatKRW = (n: number) =>
 export default function AdminReservationsPage() {
 
   const { show } = useSnackbar();
+  
+  // 오늘 날짜를 기본값으로 설정
+  const today = new Date().toISOString().split('T')[0];
+  
   // 필터 (기본값)
-  const [from, setFrom] = useState('2025-08-01');
-  const [to, setTo]     = useState('2025-08-31');
-  const [field, setField] = useState<'buyerName' | 'productName'>('productName'); // 필수
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('all');
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('pending'); // 기본값을 미수령으로 변경
 
-  // 데이터 & 변경 상태
-  const [rows, setRows] = useState<ReservationRow[]>(mock);
+  // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
+  const [rows, setRows] = useState<ReservationRow[]>(() => {
+    const today = '2025-08-11';        // 오늘
+    const yesterday = '2025-08-10';    // 어제
+    const dayBeforeYesterday = '2025-08-09'; // 그제
+    const tomorrow = '2025-08-12';     // 내일
+    const dayAfterTomorrow = '2025-08-13';   // 모레
+    
+    return [
+      // 오늘 날짜 기준으로 다양한 데이터 생성
+      { id: 201, date: today, productName: '신선한 토마토 1kg', buyerName: '홍길동', quantity: 2, amount: 6000, pickupStatus: 'pending' },
+      { id: 202, date: today, productName: '햇양파 1.5kg', buyerName: '이민지', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+      { id: 203, date: today, productName: '유기농 감자 2kg', buyerName: '박철수', quantity: 3, amount: 9000, pickupStatus: 'pending' },
+      { id: 204, date: today, productName: '제주 감귤 3kg', buyerName: '김영희', quantity: 1, amount: 5000, pickupStatus: 'picked' },
+      { id: 205, date: today, productName: 'GAP 사과 2kg', buyerName: '최민수', quantity: 2, amount: 14000, pickupStatus: 'pending' },
+      
+      // 어제 날짜
+      { id: 206, date: yesterday, productName: '신선한 토마토 1kg', buyerName: '정수진', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+      { id: 207, date: yesterday, productName: '친환경 바나나 1송이', buyerName: '한지민', quantity: 2, amount: 9000, pickupStatus: 'picked' },
+      { id: 208, date: yesterday, productName: '햇양파 1.5kg', buyerName: '송민호', quantity: 1, amount: 3000, pickupStatus: 'picked' },
+      
+      // 그제 날짜
+      { id: 209, date: dayBeforeYesterday, productName: '복숭아 6입', buyerName: '윤서연', quantity: 1, amount: 12000, pickupStatus: 'picked' },
+      { id: 210, date: dayBeforeYesterday, productName: '귤 2kg', buyerName: '임태현', quantity: 2, amount: 12000, pickupStatus: 'picked' },
+      { id: 211, date: dayBeforeYesterday, productName: '샤인머스켓 1송이', buyerName: '오승우', quantity: 1, amount: 25000, pickupStatus: 'picked' },
+      
+      // 내일 날짜 (예약)
+      { id: 212, date: tomorrow, productName: '신선한 토마토 1kg', buyerName: '강동원', quantity: 2, amount: 6000, pickupStatus: 'pending' },
+      { id: 213, date: tomorrow, productName: '유기농 감자 2kg', buyerName: '배두나', quantity: 1, amount: 3000, pickupStatus: 'pending' },
+      { id: 214, date: tomorrow, productName: 'GAP 사과 2kg', buyerName: '류준열', quantity: 3, amount: 21000, pickupStatus: 'pending' },
+      
+      // 모레 날짜 (예약)
+      { id: 215, date: dayAfterTomorrow, productName: '제주 감귤 3kg', buyerName: '김태희', quantity: 2, amount: 10000, pickupStatus: 'pending' },
+      { id: 216, date: dayAfterTomorrow, productName: '친환경 바나나 1송이', buyerName: '원빈', quantity: 1, amount: 4500, pickupStatus: 'pending' },
+    ];
+  });
 
   // 🔹 최초 상태 스냅샷: id -> 최초 pickupStatus
   const [baseStatusById, setBaseStatusById] = useState<Record<number, 'pending' | 'picked'>>(
-    () => Object.fromEntries(mock.map(r => [r.id, r.pickupStatus]))
+    () => Object.fromEntries(rows.map(r => [r.id, r.pickupStatus]))
   );
 
   // 🔹 변경 분: id -> 현재 변경된 pickupStatus (최초와 다를 때만 보관)
   const [dirty, setDirty] = useState<Record<number, 'pending' | 'picked'>>({});
 
   const filtered = useMemo(() => {
-    const f = new Date(from);
-    const t = new Date(to);
     const v = term.trim();
 
     return rows.filter(r => {
-      const d = new Date(r.date);
-      const inRange = (isNaN(+f) || d >= f) && (isNaN(+t) || d <= t);
+      const dateMatch = r.date === selectedDate;
       const fieldHit = !v
-        ? true
+        ? true  // 검색값이 없으면 모든 사용자 표시
         : field === 'buyerName'
         ? r.buyerName.includes(v)
         : r.productName.includes(v);
       const pickupHit = pickupFilter === 'all' ? true : r.pickupStatus === pickupFilter;
-      return inRange && fieldHit && pickupHit;
+      return dateMatch && fieldHit && pickupHit;
     });
-  }, [rows, from, to, term, field, pickupFilter]);
+  }, [rows, selectedDate, term, field, pickupFilter]);
 
 
   // 변경 플래그 계산 유틸: 현재값이 최초값과 같으면 dirty에서 제거, 다르면 기록
@@ -113,8 +172,9 @@ export default function AdminReservationsPage() {
       // 현재 rows를 새로운 기준으로 확정
       setBaseStatusById(Object.fromEntries(rows.map(r => [r.id, r.pickupStatus])));
       setDirty({});
-    } catch {
-      show('저장 중 오류가 발생했습니다.', { variant: 'error' });
+    } catch (error) {
+      safeErrorLog(error, 'AdminReservationsPage - saveChanges');
+      show(getSafeErrorMessage(error, '저장 중 오류가 발생했습니다.'), { variant: 'error' });
     }
   };
 
@@ -128,23 +188,24 @@ export default function AdminReservationsPage() {
   return (
   <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
     <div className="max-w-4xl mx-auto flex items-center justify-between mb-4">
-      <h1 className="text-2xl font-bold text-gray-800">🧾 예약 확인</h1>
+      <h1 className="text-2xl font-bold text-gray-800">🧾 구매자 확인</h1>
     </div>
 
       {/* 필터 */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
-        <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div>
-            <label className="text-xs text-gray-500">시작일</label>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">종료일</label>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
+            <label className="text-xs text-gray-500">조회 날짜</label>
+            <input 
+              type="date" 
+              value={selectedDate} 
+              onChange={e => setSelectedDate(e.target.value)} 
+              className="mt-1 w-full h-10 border rounded px-2" 
+            />
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">검색 필드 *</label>
+            <label className="text-xs text-gray-500">검색 속성 *</label>
             <select
               value={field}
               onChange={e=>setField(e.target.value as any)}
@@ -178,6 +239,11 @@ export default function AdminReservationsPage() {
               <option value="picked">수령</option>
             </select>
           </div>
+        </div>
+        
+        {/* 선택된 날짜 정보 표시 */}
+        <div className="mt-3 text-sm text-gray-600">
+          📅 {selectedDate} ({filtered.length}건)
         </div>
       </div>
 
@@ -233,7 +299,7 @@ export default function AdminReservationsPage() {
                       tabIndex={-1}
                     >
                       <option value="pending">미수령</option>
-                      <option value="picked">수령</option>
+                      <option value="picked">수령완료</option>
                     </select>
                   </td>
                 </tr>

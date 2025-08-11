@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { deleteProduct as mockDelete, getProductById, mockUploadImage, updateProduct } from '../../mocks/products';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
 type ProductEdit = {
   id: number;
@@ -47,7 +48,8 @@ export default function AdminEditProductPage() {
           if (alive) setForm(data);
         }
       } catch (e: any) {
-        show(e?.message || '오류가 발생했습니다.', { variant: 'error' });
+        safeErrorLog(e, 'AdminEditProductPage - loadProduct');
+        show(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setLoading(false);
       }
@@ -136,7 +138,8 @@ export default function AdminEditProductPage() {
       show('저장되었습니다.');
       nav('/admin/products', { replace: true });
     } catch (e: any) {
-      show(e?.message || '저장 중 오류가 발생했습니다.', { variant: 'error' });
+      safeErrorLog(e, 'AdminEditProductPage - save');
+      show(getSafeErrorMessage(e, '저장 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -163,7 +166,8 @@ export default function AdminEditProductPage() {
       show('삭제되었습니다.');
       nav('/admin/products', { replace: true });
     } catch (e: any) {
-      show(e?.message || '삭제 중 오류가 발생했습니다.', { variant: 'error' });
+      safeErrorLog(e, 'AdminEditProductPage - delete');
+      show(getSafeErrorMessage(e, '삭제 중 오류가 발생했습니다.'), { variant: 'error' });
     }
   };
 

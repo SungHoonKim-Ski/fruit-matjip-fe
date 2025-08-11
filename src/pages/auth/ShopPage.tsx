@@ -4,6 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
 type Product = {
   id: number;
@@ -50,53 +51,48 @@ export default function ReservePage() {
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
   // Load data from mock or API
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        if (USE_MOCKS) {
-          const mocked = listProducts();
-          const dates = [d0, d1, d2];
-          const mapped = mocked.map((p, idx) => ({
+    const loadProducts = async () => {
+      if (USE_MOCKS) {
+        const mocked = listProducts();
+        const mapped: Product[] = mocked.map((p, i) => ({
+          id: p.id,
+          name: p.name,
+          quantity: 0,
+          price: p.price,
+          stock: p.stock,
+          imageUrl: p.imageUrl,
+          sellDate: dates[i % dates.length], // Distribute across dates
+          totalSold: p.totalSold ?? 0,
+        }));
+        setProducts(mapped);
+      } else {
+        try {
+          const res = await fetch(`${API_BASE}/api/products`);
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            await res.text(); // Read text to prevent unused variable warning
+            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+          }
+          if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
+          const data = await res.json();
+          setProducts(data.map((p: any) => ({
             id: p.id,
             name: p.name,
             quantity: 0,
             price: p.price,
             stock: p.stock,
             imageUrl: p.imageUrl,
-            sellDate: dates[idx % dates.length],
-            totalSold: p.totalSold,
-          }));
-          if (alive) setProducts(mapped);
-        } else {
-          const res = await fetch(`${API_BASE}/api/products`);
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            await res.text();
-            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-          }
-          if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
-          const data = await res.json();
-          const mapped: Product[] = Array.isArray(data)
-            ? data.map((p: any) => ({
-                id: Number(p.id),
-                name: String(p.name ?? ''),
-                quantity: 0,
-                price: Number(p.price ?? 0),
-                stock: Number(p.stock ?? 0),
-                imageUrl: String(p.imageUrl ?? ''),
-                sellDate: String(p.sellDate ?? d0),
-                totalSold: typeof p.totalSold === 'number' ? p.totalSold : 0,
-              }))
-            : [];
-          if (alive) setProducts(mapped);
+            sellDate: p.sellDate || dates[0], // Default if not provided
+            totalSold: p.totalSold ?? 0,
+          })));
+        } catch (e: any) {
+          safeErrorLog(e, 'ShopPage - loadProducts');
+          show(getSafeErrorMessage(e, '상품 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
         }
-      } catch (e) {
-        // 에러는 스낵바로만 알림
-        show('상품 목록을 불러오지 못했습니다.', { variant: 'error' });
       }
-    })();
-    return () => { alive = false; };
-  }, [API_BASE, show]);
+    };
+    loadProducts();
+  }, [API_BASE, show, dates]);
 
   const productsOfDay = useMemo(
     () => products.filter(p => p.sellDate === activeDate),
@@ -156,15 +152,26 @@ export default function ReservePage() {
   };
 
   const checkNicknameUnique = async (value: string) => {
-    const res = await fetch(`${API_BASE}/api/nickname/check?nickname=${encodeURIComponent(value)}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      await res.text();
-      throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+    if (USE_MOCKS) {
+      // Mock 닉네임 중복 검사 - 항상 사용 가능
+      await new Promise(resolve => setTimeout(resolve, 300)); // 0.3초 지연
+      return true;
+    } else {
+      try {
+        const res = await fetch(`${API_BASE}/api/nickname/check?nickname=${encodeURIComponent(value)}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          await res.text();
+          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+        }
+        if (!res.ok) throw new Error('중복 검사 실패');
+        const data = await res.json();
+        return Boolean(data.unique);
+      } catch (e: any) {
+        safeErrorLog(e, 'ShopPage - checkNicknameUnique');
+        show(getSafeErrorMessage(e, '닉네임 중복 확인 중 오류가 발생했습니다.'), { variant: 'error' });
+      }
     }
-    if (!res.ok) throw new Error('중복 검사 실패');
-    const data = await res.json();
-    return Boolean(data.unique);
   };
 
   const saveNickname = async () => {
@@ -186,24 +193,34 @@ export default function ReservePage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/nickname`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname: value }),
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        await res.text();
-        throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-      }
-      if (!res.ok) throw new Error('닉네임 저장 실패');
+      if (USE_MOCKS) {
+        // Mock 닉네임 저장
+        await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초 지연
+        setNickname(value);
+        localStorage.setItem('nickname', value);
+        show('닉네임이 변경되었습니다.');
+        setNickModalOpen(false);
+      } else {
+        const res = await fetch(`${API_BASE}/api/nickname`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nickname: value }),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          await res.text();
+          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+        }
+        if (!res.ok) throw new Error('닉네임 저장 실패');
 
-      setNickname(value);
-      localStorage.setItem('nickname', value);
-      show('닉네임이 변경되었습니다.');
-      setNickModalOpen(false);
+        setNickname(value);
+        localStorage.setItem('nickname', value);
+        show('닉네임이 변경되었습니다.');
+        setNickModalOpen(false);
+      }
     } catch (e: any) {
-      show(e?.message || '닉네임 변경 중 오류가 발생했습니다.', { variant: 'error' });
+      safeErrorLog(e, 'ShopPage - saveNickname');
+      show(getSafeErrorMessage(e, '닉네임 변경 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setSavingNick(false);
     }

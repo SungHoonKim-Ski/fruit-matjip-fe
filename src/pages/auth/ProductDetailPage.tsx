@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById } from '../../mocks/products';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
 type Product = {
   id: number;
@@ -54,7 +55,8 @@ export default function ProductDetailPage() {
           }
         }
       } catch (e: any) {
-        show(e?.message || '오류가 발생했습니다.', { variant: 'error' });
+        safeErrorLog(e, 'ProductDetailPage - loadProduct');
+        show(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setLoading(false);
       }

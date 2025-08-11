@@ -1,9 +1,11 @@
 // AdminProductPage.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+
 type Product = {
   id: number;
   name: string;
@@ -15,18 +17,64 @@ type Product = {
   sellDate?: string;
 };
 
-const initialProducts: Product[] = [
-  { id: 1, name: '신선한 토마토 1kg', price: 4000, stock: 10, totalSold: 24, status: 'active',   imageUrl: '/images/image1.png' },
-  { id: 2, name: '유기농 감자 2kg',   price: 3000, stock: 5,  totalSold: 12, status: 'inactive', imageUrl: '/images/image2.png' },
-];
-
 export default function AdminProductPage() {
   const { show } = useSnackbar(); 
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [originalProducts, setOriginalProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [originalProducts, setOriginalProducts] = useState<Product[]>([]);
   const navigate = useNavigate();
 
   const hasChanges = JSON.stringify(products) !== JSON.stringify(originalProducts);
+
+  // 검색어 (상품명)
+  const [search, setSearch] = useState('');
+  const visibleProducts = useMemo(() => {
+    const q = search.trim();
+    let filtered = q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())) : products;
+    
+    // 정렬: 판매 당일 / 판매일 전(내림차순) / 판매일 후(오름차순)
+    filtered.sort((a, b) => {
+      if (!a.sellDate || !b.sellDate) return 0;
+      
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      const aDate = new Date(a.sellDate + 'T00:00:00');
+      const bDate = new Date(b.sellDate + 'T00:00:00');
+      const todayDate = new Date(todayStr + 'T00:00:00');
+      
+      // 판매 당일인지 확인
+      const aIsToday = aDate.getTime() === todayDate.getTime();
+      const bIsToday = bDate.getTime() === todayDate.getTime();
+      
+      // 판매 당일이 가장 위에
+      if (aIsToday && !bIsToday) return -1;
+      if (!aIsToday && bIsToday) return 1;
+      
+      // 둘 다 판매 당일이거나 둘 다 아닌 경우
+      if (aIsToday && bIsToday) {
+        // 판매 당일은 이름순 정렬
+        return a.name.localeCompare(b.name);
+      }
+      
+      // 판매일 전(내림차순) - 가까운 날짜가 위에
+      if (aDate > todayDate && bDate > todayDate) {
+        return aDate.getTime() - bDate.getTime();
+      }
+      
+      // 판매일 후(오름차순) - 먼저 지난 날짜가 위에
+      if (aDate < todayDate && bDate < todayDate) {
+        return aDate.getTime() - bDate.getTime();
+      }
+      
+      // 판매일 전과 후가 섞여있는 경우, 전이 위에
+      if (aDate > todayDate && bDate < todayDate) return -1;
+      if (aDate < todayDate && bDate > todayDate) return 1;
+      
+      return 0;
+    });
+    
+    return filtered;
+  }, [products, search]);
 
   const toggleStatus = (id: number) =>
     setProducts(prev =>
@@ -73,21 +121,22 @@ export default function AdminProductPage() {
 
   // Load from mocks for admin list as well (to reflect sellDate/totalSold etc.)
   useEffect(() => {
-    if (!USE_MOCKS) return;
-    const mocked = listProducts();
-    const mapped: Product[] = mocked.map(p => ({
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      stock: p.stock,
-      totalSold: p.totalSold ?? 0,
-      status: p.stock > 0 ? 'active' : 'inactive',
-      imageUrl: p.imageUrl,
-      sellDate: p.sellDate,
-    }));
-    setProducts(mapped);
-    setOriginalProducts(mapped);
-  }, []);
+    if (USE_MOCKS) {
+      const mocked = listProducts();
+      const mapped: Product[] = mocked.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        stock: p.stock,
+        totalSold: p.totalSold ?? 0,
+        status: p.stock > 0 ? 'active' : 'inactive',
+        imageUrl: p.imageUrl,
+        sellDate: p.sellDate,
+      }));
+      setProducts(mapped);
+      setOriginalProducts(mapped);
+    }
+  }, []); // Empty dependency array to run once on mount
 
   const goNewProduct = () => navigate('/admin/products/new');
   const goSales = () => navigate('/admin/sales');     // 라우트 준비 필요
@@ -101,11 +150,12 @@ export default function AdminProductPage() {
         hasChanges ? 'pb-[calc(56px+env(safe-area-inset-bottom))] md:pb-6' : ''
       }`}
     >
-    <div className="max-w-3xl mx-auto flex justify-between items-center mb-6">
-      <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
+    <div className="max-w-3xl mx-auto mb-6">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
 
-      {/* 데스크탑: 버튼 3개 나열 / 모바일: 햄버거 */}
-      <div className="relative" ref={menuRef}>
+        {/* 데스크탑: 버튼 3개 나열 / 모바일: 햄버거 */}
+        <div className="relative" ref={menuRef}>
         {/* md 이상: 버튼 3개 (그리드로 균등 분배) */}
         <div className="hidden md:grid grid-cols-3 gap-2 items-center">
           <button
@@ -171,10 +221,35 @@ export default function AdminProductPage() {
             </button>
           </div>
         )}
+        </div>
+      </div>
+
+      {/* 검색: 상품명 (리스트 위에 단일 노출) */}
+      <div className="mt-3">
+        <label className="sr-only">상품명 검색</label>
+        <div className="relative">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="상품명으로 검색"
+            className="w-full h-10 pl-9 pr-9 rounded border border-gray-300 outline-none focus:ring-2 focus:ring-orange-500"
+          />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="검색어 지우기"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
     </div>
       <div className="space-y-6 max-w-3xl mx-auto">
-        {products.map((product) => (
+        {visibleProducts.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow p-4">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
               <img
@@ -213,9 +288,9 @@ export default function AdminProductPage() {
                           const d = new Date(ds);
                           const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
                           const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                          if (dd > t) return '판매일 전';
+                          if (dd > t) return '판매 예정';
                           if (dd === t) return '판매 당일';
-                          return '판매일 지남';
+                          return '판매 종료';
                         })()}
                       </span>
                     )}

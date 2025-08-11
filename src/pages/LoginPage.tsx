@@ -1,7 +1,9 @@
 // src/pages/auth/LoginPage.tsx
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useSnackbar } from '../components/snackbar'; 
+import { useSnackbar } from '../components/snackbar';
+import { USE_MOCKS } from '../config';
+import { safeErrorLog, getSafeErrorMessage } from '../utils/environment';
 
 declare global { interface Window { Kakao: any } }
 
@@ -89,31 +91,39 @@ export default function LoginPage() {
         if (AUTH_START_DELAY_MS > 0) {
           await new Promise(res => setTimeout(res, AUTH_START_DELAY_MS));
         }
-        
-        const res = await fetch(`${API_BASE}/api/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ code, redirectUri: REDIRECT_URI, state: stateFromUrl }),
-        });
 
-        if (!res.ok) throw new Error('로그인 처리에 실패했습니다.');
-        const data : UserInfo = await res.json();
-        console.log(data);
+        if (USE_MOCKS) {
+          // Mock 로그인 처리
+          await new Promise(res => setTimeout(res, 1000)); // 1초 지연
+          const mockUserInfo: UserInfo = {
+            id: 12345,
+            nick_name: '테스트사용자'
+          };
+          showRef.current(`${mockUserInfo.nick_name}님 환영합니다!`);
+          localStorage.setItem('nickname', mockUserInfo.nick_name.toString());
+          window.history.replaceState({}, '', '/login');
+          nav('/shop', { replace: true });
+        } else {
+          const res = await fetch(`${API_BASE}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ code, redirectUri: REDIRECT_URI, state: stateFromUrl }),
+          });
 
-        // 로그인한 사용자 닉네임 저장 → /shop 상단에서 표시
-        try {
-          const nick = String((data as any)?.nick_name ?? '').trim();
-          if (nick) localStorage.setItem('nickname', nick);
-        } catch {}
+          if (!res.ok) throw new Error('로그인 처리에 실패했습니다.');
+          const data : UserInfo = await res.json();
+          console.log(data);
 
-        showRef.current(`${data.nick_name}님 환영합니다!`);
-        
-        window.history.replaceState({}, '', '/login');
-        
-        nav('/shop', { replace: true });
+          showRef.current(`${data.nick_name}님 환영합니다!`);
+          localStorage.setItem('nickname', data.nick_name.toString()); // Store nickname
+          window.history.replaceState({}, '', '/login');
+
+          nav('/shop', { replace: true });
+        }
       } catch (e: any) {
-        showRef.current('로그인 중 오류가 발생했습니다.', { variant: 'error' });
+        safeErrorLog(e, 'LoginPage - login');
+        showRef.current(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
         window.history.replaceState({}, '', '/login');
       } finally {
         setBusy(false);
@@ -139,7 +149,8 @@ export default function LoginPage() {
         scope: 'profile_nickname', // 필요한 스코프
       });
     } catch (e: any) {
-      show(e?.message || '카카오 인증 시작 실패', { variant: 'error' });
+      safeErrorLog(e, 'LoginPage - startKakao');
+      show(getSafeErrorMessage(e, '카카오 인증 시작 중 오류가 발생했습니다.'), { variant: 'error' });
     }
   }, [show]);
 

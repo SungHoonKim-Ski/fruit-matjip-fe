@@ -1,49 +1,30 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from '../../components/snackbar';
+import { USE_MOCKS } from '../../config';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { listOrders, type OrderRow, type OrderItem } from '../../mocks/orders';
 
-type OrderItem = {
-  id: number;
-  name: string;
-  quantity: number;
-  price: number;
-  imageUrl?: string;
-};
-
-type OrderRow = {
-  id: number;
-  date: string;           // YYYY-MM-DD
-  status: 'reserved' | 'picked' | 'canceled';
-  items: OrderItem[];
-};
-
-const KRW = (n: number) => n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
-
-const mock: OrderRow[] = [
-  {
-    id: 101,
-    date: '2025-08-13',
-    status: 'reserved',
-    items: [
-      { id: 1, name: '신선한 토마토 1kg', quantity: 2, price: 3000, imageUrl: '/images/image1.png' },
-    ],
-  },
-  {
-    id: 102,
-    date: '2025-08-12',
-    status: 'picked',
-    items: [
-      { id: 2, name: '유기농 감자 2kg', quantity: 1, price: 3000, imageUrl: '/images/image2.png' },
-      { id: 3, name: '햇양파 1.5kg', quantity: 1, price: 3000, imageUrl: '/images/image3.png' },
-    ],
-  },
-];
+const KRW = (n: number) => n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRR' });
 
 export default function OrdersPage() {
   const nav = useNavigate();
+  const { show } = useSnackbar();
+  function formatDateKR(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  
+  // ✅ 오늘 ~ 이번 달 말일 (로컬 기준)
+  const now = new Date();
+  const today = formatDateKR(now);
+  const endOfMonth = formatDateKR(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
-  // 필터
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // 필터 - 기본값: 오늘 ~ 이번 달 말일
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(endOfMonth);
   const [status, setStatus] = useState<'all' | 'reserved' | 'picked' | 'canceled'>('all');
 
   // 데이터
@@ -58,37 +39,53 @@ export default function OrdersPage() {
     (async () => {
       try {
         setLoading(true);
-        // 실제 API 형태에 맞게 수정
-        const res = await fetch(`/api/my/orders?page=${page}`);
-        if (!res.ok) throw new Error('load failed');
-        const data = (await res.json()) as { rows: OrderRow[]; hasMore: boolean };
-        if (!alive) return;
-        setOrders(prev => (page === 1 ? data.rows : [...prev, ...data.rows]));
-        setHasMore(data.hasMore);
-      } catch {
-        // 폴백(데모)
-        if (!alive) return;
-        setOrders(mock);
-        setHasMore(false);
+        if (USE_MOCKS) {
+          // Mock 데이터 사용
+          await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초 지연
+          if (alive) {
+            const mockData = await listOrders(page);
+            setOrders(mockData.rows);
+            setHasMore(mockData.hasMore);
+          }
+        } else {
+          const res = await fetch(`/api/my/orders?page=${page}`);
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            await res.text();
+            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+          }
+          if (!res.ok) throw new Error('주문 목록을 불러오지 못했습니다.');
+          const data = (await res.json()) as { rows: OrderRow[]; hasMore: boolean };
+          if (alive) {
+            setOrders(data.rows);
+            setHasMore(data.hasMore);
+          }
+        }
+      } catch (e: any) {
+        safeErrorLog(e, 'OrderPage - loadOrders');
+        show(getSafeErrorMessage(e, '주문 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [page]);
+    return () => { alive = false; };
+  }, [page, show]);
 
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const t = to ? new Date(to) : null;
-    return orders.filter(o => {
+    let filtered = orders.filter(o => {
       const d = new Date(o.date);
       const inFrom = f ? d >= f : true;
       const inTo = t ? d <= t : true;
       const s = status === 'all' ? true : o.status === status;
       return inFrom && inTo && s;
     });
+    
+    // 날짜 오름차순 정렬 (과거 → 최신)
+    filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    return filtered;
   }, [orders, from, to, status]);
 
   const totalPrice = (o: OrderRow) =>
@@ -133,13 +130,13 @@ export default function OrdersPage() {
               <option value="all">전체</option>
               <option value="reserved">예약완료</option>
               <option value="picked">수령완료</option>
-              <option value="canceled">취소</option>
+              <option value="canceled">예약취소</option>
             </select>
           </div>
           <div className="flex items-end">
             <button
               type="button"
-              onClick={() => { setFrom(''); setTo(''); setStatus('all'); }}
+              onClick={() => { setFrom(today); setTo(endOfMonth); setStatus('all'); }}
               className="w-full h-10 rounded border hover:bg-gray-50"
             >
               초기화
@@ -184,7 +181,7 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
                   <td className="px-4 py-3">
                     <span className={statusBadge(o.status)}>
-                      {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '취소'}
+                      {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '예약취소'}
                     </span>
                   </td>
                 </tr>
@@ -206,7 +203,7 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">{o.date}</div>
                 <span className={statusBadge(o.status)}>
-                  {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '취소'}
+                  {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '예약취소'}
                 </span>
               </div>
               <div className="mt-2 space-y-2">
