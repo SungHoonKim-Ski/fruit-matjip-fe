@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { listOrders, type OrderRow, type OrderItem } from '../../mocks/orders';
+import { listOrders, type OrderRow } from '../../mocks/orders';
 
 const KRW = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });

@@ -38,7 +38,7 @@ export default function ProductCreatePage() {
         const file = files[0];
         const ext = file.name.split('.').pop()?.toLowerCase();
         if (ext !== 'png' && ext !== 'jpg' && ext !== 'jpeg') {
-          show('PNG 또는 JPG 이미지만 업로드할 수 있습니다.', { variant: 'error' });
+          show('.PNG/.JPG 파일만 업로드할 수 있습니다.', { variant: 'error' });
           e.target.value = '';
           return;
         }
@@ -83,9 +83,6 @@ export default function ProductCreatePage() {
 
       // Mock implementation - 실제 API 호출 대신 mock 처리
       if (USE_MOCKS) {
-        // Mock 이미지 URL 생성
-        const mockImageUrl = URL.createObjectURL(form.image);
-        
         // Mock 상품 등록 성공
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연
         
@@ -210,7 +207,7 @@ export default function ProductCreatePage() {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium">상품 이미지 <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium">상품 이미지<span className="text-red-500">*</span></label>
           <input
             type="file"
             name="image"
@@ -221,7 +218,7 @@ export default function ProductCreatePage() {
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-sm font-medium">추가 이미지 (복수 선택 가능, PNG/JPG만)</label>
+          <label className="block text-sm font-medium">추가 이미지 (여러 개 선택 가능, PNG/JPG만)</label>
           <input
             type="file"
             name="extraImages"
