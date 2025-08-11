@@ -2,6 +2,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
+import { USE_MOCKS } from '../../config';
+import { listProducts } from '../../mocks/products';
 type Product = {
   id: number;
   name: string;
@@ -10,6 +12,7 @@ type Product = {
   totalSold: number;
   status: 'active' | 'inactive';
   imageUrl: string;
+  sellDate?: string;
 };
 
 const initialProducts: Product[] = [
@@ -33,9 +36,6 @@ export default function AdminProductPage() {
           : p
       )
     );
-
-  const updateStock = (id: number, v: number) =>
-    setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: Math.max(0, v) } : p)));
 
   const deleteStockOnly = (id: number) =>
     setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0 } : p)));
@@ -71,29 +71,29 @@ export default function AdminProductPage() {
     };
   }, []);
 
+  // Load from mocks for admin list as well (to reflect sellDate/totalSold etc.)
+  useEffect(() => {
+    if (!USE_MOCKS) return;
+    const mocked = listProducts();
+    const mapped: Product[] = mocked.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+      totalSold: p.totalSold ?? 0,
+      status: p.stock > 0 ? 'active' : 'inactive',
+      imageUrl: p.imageUrl,
+      sellDate: p.sellDate,
+    }));
+    setProducts(mapped);
+    setOriginalProducts(mapped);
+  }, []);
+
   const goNewProduct = () => navigate('/admin/products/new');
   const goSales = () => navigate('/admin/sales');     // 라우트 준비 필요
   const goBuyers = () => navigate('/admin/reservations');   // 라우트 준비 필요
 
-  // 숫자 입력 임시 상태
-  const [draftStocks, setDraftStocks] = useState<Record<number, string>>({});
-  const toSafeNumber = (v: string | number, defaultValue = 0) => {
-    const n = typeof v === 'number' ? v : Number(v);
-    return Number.isNaN(n) ? defaultValue : Math.max(0, Math.floor(n));
-  };
-  const handleStockInput = (id: number, raw: string) => {
-    const onlyDigits = raw.replace(/[^\d]/g, '');
-    setDraftStocks(prev => ({ ...prev, [id]: onlyDigits }));
-  };
-  const commitStock = (id: number, currentStock: number) => {
-    const val = toSafeNumber(draftStocks[id] ?? currentStock);
-    updateStock(id, val);
-    setDraftStocks(prev => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  };
+  // 재고 수량 직접 변경 기능은 제거됨
 
   return (
     <main
@@ -106,26 +106,26 @@ export default function AdminProductPage() {
 
       {/* 데스크탑: 버튼 3개 나열 / 모바일: 햄버거 */}
       <div className="relative" ref={menuRef}>
-        {/* md 이상: 버튼 3개 */}
-        <div className="hidden md:flex items-center gap-2">
+        {/* md 이상: 버튼 3개 (그리드로 균등 분배) */}
+        <div className="hidden md:grid grid-cols-3 gap-2 items-center">
           <button
             type="button"
             onClick={goNewProduct}
-            className="h-10 px-3 rounded bg-orange-500 text-white hover:bg-orange-600"
+            className="h-10 w-full px-4 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm font-medium"
           >
             상품 등록
           </button>
           <button
             type="button"
             onClick={goSales}
-            className="h-10 px-3 rounded bg-indigo-500 text-white hover:bg-indigo-600"
+            className="h-10 w-full px-4 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-sm font-medium"
           >
             판매량 확인
           </button>
           <button
             type="button"
             onClick={goBuyers}
-            className="h-10 px-3 rounded bg-sky-500 text-white hover:bg-sky-600"
+            className="h-10 w-full px-4 rounded bg-sky-500 text-white hover:bg-sky-600 text-sm font-medium"
           >
             구매자 확인
           </button>
@@ -188,84 +188,76 @@ export default function AdminProductPage() {
                   <h2 className="text-lg font-semibold break-keep">{product.name}</h2>
                   <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
                   <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
+                  <p className="text-sm text-gray-500">
+                    판매일: {product.sellDate ?? '미설정'}
+                    {product.sellDate && (
+                      <span className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border "
+                        style={{
+                          backgroundColor: (() => {
+                            const today = new Date();
+                            const ds = product.sellDate! + 'T00:00:00';
+                            const d = new Date(ds);
+                            const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+                            const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                            if (dd > t) return '#E0F2FE'; // before - light sky
+                            if (dd === t) return '#DCFCE7'; // today - light green
+                            return '#FEE2E2'; // after - light red
+                          })(),
+                          borderColor: '#e5e7eb',
+                          color: '#374151'
+                        }}
+                      >
+                        {(() => {
+                          const today = new Date();
+                          const ds = product.sellDate! + 'T00:00:00';
+                          const d = new Date(ds);
+                          const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+                          const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                          if (dd > t) return '판매일 전';
+                          if (dd === t) return '판매 당일';
+                          return '판매일 지남';
+                        })()}
+                      </span>
+                    )}
+                  </p>
                 </div>
 
-                {/* ⬇️ 조작 영역: 세로 간격을 "항상 동일"하게 맞춤 */}
+                {/* ⬇️ 조작 영역 */}
                 <div className="mt-3 space-y-3">
-                  {/* 1) 판매 상태 변경: 가로 전체 채움 + 상태별 색상 */}
-                  <button
-                    type="button"
-                    onClick={() => toggleStatus(product.id)}
-                    className={`w-full h-10 rounded font-medium transition
-                      ${product.status === 'active'
-                        ? 'bg-green-500 hover:bg-green-600 text-white'
-                        : 'bg-red-500 hover:bg-red-600 text-white'}`}
-                  >
-                    {product.status === 'active' ? '상품 목록 노출 O' : '상품 목록 노출 X'}
-                  </button>
-
-                  {/* 2) 재고 조절: 가로 전체 동일 높이 */}
-                  <div className="flex w-full h-10 rounded overflow-hidden border">
-                    {/* + */}
+                  {/* 1) 상세 정보 수정 / 상품 목록 노출 */}
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      aria-label="재고 증가"
-                      onClick={() => {
-                        const current = toSafeNumber(draftStocks[product.id] ?? product.stock);
-                        const next = current + 1;
-                        setDraftStocks(p => ({ ...p, [product.id]: String(next) }));
-                        updateStock(product.id, next);
-                      }}
-                      className="w-12 bg-gray-100 hover:bg-gray-200"
+                      onClick={() => navigate(`/admin/products/${product.id}/edit`)}
+                      className="h-10 w-full rounded border border-gray-300 hover:bg-gray-50"
                     >
-                      +
+                      상세 정보 수정
                     </button>
-
-                    {/* 입력 */}
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      min={0}
-                      className="flex-1 border-x text-center outline-none"
-                      value={draftStocks[product.id] ?? String(product.stock)}
-                      onChange={(e) => handleStockInput(product.id, e.target.value)}
-                      onBlur={() => commitStock(product.id, product.stock)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                      }}
-                    />
-
-                    {/* - */}
                     <button
                       type="button"
-                      aria-label="재고 감소"
-                      onClick={() => {
-                        const current = toSafeNumber(draftStocks[product.id] ?? product.stock);
-                        const next = Math.max(0, current - 1);
-                        setDraftStocks(p => ({ ...p, [product.id]: String(next) }));
-                        updateStock(product.id, next);
-                      }}
-                      disabled={toSafeNumber(draftStocks[product.id] ?? product.stock) <= 0}
-                      className="w-12 bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                      onClick={() => toggleStatus(product.id)}
+                      className={`h-10 w-full rounded font-medium transition
+                        ${product.status === 'active'
+                          ? 'bg-green-500 hover:bg-green-600 text-white'
+                          : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
                     >
-                      -
+                      {product.status === 'active' ? '상품 목록 노출 O' : '상품 목록 노출 X'}
                     </button>
                   </div>
 
-                  {/* 3) 품절 처리 / 상품 삭제: 동일 높이 + 동일 간격 */}
+                  {/* 2) 품절 처리 / 상품 삭제 */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => deleteStockOnly(product.id)}
-                      className="h-10 w-full rounded bg-orange-400 text-white hover:bg-orange-500"
+                      className="h-10 w-full rounded bg-amber-500 text-white hover:bg-amber-600"
                     >
                       품절 처리
                     </button>
                     <button
                       type="button"
                       onClick={() => deleteProduct(product.id)}
-                      className="h-10 w-full rounded bg-red-500 text-white hover:bg-red-600"
+                      className="h-10 w-full rounded bg-gray-700 text-white hover:bg-gray-800"
                     >
                       상품 삭제
                     </button>

@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 
 import ShopPage from './pages/auth/ShopPage';
 import OrderPage from './pages/auth/OrderPage';
+import ProductDetailPage from './pages/auth/ProductDetailPage';
 
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
@@ -10,6 +11,7 @@ import AdminProductPage from './pages/admin/AdminProductPage';
 import CreateProductPage from './pages/admin/CreateProductPage';
 import AdminSalesPage from './pages/admin/AdminSalesPage';
 import AdminReservationsPage from './pages/admin/AdminReservationsPage';
+import AdminEditProductPage from './pages/admin/AdminEditProductPage';
 
 function App() {
   return (
@@ -18,6 +20,7 @@ function App() {
         <Route path='/login' element={<LoginPage />} />
         <Route path="/shop" element={<ShopPage />} />
         <Route path="/orders" element={<OrderPage />} />
+        <Route path="/products/:id" element={<ProductDetailPage />} />
 
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin/register" element={<AdminRegisterPage />} />
@@ -25,7 +28,7 @@ function App() {
         <Route path="/admin/products/new" element={<CreateProductPage />} />
         <Route path="/admin/sales" element={<AdminSalesPage />} />
         <Route path="/admin/reservations" element={<AdminReservationsPage />} />
-
+        <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
