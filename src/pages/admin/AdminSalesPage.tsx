@@ -1,21 +1,6 @@
 // src/pages/admin/AdminSalesPage.tsx
 import React, { useMemo, useState } from 'react';
-
-type SaleRow = {
-  id: number;
-  date: string;        // YYYY-MM-DD
-  productName: string;
-  buyerName: string;
-  price: number;       // 단가
-  quantity: number;    // 수량
-  revenue: number;     // 매출
-};
-
-const mock: SaleRow[] = [
-  { id: 1, date: '2025-08-07', productName: '신선한 토마토 1kg', buyerName: '홍길동', price: 3000, quantity: 5,  revenue: 15000 },
-  { id: 2, date: '2025-08-07', productName: '유기농 감자 2kg',   buyerName: '이민지', price: 3000, quantity: 2,  revenue:  6000 },
-  { id: 3, date: '2025-08-08', productName: '햇양파 1.5kg',     buyerName: '박철수', price: 3000, quantity: 10, revenue: 30000 },
-];
+import { mockSales } from '../../mocks/sales';
 
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
@@ -32,7 +17,7 @@ export default function AdminSalesPage() {
   const filtered = useMemo(() => {
     const f = new Date(from);
     const t = new Date(to);
-    return mock.filter(r => {
+    return mockSales.filter(r => {
       const d = new Date(r.date);
       const inRange = (isNaN(+f) || d >= f) && (isNaN(+t) || d <= t);
 

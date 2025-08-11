@@ -129,9 +129,9 @@ export default function OrdersPage() {
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
-              <option value="reserved">예약완료</option>
-              <option value="picked">수령완료</option>
-              <option value="canceled">예약취소</option>
+              <option value="reserved">예약 완료</option>
+              <option value="picked">수령 완료</option>
+              <option value="canceled">예약 취소</option>
             </select>
           </div>
           <div className="flex items-end">
@@ -182,7 +182,7 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
                   <td className="px-4 py-3">
                     <span className={statusBadge(o.status)}>
-                      {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '예약취소'}
+                      {o.status === 'reserved' ? '예약 완료' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
                     </span>
                   </td>
                 </tr>
@@ -204,7 +204,7 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">{o.date}</div>
                 <span className={statusBadge(o.status)}>
-                  {o.status === 'reserved' ? '예약완료' : o.status === 'picked' ? '수령완료' : '예약취소'}
+                  {o.status === 'reserved' ? '예약 완료' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
                 </span>
               </div>
               <div className="mt-2 space-y-2">

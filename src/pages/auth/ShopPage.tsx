@@ -20,11 +20,17 @@ type Product = {
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-const d0 = '2025-08-13';
-const d1 = '2025-08-14';
-const d2 = '2025-08-15';
-
-// 초기 값은 빈 배열. 데이터는 mock 또는 API에서 주입
+// 오늘 포함 5일간의 날짜 생성
+function getNext3Days(): string[] {
+  const arr: string[] = [];
+  const today = new Date();
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    arr.push(d.toISOString().slice(0, 10));
+  }
+  return arr;
+}
 
 const storeTitle = '과일맛집 1955';
 const branchName = '';
@@ -47,7 +53,7 @@ export default function ReservePage() {
   const nickInputRef = useRef<HTMLInputElement>(null);
 
   // 날짜 탭
-  const dates = useMemo(() => [d0, d1, d2], []);
+  const dates = useMemo(() => getNext3Days(), []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
   // Load data from mock or API
   useEffect(() => {
@@ -456,7 +462,7 @@ export default function ReservePage() {
           <p>사업자등록번호: 131-47-00411</p>
           <p>문의: 02-2666-7412</p>
           <p className="mt-1">&copy; 2025 All rights reserved.</p>
-        </footer>        
+        </footer>
       </section>      
       <FloatingActions
         orderPath="/orders"  
