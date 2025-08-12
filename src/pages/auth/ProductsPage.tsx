@@ -210,6 +210,11 @@ export default function ReservePage() {
       show('닉네임을 입력해주세요.', { variant: 'error' });
       return;
     }
+    // Length validation: 3~10
+    if (value.length < 3 || value.length > 10) {
+      show('닉네임은 3~10자로 입력해주세요.', { variant: 'error' });
+      return;
+    }
     if (value === nickname) {
       setNickModalOpen(false);
       return;
@@ -358,8 +363,8 @@ export default function ReservePage() {
         >
           <div className="absolute inset-0 bg-black/40" onClick={() => setNickModalOpen(false)} />
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
-            <h2 className="text-base font-semibold text-gray-800">닉네임 변경</h2>
-            <p className="text-sm text-gray-500 mt-1">중복되지 않는 닉네임을 입력해 주세요.</p>
+            <h2 className="text-base font-semibold text-gray-800">닉네임 변경(최소 3자, 최대 10자)</h2>
+            <p className="text-sm text-gray-500 mt-1">중복된 닉네임은 사용 불가능합니다.</p>
             <div className="mt-4">
               <input
                 ref={nickInputRef}
@@ -368,7 +373,7 @@ export default function ReservePage() {
                 onKeyDown={e => { if (e.key === 'Enter') saveNickname(); }}
                 className="w-full h-10 border rounded px-3"
                 placeholder="닉네임"
-                maxLength={16}
+                maxLength={10}
               />
             </div>
             <div className="mt-4 flex justify-end gap-2">
@@ -447,8 +452,7 @@ export default function ReservePage() {
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
                   <span className="text-l">{item.stock - item.quantity}개 남았어요!</span>
                 </div>
-                
-
+              
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-10">
                     <button
