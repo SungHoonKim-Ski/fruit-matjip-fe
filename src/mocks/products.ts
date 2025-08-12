@@ -37,7 +37,7 @@ const seedProducts: MockProduct[] = [
     stock: 8,
     imageUrl: '/images/image1.png',
     sellDate: tomorrowStr, // 판매 전 (미래)
-    description: '과즙이 풍부한 신선한 토마토입니다.',
+    description: '안녕하세요! 이것은 <b>굵은 텍스트</b>입니다.<br><br>이것은 보통 크기 텍스트입니다.<br><span style="font-size: 24px">이것은 큰 텍스트입니다.</span><br><span style="font-size: 40px">이것은 매우 큰 텍스트입니다.</span><br><br>여러 줄로 작성된<br>상품 설명입니다.',
     images: ['/images/image1.png', '/images/image2.png'],
     totalSold: 24,
   },

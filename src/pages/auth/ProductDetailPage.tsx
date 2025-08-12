@@ -18,6 +18,53 @@ type Product = {
 
 const KRW = (n: number) => n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
+// HTML 텍스트를 안전하게 렌더링하는 함수
+const renderSafeHTML = (text: string) => {
+  // 허용된 태그만 유지하고 나머지는 제거
+  const allowedTags = ['b', 'strong', 'span'];
+  
+  // 개행 문자를 <br> 태그로 변환
+  let processedText = text.replace(/\n/g, '<br>');
+  
+  return processedText.replace(/<(\/?)([\w-]+)([^>]*)>/g, (match, closing, tagName, attributes) => {
+    // br 태그는 허용
+    if (tagName.toLowerCase() === 'br') {
+      return '<br>';
+    }
+    
+    // 허용된 태그가 아니면 제거
+    if (!allowedTags.includes(tagName.toLowerCase())) {
+      return '';
+    }
+    
+    // 닫는 태그는 그대로 허용
+    if (closing === '/') {
+      return `</${tagName}>`;
+    }
+    
+    // style 속성만 허용하고 font-size만 허용
+    if (attributes && tagName.toLowerCase() === 'span') {
+      const styleMatch = attributes.match(/style="([^"]*)"/) || [];
+      const style = styleMatch[1] || '';
+      
+      // font-size만 허용
+      if (style.includes('font-size:')) {
+        const fontSizeMatch = style.match(/font-size:\s*(\d+px)/);
+        if (fontSizeMatch) {
+          const fontSize = fontSizeMatch[1];
+          // 허용된 크기만 허용
+          if (['14px', '24px', '40px'].includes(fontSize)) {
+            return `<span style="font-size: ${fontSize}">`;
+          }
+        }
+      }
+    }
+    
+    // 기본 태그 (b, strong)
+    return `<${tagName}>`;
+  });
+};
+
 export default function ProductDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
