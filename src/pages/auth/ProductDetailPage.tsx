@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById } from '../../mocks/products';
@@ -11,7 +10,7 @@ type Product = {
   price: number;
   stock: number;
   imageUrl: string;
-  sellDate?: string;       // YYYY-MM-DD
+  sellDate?: string;
   description?: string;
   images?: string[];
 };
@@ -52,9 +51,10 @@ const renderSafeHTML = (text: string) => {
         const fontSizeMatch = style.match(/font-size:\s*(\d+px)/);
         if (fontSizeMatch) {
           const fontSize = fontSizeMatch[1];
-          // 허용된 크기만 허용
+          // 허용된 크기만 허용 + 크기에 따른 line-height 설정
           if (['14px', '24px', '40px'].includes(fontSize)) {
-            return `<span style="font-size: ${fontSize}">`;
+            const lineHeight = fontSize === '14px' ? '22px' : fontSize === '24px' ? '34px' : '56px';
+            return `<span style="font-size: ${fontSize}; line-height: ${lineHeight}">`;
           }
         }
       }
@@ -65,9 +65,13 @@ const renderSafeHTML = (text: string) => {
   });
 };
 
-export default function ProductDetailPage() {
-  const { id } = useParams();
-  const nav = useNavigate();
+interface ProductDetailPageProps {
+  isOpen: boolean;
+  onClose: () => void;
+  productId: number;
+}
+
+export default function ProductDetailPage({ isOpen, onClose, productId }: ProductDetailPageProps) {
   const { show } = useSnackbar();
   const API_BASE = process.env.REACT_APP_API_BASE || '';
 
@@ -76,26 +80,28 @@ export default function ProductDetailPage() {
   const [activeImage, setActiveImage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isOpen || !productId) return;
+    
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         if (USE_MOCKS) {
-          const data = getProductById(Number(id!));
+          const data = getProductById(productId);
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
           if (alive) {
             setProduct(data as Product);
             setActiveImage((data as Product).images?.[0] || (data as Product).imageUrl);
           }
         } else {
-          const res = await fetch(`${API_BASE}/api/products/${id}`);
+          const res = await fetch(`${API_BASE}/api/products/${productId}`);
           const contentType = res.headers.get('content-type') || '';
           if (!contentType.includes('application/json')) {
             await res.text();
             throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
           }
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
-          const data = (await res.json()) as Product;
+          const data = await res.json() as Product;
           if (alive) {
             setProduct(data);
             setActiveImage(data.images?.[0] || data.imageUrl);
@@ -109,85 +115,77 @@ export default function ProductDetailPage() {
       }
     })();
     return () => { alive = false; };
-  }, [id, show, API_BASE]);
+  }, [isOpen, productId, show, API_BASE]);
 
-  // 예약 관련 기능은 사용자 상세에서 숨김 처리
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-gray-50 px-4 pt-16 pb-24">
-        <div className="max-w-md mx-auto">
-          <div className="w-full aspect-[4/3] bg-gray-200 animate-pulse rounded-lg" />
-          <div className="mt-4 h-6 bg-gray-200 animate-pulse rounded w-2/3" />
-          <div className="mt-2 h-4 bg-gray-200 animate-pulse rounded w-1/2" />
-          <div className="mt-6 h-24 bg-gray-200 animate-pulse rounded" />
-        </div>
-      </main>
-    );
-  }
-
-  if (!product) {
-    return (
-      <main className="min-h-screen bg-gray-50 px-4 pt-16">
-        <div className="max-w-md mx-auto text-center text-gray-500">
-          상품을 찾을 수 없어요.
-          <div className="mt-4">
-            <button onClick={() => nav(-1)} className="h-10 px-4 rounded border">뒤로가기</button>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 pt-16 pb-28">
-      {/* 상단 바 */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b">
-        <div className="mx-auto max-w-md h-14 flex items-center justify-between px-4">
-          <button onClick={() => nav(-1)} className="text-sm text-gray-600">← 뒤로</button>
-          <div className="font-bold text-gray-800">상품 상세</div>
-          <div className="w-8" />
-        </div>
-      </header>
-
-      <section className="max-w-md mx-auto">
-        <div>
-          <img
-            src={activeImage || product.imageUrl}
-            alt={product.name}
-            className="w-full aspect-[4/3] object-cover rounded-lg border"
-          />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        {/* Dialog 헤더 */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-800">상품 상세</h2>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="mt-4 bg-white rounded-lg shadow p-4">
-          <h1 className="text-xl font-bold">{product.name}</h1>
-          <div className="mt-1 flex items-center justify-between">
-            <span className="text-orange-600 font-semibold">{KRW(product.price)}</span>
-            <span className="text-sm text-gray-500">재고 {product.stock}개</span>
-          </div>
-
-          {/* 판매일 표시 제거 */}
-
-          {product.description && (
-            <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap break-keep">
-              {product.description}
-            </p>
-          )}
-
-          {/* 예약 관련 UI 제거 */}
-          {/* 추가 이미지: 하단에 한번에 표시 */}
-          {product.images && product.images.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-base font-semibold text-gray-800 mb-2">추가 이미지</h3>
-              <div className="flex flex-col gap-3">
-                {product.images.map((src) => (
-                  <img key={src} src={src} alt="sub" className="w-full object-cover rounded border" />
-                ))}
+        {/* Dialog 내용 */}
+        <div className="p-4">
+          {loading ? (
+            <div className="space-y-4">
+              <div className="w-full aspect-[4/3] bg-gray-200 animate-pulse rounded-lg" />
+              <div className="h-6 bg-gray-200 animate-pulse rounded w-2/3" />
+              <div className="h-4 bg-gray-200 animate-pulse rounded w-1/2" />
+            </div>
+          ) : product ? (
+            <>
+            <div>
+            <h1 className="text-xl font-bold">{product.name}</h1>
+                <div className="mt-1 flex items-center justify-between" />
+                <span className="text-orange-600 font-semibold">{KRW(product.price)}</span>                  
+            </div>
+              <div>
+                <img
+                  src={activeImage || product.imageUrl}
+                  alt={product.name}
+                  className="w-full aspect-[4/3] object-cover rounded-lg border"
+                />
               </div>
+
+              <div className="mt-4">
+                
+
+                {product.description && (
+                  <div 
+                    className="mt-3 text-sm text-gray-700 break-keep leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: renderSafeHTML(product.description) }}
+                  />
+                )}
+
+                {/* 추가 이미지 */}
+                {product.images && product.images.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-base font-semibold text-gray-800 mb-2">상세 이미지</h3>
+                    <div className="flex flex-col gap-3">
+                      {product.images.map((src) => (
+                        <img key={src} src={src} alt="sub" className="w-full object-cover rounded border" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              상품을 찾을 수 없어요.
             </div>
           )}
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

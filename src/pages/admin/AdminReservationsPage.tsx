@@ -33,6 +33,8 @@ export default function AdminReservationsPage() {
   const [rows, setRows] = useState<ReservationRow[]>(() => mockReservations);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | null>(null);
+  const [confirmProductName, setConfirmProductName] = useState<string>('');
+  const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
 
   const filtered = useMemo(() => {
@@ -59,10 +61,18 @@ export default function AdminReservationsPage() {
   // 변경 확인 다이얼로그
   const openConfirmChange = (id: number, current: 'pending' | 'picked') => {
     const next = current === 'pending' ? 'picked' : 'pending';
+    const target = rows.find(r => r.id === id);
     setConfirmId(id);
     setConfirmNext(next);
+    setConfirmProductName(target?.productName || '');
+    setConfirmBuyerName(target?.buyerName || '');
   };
-  const closeConfirm = () => { setConfirmId(null); setConfirmNext(null); };
+  const closeConfirm = () => { 
+    setConfirmId(null); 
+    setConfirmNext(null); 
+    setConfirmProductName(''); 
+    setConfirmBuyerName(''); 
+  };
   const applyConfirm = async () => {
     if (confirmId == null || confirmNext == null) return;
     try {
@@ -72,9 +82,9 @@ export default function AdminReservationsPage() {
       const buyerName = target ? target.buyerName : '';
       updateRowStatus(confirmId, confirmNext);
       if (confirmNext === 'picked') {
-        show(`${buyerName}님의 "${productName}" 상태가 수령 완료로 변경되었습니다.`);
+        show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
       } else {
-        show(`"${buyerName}님의 ${productName}" 상태가 수령 대기로 변경되었습니다.`, { variant: 'info' });
+        show(`"${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
       }
       closeConfirm();
     } finally {
@@ -92,7 +102,7 @@ export default function AdminReservationsPage() {
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div>
-            <label className="text-xs text-gray-500">조회 날짜</label>
+            <label className="text-xs text-gray-500">조회 날짜 <span className="text-red-500">*</span></label>
             <input 
               type="date" 
               value={selectedDate} 
@@ -102,7 +112,7 @@ export default function AdminReservationsPage() {
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">검색 속성 *</label>
+            <label className="text-xs text-gray-500">검색 필터 <span className="text-red-500">*</span></label>
             <select
               value={field}
               onChange={e=>setField(e.target.value as any)}
@@ -125,7 +135,7 @@ export default function AdminReservationsPage() {
           </div>
 
           <div>
-            <label className="text-xs text-gray-500">수령 여부</label>
+            <label className="text-xs text-gray-500">수령 여부 <span className="text-red-500">*</span></label>
             <select
               value={pickupFilter}
               onChange={e=>setPickupFilter(e.target.value as any)}
@@ -186,7 +196,7 @@ export default function AdminReservationsPage() {
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
-                    <label className="sr-only" htmlFor={`pickup-${r.id}`}>수령 여부</label>
+                    <label className="sr-only" htmlFor={`pickup-${r.id}`}>수령 여부<span className="text-red-500">*</span></label>
                     <select
                       id={`pickup-${r.id}`}
                       value={r.pickupStatus}
@@ -240,12 +250,14 @@ export default function AdminReservationsPage() {
       </div>
 
       {confirmId !== null && confirmNext !== null && (
-        <div className="fixed inset-0 z-50 grid place-items-center">
+        <div className="fixed inset-0 z-50 grid place-items-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeConfirm} />
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
             <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
             <p className="text-sm text-gray-600 mt-2">
-              선택한 항목을 {confirmNext === 'picked' ? '수령 완료' : '수령 대기'}로 변경합니다.
+            <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신 
+              <span className="font-medium"> "{confirmProductName}"</span> 상품을
+              {confirmNext === 'picked' ? '수령 완료' : '수령 대기'}로 변경합니다.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -254,15 +266,17 @@ export default function AdminReservationsPage() {
                 disabled={applying}
                 type="button"
               >
-                아니오
+                취소
               </button>
               <button
                 onClick={applyConfirm}
                 disabled={applying}
-                className={`h-10 px-4 rounded text-white ${applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+                className={`h-10 px-4 rounded text-white font-medium ${
+                  applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'
+                }`}
                 type="button"
               >
-                {applying ? '처리 중…' : '네, 변경합니다'}
+                {applying ? '처리 중…' : '확인'}
               </button>
             </div>
           </div>

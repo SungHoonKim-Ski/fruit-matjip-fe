@@ -52,7 +52,7 @@ export default function AdminSalesPage() {
 
           {/* 필수 필드 */}
           <div>
-            <label className="text-xs text-gray-500">검색 필드 *</label>
+            <label className="text-xs text-gray-500">검색 필터 *</label>
             <select
               value={field}
               onChange={e=>setField(e.target.value as any)}

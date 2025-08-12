@@ -5,6 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
   id: number;
@@ -42,6 +43,12 @@ export default function ReservePage() {
   const nav = useNavigate();
   const API_BASE = process.env.REACT_APP_API_BASE || '';
 
+  // ProductDetailPage dialog 상태
+  const [detailDialog, setDetailDialog] = useState<{
+    isOpen: boolean;
+    productId: number;
+  }>({ isOpen: false, productId: 0 });
+
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
     const saved = localStorage.getItem('nickname');
@@ -51,6 +58,22 @@ export default function ReservePage() {
   const [draftNick, setDraftNick] = useState(nickname);
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
+
+  // 뒤로가기(popstate) 핸들링
+  useEffect(() => {
+    const onPopState = () => {
+      if (detailDialog.isOpen) {
+        setDetailDialog({ isOpen: false, productId: 0 });
+        return;
+      }
+      if (nickModalOpen) {
+        setNickModalOpen(false);
+        return;
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [detailDialog.isOpen, nickModalOpen]);
 
   // 날짜 탭
   const dates = useMemo(() => getNext3Days(), []);
@@ -63,7 +86,7 @@ export default function ReservePage() {
         const mapped: Product[] = mocked.map((p, i) => ({
           id: p.id,
           name: p.name,
-          quantity: 0,
+          quantity: p.stock > 0 ? 1 : 0,
           price: p.price,
           stock: p.stock,
           imageUrl: p.imageUrl,
@@ -81,14 +104,14 @@ export default function ReservePage() {
           }
           if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
           const data = await res.json();
-          setProducts(data.map((p: any) => ({
+          setProducts(data.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
-            quantity: 0,
+            quantity: p.stock > 0 ? 1 : 0,
             price: p.price,
             stock: p.stock,
             imageUrl: p.imageUrl,
-            sellDate: p.sellDate || dates[0], // Default if not provided
+            sellDate: p.sellDate || dates[i % dates.length], // Default distribution if not provided
             totalSold: p.totalSold ?? 0,
           })));
         } catch (e: any) {
@@ -108,11 +131,11 @@ export default function ReservePage() {
 
   const handleQuantity = (id: number, diff: number) => {
     setProducts(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, quantity: Math.max(0, Math.min(p.stock, p.quantity + diff)) }
-          : p
-      )
+      prev.map(p => {
+        if (p.id !== id) return p;
+        const nextQty = Math.max(0, Math.min(p.stock, p.quantity + diff));
+        return { ...p, quantity: nextQty };
+      })
     );
   };
 
@@ -133,6 +156,7 @@ export default function ReservePage() {
   const openNickModal = () => {
     setDraftNick(nickname);
     setNickModalOpen(true);
+    window.history.pushState({ modal: 'nickname' }, '');
   };
 
   useEffect(() => {
@@ -232,6 +256,12 @@ export default function ReservePage() {
     }
   };
 
+  // 상세보기 dialog 열기 (history state 추가)
+  const openDetail = (productId: number) => {
+    setDetailDialog({ isOpen: true, productId });
+    window.history.pushState({ modal: 'product', productId }, '');
+  };
+
   return (
     <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-24">
       {/* 상단 바: 3등분 레이아웃로 균등 분배 */}
@@ -241,13 +271,25 @@ export default function ReservePage() {
           <div className="flex-1 flex justify-start">
             <button
               type="button"
-              onClick={() => setDrawerOpen(true)}
+              onClick={() => {
+                if (detailDialog.isOpen) {
+                  setDetailDialog({ isOpen: false, productId: 0 });
+                } else if (nickModalOpen) {
+                  setNickModalOpen(false);
+                } else {
+                  setDrawerOpen(true);
+                }
+              }}
               className="h-10 w-10 grid place-items-center rounded-md hover:bg-gray-50 active:scale-[0.98]"
-              aria-label="메뉴 열기"
+              aria-label={detailDialog.isOpen || nickModalOpen ? "닫기" : "메뉴 열기"}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/>
-              </svg>
+              {detailDialog.isOpen || nickModalOpen ? (
+                <span className="text-lg">✕</span>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+              )}
             </button>
           </div>
 
@@ -309,7 +351,7 @@ export default function ReservePage() {
       {/* 닉네임 변경 모달 */}
       {nickModalOpen && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center"
+          className="fixed inset-0 z-50 grid place-items-center p-4"
           onKeyDown={onNickModalKeyDown}
           aria-modal="true"
           role="dialog"
@@ -388,26 +430,24 @@ export default function ReservePage() {
                 src={item.imageUrl}
                 alt={item.name}
                 className="w-full aspect-[4/3] object-cover cursor-pointer"
-                onClick={() => nav(`/products/${item.id}`)}
+                onClick={() => openDetail(item.id)}
                 role="button"
                 aria-label={`${item.name} 상세보기`}
               />
               <div className="p-4">
                 <h2
-                  className="text-xl font-semibold cursor-pointer hover:underline"
-                  onClick={() => nav(`/products/${item.id}`)}
+                  className="text-xl font-semibold cursor-pointer hover:underline flex items-center justify-between gap-2"
+                  onClick={() => openDetail(item.id)}
                   role="button"
                 >
-                  {item.name}
+                  <span className="truncate">{item.name}</span>
+                  <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
                 </h2>
-
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span className="text-l font-semibold">{item.stock}개 남았어요!</span>
+                <div className="flex justify-between text-sm text-gray-500 hover:underline flex items-center justify-between gap-2">
+                  <span>누적 판매 : {item.totalSold ?? 0}개</span>
+                  <span className="text-l">{item.stock - item.quantity}개 남았어요!</span>
                 </div>
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>누적 판매 수량 : {item.totalSold ?? 0}개</span>
-                  <span className="text-xl text-orange-500 font-semibold">{formatPrice(item.price)}</span>
-                </div>                
+                
 
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-10">
@@ -430,20 +470,23 @@ export default function ReservePage() {
                     </button>
                   </div>
 
-                  <button
-                    onClick={() => nav(`/products/${item.id}`)}
-                    className="w-full sm:w-28 h-10 rounded border border-gray-300 hover:bg-gray-50 order-2 sm:order-none text-sm font-medium"
-                    type="button"
-                  >
-                    자세히 보기
-                  </button>
-                  <button
-                    onClick={() => handleReserve(item)}
-                    disabled={item.stock === 0}
-                    className={`w-full sm:w-28 h-10 rounded order-1 sm:order-none text-sm font-medium ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
-                  >
-                    {item.stock === 0 ? '품절' : '예약하기'}
-                  </button>
+                  {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
+                  <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
+                    <button
+                      onClick={() => openDetail(item.id)}
+                      className="flex-1 h-10 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
+                      type="button"
+                    >
+                      자세히 보기
+                    </button>
+                    <button
+                      onClick={() => handleReserve(item)}
+                      disabled={item.stock === 0}
+                      className={`flex-1 h-10 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                    >
+                      {item.stock === 0 ? '품절' : '예약하기'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -467,6 +510,15 @@ export default function ReservePage() {
       <FloatingActions
         orderPath="/me/orders"  
       />
+
+      {/* 상품 상세 Dialog */}
+      {detailDialog.isOpen && (
+        <ProductDetailPage
+          isOpen={detailDialog.isOpen}
+          onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
+          productId={detailDialog.productId}
+        />
+      )}
     </main>
   );
 }

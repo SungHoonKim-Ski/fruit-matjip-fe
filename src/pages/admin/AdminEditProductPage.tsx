@@ -311,7 +311,13 @@ export default function AdminEditProductPage() {
                     value={form.stock + additionalStock}
                     readOnly
                     aria-readonly="true"
-                    className={`w-full h-10 border rounded pl-3 pr-12 text-center bg-gray-100 cursor-not-allowed select-none caret-transparent ${form.stock + additionalStock > form.stock ? 'text-blue-600' : form.stock + additionalStock < form.stock ? 'text-red-600' : 'text-gray-700'}`}
+                    className={`w-full h-10 border rounded pl-3 pr-12 text-center cursor-not-allowed select-none caret-transparent ${
+                      form.stock + additionalStock > form.stock 
+                        ? 'bg-green-100 text-green-700 border-green-300' 
+                        : form.stock + additionalStock < form.stock 
+                        ? 'bg-red-100 text-red-700 border-red-300' 
+                        : 'bg-gray-100 text-gray-700'
+                    }`}
                   />
                   <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-gray-500">개</span>
                 </div>
@@ -493,8 +499,6 @@ export default function AdminEditProductPage() {
                       URL.revokeObjectURL(localPreviewUrlRef.current);
                     }
                     localPreviewUrlRef.current = URL.createObjectURL(f);
-                    // 폼에는 즉시 반영하지 않고 저장 시 업로드
-                    // 강제 리렌더
                     setForm({ ...form });
                   }}
                 />
