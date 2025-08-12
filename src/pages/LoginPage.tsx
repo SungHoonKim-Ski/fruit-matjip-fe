@@ -31,7 +31,6 @@ function genState() {
  type LoginSuccess = {
    name: string;
    access: string;
-   refresh: string;
  };
 async function ensureKakaoSDK(jsKey: string) {
   if (window.Kakao?.isInitialized?.()) return;
@@ -119,7 +118,6 @@ export default function LoginPage() {
           showRef.current(`${data.name}님 환영합니다!`);
           localStorage.setItem('nickname', data.name);
           localStorage.setItem('access', data.access);
-          localStorage.setItem('refresh', data.refresh);
           window.history.replaceState({}, '', '/login');
 
           nav('/products', { replace: true });
