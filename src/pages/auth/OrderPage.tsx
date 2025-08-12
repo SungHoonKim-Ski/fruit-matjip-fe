@@ -316,7 +316,7 @@ export default function OrdersPage() {
           <div className="bg-white rounded-lg p-6 max-w-sm w-full">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">주문 취소</h3>
             <p className="text-gray-600 mb-6">
-              <span className="font-medium">{cancelDialog.productName}</span> 주문을 취소하시겠습니까?
+              <span className="font-medium">"{cancelDialog.productName}"</span> 주문을 취소하시겠습니까?
             </p>
             <div className="flex gap-3">
               <button
