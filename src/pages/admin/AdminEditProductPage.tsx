@@ -304,14 +304,14 @@ export default function AdminEditProductPage() {
               </div>
             </div>
               <div>
-                <label className="text-sm font-medium">재고(재고 변경시 반영)</label>
+                <label className="text-sm font-medium">현재 재고</label>
                 <div className="mt-1 relative">
                   <input
                     name="stock" type="number" min={0}
                     value={form.stock + additionalStock}
                     readOnly
                     aria-readonly="true"
-                    className={`w-full h-10 border rounded pl-3 pr-12 text-center bg-gray-100 cursor-not-allowed select-none caret-transparent ${form.stock + additionalStock > form.stock ? 'text-green-600' : form.stock + additionalStock < form.stock ? 'text-red-600' : 'text-gray-700'}`}
+                    className={`w-full h-10 border rounded pl-3 pr-12 text-center bg-gray-100 cursor-not-allowed select-none caret-transparent ${form.stock + additionalStock > form.stock ? 'text-blue-600' : form.stock + additionalStock < form.stock ? 'text-red-600' : 'text-gray-700'}`}
                   />
                   <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-gray-500">개</span>
                 </div>
