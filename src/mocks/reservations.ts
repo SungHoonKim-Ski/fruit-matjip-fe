@@ -32,7 +32,7 @@ export const mockReservations: ReservationRow[] = [
 
   // 내일 날짜 (예약)
   { id: 212, date: '2025-08-12', productName: '신선한 토마토 1kg', buyerName: '강동원', quantity: 2, amount: 6000, pickupStatus: 'pending' },
-  { id: 213, date: '2025-08-12', productName: '유기농 감자 2kg', buyerName: '배두나', quantity: 1, amount: 3000, pickupStatus: 'pending' },
+  { id: 213, date: '2025-08-12', productName: '유기농 감자 2kg', buyerName: '배두나', quantity: 1, amount: 3000, pickupStatus: 'picked' },
   { id: 214, date: '2025-08-12', productName: 'GAP 사과 2kg', buyerName: '류준열', quantity: 3, amount: 21000, pickupStatus: 'pending' },
 
   // 모레 날짜 (예약)

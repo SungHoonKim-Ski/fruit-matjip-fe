@@ -96,7 +96,7 @@ export default function AdminSalesPage() {
               <tr className="text-left text-sm text-gray-500">
                 <th className="px-4 py-3">일자</th>
                 <th className="px-4 py-3">상품명</th>
-                <th className="px-4 py-3">이름</th>
+                <th className="px-4 py-3">닉네임</th>
                 <th className="px-4 py-3">단가</th>
                 <th className="px-4 py-3">수량</th>
                 <th className="px-4 py-3">매출</th>

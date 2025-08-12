@@ -177,7 +177,7 @@ export default function AdminProductPage() {
             onClick={goBuyers}
             className="h-10 w-full px-4 rounded bg-sky-500 text-white hover:bg-sky-600 text-sm font-medium"
           >
-            구매자 확인
+            예약 확인
           </button>
         </div>
 

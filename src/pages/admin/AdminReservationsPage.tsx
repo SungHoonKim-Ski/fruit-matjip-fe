@@ -10,7 +10,7 @@ type ReservationRow = {
   buyerName: string;
   quantity: number;
   amount: number;
-  pickupStatus: 'pending' | 'picked'; // 대기 / 수령
+  pickupStatus: 'pending' | 'picked'; // 수령 전 / 수령 완료
 };
 
 const formatKRW = (n: number) =>
@@ -27,10 +27,13 @@ export default function AdminReservationsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('pending'); // 기본값을 미수령으로 변경
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('all'); // 기본값을 전체로 변경
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>(() => mockReservations);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | null>(null);
+  const [applying, setApplying] = useState(false);
 
   const filtered = useMemo(() => {
     const v = term.trim();
@@ -53,28 +56,36 @@ export default function AdminReservationsPage() {
     // dirty 관련 코드 제거
   };
 
-  // 행/칩 터치로 토글
-  const toggleRowStatus = (id: number) => {
-    let toggledStatus: 'pending' | 'picked' = 'pending';
-    setRows(prev => {
-      const nextRows = prev.map(r => {
-        if (r.id !== id) return r;
-        toggledStatus = r.pickupStatus === 'pending' ? 'picked' : 'pending';
-        return { ...r, pickupStatus: toggledStatus };
-      });
-      if (toggledStatus === 'picked') {
-        show(`상태가 수령 O 로 변경되었습니다.`);
+  // 변경 확인 다이얼로그
+  const openConfirmChange = (id: number, current: 'pending' | 'picked') => {
+    const next = current === 'pending' ? 'picked' : 'pending';
+    setConfirmId(id);
+    setConfirmNext(next);
+  };
+  const closeConfirm = () => { setConfirmId(null); setConfirmNext(null); };
+  const applyConfirm = async () => {
+    if (confirmId == null || confirmNext == null) return;
+    try {
+      setApplying(true);
+      const target = rows.find(r => r.id === confirmId);
+      const productName = target ? target.productName : '';
+      const buyerName = target ? target.buyerName : '';
+      updateRowStatus(confirmId, confirmNext);
+      if (confirmNext === 'picked') {
+        show(`${buyerName}님의 "${productName}" 상태가 수령 완료로 변경되었습니다.`);
       } else {
-        show(`상태가 수령 X 로 변경되었습니다.`, { variant: 'error' });
+        show(`"${buyerName}님의 ${productName}" 상태가 수령 전으로 변경되었습니다.`, { variant: 'info' });
       }
-      return nextRows;
-    });
+      closeConfirm();
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
   <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
     <div className="max-w-4xl mx-auto flex items-center justify-between mb-4">
-      <h1 className="text-2xl font-bold text-gray-800">🧾 구매자 확인</h1>
+      <h1 className="text-2xl font-bold text-gray-800">🧾 예약 확인</h1>
     </div>
 
       {/* 필터 */}
@@ -121,8 +132,8 @@ export default function AdminReservationsPage() {
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
-              <option value="pending">수령 X</option>
-              <option value="picked">수령 O</option>
+              <option value="pending">수령 전</option>
+              <option value="picked">수령 완료</option>
             </select>
           </div>
         </div>
@@ -152,7 +163,7 @@ export default function AdminReservationsPage() {
                 <tr
                   key={r.id}
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
-                  onClick={() => toggleRowStatus(r.id)}  // 행 전체 터치로 토글
+                  onClick={() => openConfirmChange(r.id, r.pickupStatus)}
                 >
                   <td className="px-4 py-3">{r.date}</td>
                   <td className="px-4 py-3">{r.productName}</td>
@@ -162,7 +173,7 @@ export default function AdminReservationsPage() {
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => toggleRowStatus(r.id)}
+                      onClick={() => openConfirmChange(r.id, r.pickupStatus)}
                       className={
                         'inline-flex items-center h-9 px-3 rounded-full border text-xs font-medium transition ' +
                         (r.pickupStatus === 'picked'
@@ -171,7 +182,7 @@ export default function AdminReservationsPage() {
                       }
                       aria-pressed={r.pickupStatus === 'picked'}
                     >
-                      {r.pickupStatus === 'picked' ? '수령 O' : '수령 X'}
+                      {r.pickupStatus === 'picked' ? '수령 완료' : '수령 전'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
@@ -184,8 +195,8 @@ export default function AdminReservationsPage() {
                       aria-hidden="true"
                       tabIndex={-1}
                     >
-                      <option value="pending">수령 X</option>
-                      <option value="picked">수령 O</option>
+                      <option value="pending">수령 전</option>
+                      <option value="picked">수령 완료</option>
                     </select>
                   </td>
                 </tr>
@@ -197,11 +208,11 @@ export default function AdminReservationsPage() {
         {/* 모바일 카드 */}
         <div className="sm:hidden divide-y">
           {filtered.map(r => (
-            <div
-              key={r.id}
-              className="p-4 active:bg-orange-50"
-              onClick={() => toggleRowStatus(r.id)}  // 카드 전체 탭으로 토글
-            >
+              <div
+                key={r.id}
+                className="p-4 active:bg-orange-50"
+                onClick={() => openConfirmChange(r.id, r.pickupStatus)}
+              >
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{r.date}</span>
                 <span className="font-medium">{formatKRW(r.amount)}</span>
@@ -212,7 +223,7 @@ export default function AdminReservationsPage() {
               <div className="mt-2 flex justify-end">
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleRowStatus(r.id); }}
+                  onClick={(e) => { e.stopPropagation(); openConfirmChange(r.id, r.pickupStatus); }}
                   className={
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
                     (r.pickupStatus === 'picked'
@@ -220,13 +231,43 @@ export default function AdminReservationsPage() {
                       : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
-                  {r.pickupStatus === 'picked' ? '픽업O' : '픽업X'}
+                  {r.pickupStatus === 'picked' ? '수령 완료' : '수령 전'}
                 </button>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {confirmId !== null && confirmNext !== null && (
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div className="absolute inset-0 bg-black/40" onClick={closeConfirm} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
+            <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
+            <p className="text-sm text-gray-600 mt-2">
+              선택한 항목을 {confirmNext === 'picked' ? '수령 완료' : '수령 전'}로 변경합니다.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={closeConfirm}
+                className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
+                disabled={applying}
+                type="button"
+              >
+                아니오
+              </button>
+              <button
+                onClick={applyConfirm}
+                disabled={applying}
+                className={`h-10 px-4 rounded text-white ${applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+                type="button"
+              >
+                {applying ? '처리 중…' : '네, 변경합니다'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

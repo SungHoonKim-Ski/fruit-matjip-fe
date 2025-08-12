@@ -292,13 +292,13 @@ export default function ReservePage() {
 
             <nav className="mt-2 space-y-2 text-sm">
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://open.kakao.com/o/your-openchat" target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
+                 href="https://open.kakao.com/o/gX73w4Yg" target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://pf.kakao.com/your-1to1" target="_blank" rel="noreferrer">매니저 1:1 카카오톡</a>
+                 href="https://open.kakao.com/o/sfAUFYeh" target="_blank" rel="noreferrer">과일맛집 문제해결사</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="tel:0226667412">점장 문의처 전화번호</a>
+                 href="tel:01030299238">점장 문의</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://map.kakao.com/link/to/과일맛집,37.4979,127.0276" target="_blank" rel="noreferrer">찾아오시는 길</a>
+                 href="https://naver.me/FmfPi8Y8" target="_blank" rel="noreferrer">찾아오시는 길</a>
             </nav>
 
             <div className="mt-6 text-xs text-gray-400">© 2025 과일맛집</div>
@@ -465,7 +465,7 @@ export default function ReservePage() {
         </footer>
       </section>      
       <FloatingActions
-        orderPath="/orders"  
+        orderPath="/me/orders"  
       />
     </main>
   );

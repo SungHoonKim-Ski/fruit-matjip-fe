@@ -20,9 +20,10 @@ export default function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/shop" element={<ShopPage />} />
-      <Route path="/orders" element={<OrderPage />} />
+      <Route path="/me/orders" element={<OrderPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
 
+      <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/register" element={<AdminRegisterPage />} />
       <Route path="/admin/products" element={<AdminProductPage />} />
