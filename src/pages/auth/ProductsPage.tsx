@@ -436,14 +436,14 @@ export default function ReservePage() {
               />
               <div className="p-4">
                 <h2
-                  className="text-xl font-semibold cursor-pointer hover:underline flex items-center justify-between gap-2"
+                  className="text-xl font-semibold cursor-pointer flex items-center justify-between gap-2"
                   onClick={() => openDetail(item.id)}
                   role="button"
                 >
-                  <span className="truncate">{item.name}</span>
+                  <span className="truncate hover:underline">{item.name}</span>
                   <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
                 </h2>
-                <div className="flex justify-between text-sm text-gray-500 hover:underline flex items-center justify-between gap-2">
+                <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
                   <span className="text-l">{item.stock - item.quantity}개 남았어요!</span>
                 </div>
