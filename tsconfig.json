@@ -19,6 +19,6 @@
       "@/*": ["*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "GATracker.tsx"],
   "exclude": ["node_modules"]
 }

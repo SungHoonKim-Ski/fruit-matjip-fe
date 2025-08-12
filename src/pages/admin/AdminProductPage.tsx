@@ -25,6 +25,26 @@ export default function AdminProductPage() {
 
   const hasChanges = JSON.stringify(products) !== JSON.stringify(originalProducts);
 
+  // Dialog 상태들
+  const [deleteStockDialog, setDeleteStockDialog] = useState<{
+    isOpen: boolean;
+    productId: number;
+    productName: string;
+  }>({ isOpen: false, productId: 0, productName: '' });
+  
+  const [deleteProductDialog, setDeleteProductDialog] = useState<{
+    isOpen: boolean;
+    productId: number;
+    productName: string;
+  }>({ isOpen: false, productId: 0, productName: '' });
+  
+  const [toggleStatusDialog, setToggleStatusDialog] = useState<{
+    isOpen: boolean;
+    productId: number;
+    productName: string;
+    newStatus: 'active' | 'inactive';
+  }>({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' });
+
   // 검색어 (상품명)
   const [search, setSearch] = useState('');
   const visibleProducts = useMemo(() => {
@@ -76,20 +96,100 @@ export default function AdminProductPage() {
     return filtered;
   }, [products, search]);
 
-  const toggleStatus = (id: number) =>
-    setProducts(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' }
-          : p
-      )
-    );
+  // Dialog 열기 함수들
+  const openDeleteStockDialog = (id: number, name: string) => {
+    setDeleteStockDialog({ isOpen: true, productId: id, productName: name });
+  };
 
-  const deleteStockOnly = (id: number) =>
-    setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0 } : p)));
+  const openDeleteProductDialog = (id: number, name: string) => {
+    setDeleteProductDialog({ isOpen: true, productId: id, productName: name });
+  };
 
-  const deleteProduct = (id: number) =>
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const openToggleStatusDialog = (id: number, name: string, currentStatus: 'active' | 'inactive') => {
+    setToggleStatusDialog({ 
+      isOpen: true, 
+      productId: id, 
+      productName: name, 
+      newStatus: currentStatus === 'active' ? 'inactive' : 'active' 
+    });
+  };
+
+  // 실제 실행 함수들
+  const handleDeleteStock = async (id: number) => {
+    try {
+      if (USE_MOCKS) {
+        setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0 } : p)));
+        show('품절 처리되었습니다.', { variant: 'success' });
+      } else {
+        const res = await fetch(`/api/admin/products/${id}/stock`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: 0 })
+        });
+        if (!res.ok) throw new Error('품절 처리에 실패했습니다.');
+        
+        setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0 } : p)));
+        show('품절 처리되었습니다.', { variant: 'success' });
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminProductPage - handleDeleteStock');
+      show(getSafeErrorMessage(e, '품절 처리 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setDeleteStockDialog({ isOpen: false, productId: 0, productName: '' });
+    }
+  };
+
+  const handleDeleteProduct = async (id: number) => {
+    try {
+      if (USE_MOCKS) {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        show('상품이 삭제되었습니다.', { variant: 'success' });
+      } else {
+        const res = await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('상품 삭제에 실패했습니다.');
+        
+        setProducts(prev => prev.filter(p => p.id !== id));
+        show('상품이 삭제되었습니다.', { variant: 'success' });
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminProductPage - handleDeleteProduct');
+      show(getSafeErrorMessage(e, '상품 삭제 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setDeleteProductDialog({ isOpen: false, productId: 0, productName: '' });
+    }
+  };
+
+  const handleToggleStatus = async (id: number, newStatus: 'active' | 'inactive') => {
+    try {
+      if (USE_MOCKS) {
+        setProducts(prev =>
+          prev.map(p =>
+            p.id === id ? { ...p, status: newStatus } : p
+          )
+        );
+        show(`상품이 ${newStatus === 'active' ? '노출' : '숨김'} 처리되었습니다.`, { variant: 'success' });
+      } else {
+        const res = await fetch(`/api/admin/products/${id}/status`, { 
+          method: 'PUT', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+        if (!res.ok) throw new Error('상태 변경에 실패했습니다.');
+        
+        setProducts(prev =>
+          prev.map(p =>
+            p.id === id ? { ...p, status: newStatus } : p
+          )
+        );
+        show(`상품이 ${newStatus === 'active' ? '노출' : '숨김'} 처리되었습니다.`, { variant: 'success' });
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminProductPage - handleToggleStatus');
+      show(getSafeErrorMessage(e, '상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setToggleStatusDialog({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' });
+    }
+  };
 
   const handleReset = () => setProducts(originalProducts);
 
@@ -310,7 +410,7 @@ export default function AdminProductPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => toggleStatus(product.id)}
+                      onClick={() => openToggleStatusDialog(product.id, product.name, product.status)}
                       className={`h-10 w-full rounded font-medium transition
                         ${product.status === 'active'
                           ? 'bg-green-500 hover:bg-green-600 text-white'
@@ -324,14 +424,14 @@ export default function AdminProductPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => deleteStockOnly(product.id)}
+                      onClick={() => openDeleteStockDialog(product.id, product.name)}
                       className="h-10 w-full rounded bg-amber-500 text-white hover:bg-amber-600"
                     >
                       품절 처리
                     </button>
                     <button
                       type="button"
-                      onClick={() => deleteProduct(product.id)}
+                      onClick={() => openDeleteProductDialog(product.id, product.name)}
                       className="h-10 w-full rounded bg-gray-700 text-white hover:bg-gray-800"
                     >
                       상품 삭제
@@ -365,6 +465,91 @@ export default function AdminProductPage() {
               저장
             </button>
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* 품절 처리 확인 Dialog */}
+      {deleteStockDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">품절 처리</h3>
+            <p className="text-gray-600 mb-6">
+              <span className="font-medium">"{deleteStockDialog.productName}"</span> 상품을 품절 처리합니다.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteStockDialog({ isOpen: false, productId: 0, productName: '' })}
+                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => handleDeleteStock(deleteStockDialog.productId)}
+                className="flex-1 h-10 rounded bg-amber-500 text-white hover:bg-amber-600"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상품 삭제 확인 Dialog */}
+      {deleteProductDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">상품 삭제</h3>
+            <p className="text-gray-600 mb-6">
+              <span className="font-medium">"{deleteProductDialog.productName}"</span> 상품을 삭제합니다.
+              <br />
+              <span className="text-sm text-red-600">이 작업은 되돌릴 수 없습니다.</span>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteProductDialog({ isOpen: false, productId: 0, productName: '' })}
+                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => handleDeleteProduct(deleteProductDialog.productId)}
+                className="flex-1 h-10 rounded bg-red-500 text-white hover:bg-red-600"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상품 목록 노출 상태 변경 확인 Dialog */}
+      {toggleStatusDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">상품 노출 상태 변경</h3>
+            <p className="text-gray-600 mb-6">
+              <span className="font-medium">"{toggleStatusDialog.productName}"</span> 상품을
+              {toggleStatusDialog.newStatus === 'active' ? ' 목록에 노출' : ' 목록에서 숨김'} 처리합니다.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setToggleStatusDialog({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' })}
+                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => handleToggleStatus(toggleStatusDialog.productId, toggleStatusDialog.newStatus)}
+                className={`flex-1 h-10 rounded text-white font-medium ${
+                  toggleStatusDialog.newStatus === 'active' 
+                    ? 'bg-green-500 hover:bg-green-600' 
+                    : 'bg-rose-500 hover:bg-rose-600'
+                }`}
+              >
+                확인
+              </button>
+            </div>
           </div>
         </div>
       )}

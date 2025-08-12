@@ -74,7 +74,7 @@ export default function AdminReservationsPage() {
       if (confirmNext === 'picked') {
         show(`${buyerName}님의 "${productName}" 상태가 수령 완료로 변경되었습니다.`);
       } else {
-        show(`"${buyerName}님의 ${productName}" 상태가 수령 전으로 변경되었습니다.`, { variant: 'info' });
+        show(`"${buyerName}님의 ${productName}" 상태가 수령 대기로 변경되었습니다.`, { variant: 'info' });
       }
       closeConfirm();
     } finally {
@@ -132,7 +132,7 @@ export default function AdminReservationsPage() {
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
-              <option value="pending">수령 전</option>
+              <option value="pending">수령 대기</option>
               <option value="picked">수령 완료</option>
             </select>
           </div>
@@ -182,7 +182,7 @@ export default function AdminReservationsPage() {
                       }
                       aria-pressed={r.pickupStatus === 'picked'}
                     >
-                      {r.pickupStatus === 'picked' ? '수령 완료' : '수령 전'}
+                      {r.pickupStatus === 'picked' ? '수령 완료' : '수령 대기'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
@@ -195,7 +195,7 @@ export default function AdminReservationsPage() {
                       aria-hidden="true"
                       tabIndex={-1}
                     >
-                      <option value="pending">수령 전</option>
+                      <option value="pending">수령 대기</option>
                       <option value="picked">수령 완료</option>
                     </select>
                   </td>
@@ -231,7 +231,7 @@ export default function AdminReservationsPage() {
                       : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
-                  {r.pickupStatus === 'picked' ? '수령 완료' : '수령 전'}
+                  {r.pickupStatus === 'picked' ? '수령 완료' : '수령 대기'}
                 </button>
               </div>
             </div>
@@ -245,7 +245,7 @@ export default function AdminReservationsPage() {
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
             <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
             <p className="text-sm text-gray-600 mt-2">
-              선택한 항목을 {confirmNext === 'picked' ? '수령 완료' : '수령 전'}로 변경합니다.
+              선택한 항목을 {confirmNext === 'picked' ? '수령 완료' : '수령 대기'}로 변경합니다.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button

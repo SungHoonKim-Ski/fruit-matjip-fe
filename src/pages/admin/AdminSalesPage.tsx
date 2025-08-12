@@ -59,7 +59,7 @@ export default function AdminSalesPage() {
               required
               className="mt-1 w-full h-10 border rounded px-2"
             >
-              <option value="buyerName">이름</option>
+              <option value="buyerName">닉네임</option>
               <option value="productName">상품명</option>
             </select>
           </div>

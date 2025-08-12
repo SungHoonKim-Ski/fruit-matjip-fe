@@ -5,6 +5,14 @@ import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
 
+// 취소 확인 dialog 타입
+interface CancelDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  productName: string;
+}
+
 const KRW = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
@@ -26,13 +34,24 @@ export default function OrdersPage() {
   // 필터 - 기본값: 오늘 ~ 이번 달 말일
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(endOfMonth);
-  const [status, setStatus] = useState<'all' | 'reserved' | 'picked' | 'canceled'>('all');
+  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all');
 
   // 데이터
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);         // “더 보기” 용
   const [hasMore, setHasMore] = useState(false);
+  
+  // 취소 dialog 상태
+  const [cancelDialog, setCancelDialog] = useState<{
+    isOpen: boolean;
+    orderId: number;
+    productName: string;
+  }>({
+    isOpen: false,
+    orderId: 0,
+    productName: ''
+  });
 
   // 초기 로드
   useEffect(() => {
@@ -94,9 +113,50 @@ export default function OrdersPage() {
 
   const statusBadge = (s: OrderRow['status']) => {
     const base = 'inline-flex items-center h-7 px-2.5 rounded-full text-xs font-medium';
-    if (s === 'reserved') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
+    if (s === 'pending') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
     if (s === 'picked')   return `${base} bg-green-50 text-green-700 border border-green-200`;
     return `${base} bg-gray-100 text-gray-600 border border-gray-200`;
+  };
+
+  // 취소 dialog 열기
+  const openCancelDialog = (orderId: number, productName: string) => {
+    setCancelDialog({
+      isOpen: true,
+      orderId,
+      productName
+    });
+  };
+
+  // 주문 취소 처리
+  const handleCancelOrder = async (orderId: number) => {
+    try {
+      if (USE_MOCKS) {
+        // Mock 데이터에서 상태 변경
+        setOrders(prev => prev.map(order => 
+          order.id === orderId 
+            ? { ...order, status: 'canceled' as const }
+            : order
+        ));
+        show(`${cancelDialog.productName}이 취소되었습니다.`, { variant: 'success' });
+      } else {
+        // 실제 API 호출
+        const res = await fetch(`/api/my/orders/${orderId.toString()}/cancel`, { method: 'PUT' });
+        if (!res.ok) throw new Error('주문 취소에 실패했습니다.');
+        
+        // 성공 시 로컬 상태 업데이트
+        setOrders(prev => prev.map(order => 
+          order.id === orderId 
+            ? { ...order, status: 'canceled' as const }
+            : order
+        ));
+        show(`${cancelDialog.productName} 주문이 취소되었습니다.`, { variant: 'success' });
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'OrderPage - handleCancelOrder');
+      show(getSafeErrorMessage(e, '주문 취소 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
+    }
   };
 
   return (
@@ -129,7 +189,7 @@ export default function OrdersPage() {
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
-              <option value="reserved">예약 완료</option>
+              <option value="pending">수령 대기</option>
               <option value="picked">수령 완료</option>
               <option value="canceled">예약 취소</option>
             </select>
@@ -181,9 +241,13 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
                   <td className="px-4 py-3">
-                    <span className={statusBadge(o.status)}>
-                      {o.status === 'reserved' ? '예약 완료' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
-                    </span>
+                    <button
+                      onClick={() => openCancelDialog(o.id, o.items.map(item => item.name).join(', '))}
+                      className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                      disabled={o.status !== 'pending'}
+                    >
+                      {o.status === 'pending' ? '수령 대기' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -203,9 +267,13 @@ export default function OrdersPage() {
             <div key={o.id} className="bg-white rounded-lg shadow p-4">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">{o.date}</div>
-                <span className={statusBadge(o.status)}>
-                  {o.status === 'reserved' ? '예약 완료' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
-                </span>
+                <button
+                  onClick={() => openCancelDialog(o.id, o.items.map(item => item.name).join(', '))}
+                  className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                  disabled={o.status !== 'pending'}
+                >
+                  {o.status === 'pending' ? '수령 대기' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                </button>
               </div>
               <div className="mt-2 space-y-2">
                 {o.items.map(it => (
@@ -239,6 +307,32 @@ export default function OrdersPage() {
           >
             더 보기
           </button>
+        </div>
+      )}
+
+      {/* 취소 확인 Dialog */}
+      {cancelDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">주문 취소</h3>
+            <p className="text-gray-600 mb-6">
+              <span className="font-medium">{cancelDialog.productName}</span> 주문을 취소하시겠습니까?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelDialog({ isOpen: false, orderId: 0, productName: '' })}
+                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => handleCancelOrder(cancelDialog.orderId)}
+                className="flex-1 h-10 rounded bg-red-500 text-white hover:bg-red-600"
+              >
+                확인
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

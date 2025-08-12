@@ -13,7 +13,7 @@ export type OrderItem = {
 export type OrderRow = {
   id: number;
   date: string;           // YYYY-MM-DD
-  status: 'reserved' | 'picked' | 'canceled';
+  status: 'pending' | 'picked' | 'canceled';
   items: OrderItem[];
 };
 
@@ -21,7 +21,7 @@ export const mockOrders: OrderRow[] = [
   {
     id: 101,
     date: '2025-08-11',
-    status: 'reserved',
+    status: 'pending',
     items: [
       { id: 1, name: '신선한 토마토 1kg', quantity: 2, price: 3000, imageUrl: '/images/image1.png' },
     ],
@@ -38,7 +38,7 @@ export const mockOrders: OrderRow[] = [
   {
     id: 103,
     date: '2025-08-13',
-    status: 'reserved',
+    status: 'pending',
     items: [
       { id: 4, name: '제주 감귤 3kg', quantity: 1, price: 5000, imageUrl: '/images/image4.png' },
     ],
