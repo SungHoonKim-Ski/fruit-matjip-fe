@@ -3,8 +3,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
-import { listProducts } from '../../mocks/products';
+import { listProducts, deleteProduct, updateProduct } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { setSoldOut, toggleVisible, deleteAdminProduct } from '../../utils/api';
 
 type Product = {
   id: number;

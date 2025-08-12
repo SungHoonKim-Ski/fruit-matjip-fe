@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
-import { deleteProduct as mockDelete, getProductById, mockUploadImage, updateProduct } from '../../mocks/products';
+import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct, mockUploadImage } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { apiDelete, apiGet, apiPost, apiPut } from '../../utils/api';
+import { updateAdminProduct, getUpdateUrl, deleteAdminProduct, getAdminProduct } from '../../utils/api';
 
 // 상품 설명 글자 수 제한
 const DESCRIPTION_LIMIT = 300;
@@ -65,12 +65,7 @@ export default function AdminEditProductPage() {
             setAdditionalStock(0);
           }
         } else {
-          const res = await fetch(`${API_BASE}/api/admin/products/${id}`, { credentials: 'include' });
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            await res.text();
-            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-          }
+          const res = await getAdminProduct(Number(id));
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const data = (await res.json()) as ProductEdit;
           if (alive) setForm(data);
@@ -83,7 +78,7 @@ export default function AdminEditProductPage() {
       }
     })();
     return () => { alive = false; };
-  }, [id, show, API_BASE]);
+  }, [id, show]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!form) return;
@@ -100,34 +95,35 @@ export default function AdminEditProductPage() {
   const uploadIfNeeded = async (): Promise<string | null> => {
     if (!fileRef.current?.files?.[0]) return null;
     const file = fileRef.current.files[0];
+    
     if (USE_MOCKS) {
-      return await mockUploadImage(file);
+      // Mock 업로드 - 실제 파일 URL 반환
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return URL.createObjectURL(file);
+    } else {
+      try {
+        const res = await getUpdateUrl(Number(id));
+        if (!res.ok) throw new Error('업로드 URL을 가져오지 못했습니다.');
+        
+        const { uploadUrl } = await res.json();
+        
+        // 파일 업로드
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        });
+        
+        if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
+        
+        // 업로드된 파일 URL 반환 (실제로는 presigned URL에서 파일 URL을 추출해야 함)
+        return uploadUrl.split('?')[0];
+      } catch (e: any) {
+        safeErrorLog(e, 'AdminEditProductPage - uploadIfNeeded');
+        show(getSafeErrorMessage(e, '파일 업로드 중 오류가 발생했습니다.'), { variant: 'error' });
+        return null;
+      }
     }
-    // 1) presigned url 발급 요청
-    const pres = await fetch(`${API_BASE}/api/admin/presigned-url`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ fileName: file.name }),
-    });
-    const presType = pres.headers.get('content-type') || '';
-    if (!presType.includes('application/json')) {
-      await pres.text();
-      throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-    }
-    if (!pres.ok) throw new Error('이미지 업로드 URL 발급 실패');
-    const { url, imageUrl } = await pres.json();
-
-    // 2) S3 업로드
-    const put = await fetch(url, {
-      method: 'PUT',
-      body: file,
-      headers: { 'Content-Type': file.type },
-    });
-    if (!put.ok) throw new Error('이미지 업로드 실패');
-
-    // 3) 업로드된 최종 경로 반환
-    return imageUrl as string;
   };
 
   const validateForm = () => {
@@ -195,19 +191,9 @@ export default function AdminEditProductPage() {
       };
 
       if (USE_MOCKS) {
-        updateProduct({ id: form.id, ...payload });
+        mockUpdateProduct({ id: form.id, ...payload });
       } else {
-        const res = await fetch(`${API_BASE}/api/admin/products/${form.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        });
-        const resType = res.headers.get('content-type') || '';
-        if (!resType.includes('application/json')) {
-          await res.text();
-          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-        }
+        const res = await updateAdminProduct(Number(id), payload);
         if (!res.ok) throw new Error('저장에 실패했습니다.');
       }
 
@@ -228,15 +214,7 @@ export default function AdminEditProductPage() {
       if (USE_MOCKS) {
         mockDelete(form.id);
       } else {
-        const res = await fetch(`${API_BASE}/api/admin/products/${form.id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        const resType = res.headers.get('content-type') || '';
-        if (!resType.includes('application/json')) {
-          await res.text();
-          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-        }
+        const res = await deleteAdminProduct(form.id);
         if (!res.ok) throw new Error('삭제에 실패했습니다.');
       }
       show('삭제되었습니다.');

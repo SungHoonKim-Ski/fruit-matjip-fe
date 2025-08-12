@@ -5,6 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { getProducts, modifyName, checkNameExists } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
@@ -41,7 +42,6 @@ export default function ReservePage() {
   const { show } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
-  const API_BASE = process.env.REACT_APP_API_BASE || '';
 
   // ProductDetailPage dialog 상태
   const [detailDialog, setDetailDialog] = useState<{
@@ -96,12 +96,7 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          const res = await fetch(`${API_BASE}/api/products`);
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            await res.text(); // Read text to prevent unused variable warning
-            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-          }
+          const res = await getProducts();
           if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
           const data = await res.json();
           setProducts(data.map((p: any, i: number) => ({
@@ -121,7 +116,7 @@ export default function ReservePage() {
       }
     };
     loadProducts();
-  }, [API_BASE, show, dates]);
+  }, [show, dates]);
 
   const productsOfDay = useMemo(
     () => products.filter(p => p.sellDate === activeDate),
@@ -188,18 +183,17 @@ export default function ReservePage() {
       return true;
     } else {
       try {
-        const res = await fetch(`${API_BASE}/api/nickname/check?nickname=${encodeURIComponent(value)}`);
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          await res.text();
-          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-        }
+        const res = await checkNameExists(value);
         if (!res.ok) throw new Error('중복 검사 실패');
+        
         const data = await res.json();
-        return Boolean(data.unique);
+        // 백엔드에서 true/false로 중복 여부 반환
+        // true: 사용 가능 (중복 아님), false: 중복됨
+        return Boolean(data);
       } catch (e: any) {
         safeErrorLog(e, 'ShopPage - checkNicknameUnique');
         show(getSafeErrorMessage(e, '닉네임 중복 확인 중 오류가 발생했습니다.'), { variant: 'error' });
+        return false;
       }
     }
   };
@@ -236,11 +230,7 @@ export default function ReservePage() {
         show('닉네임이 변경되었습니다.');
         setNickModalOpen(false);
       } else {
-        const res = await fetch(`${API_BASE}/api/nickname`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nickname: value }),
-        });
+        const res = await modifyName(value);
         const contentType = res.headers.get('content-type') || '';
         if (!contentType.includes('application/json')) {
           await res.text();

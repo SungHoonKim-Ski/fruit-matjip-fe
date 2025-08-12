@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
+import { adminLogin } from '../../utils/api';
 
 export default function AdminLoginPage() {
   const [id, setId] = useState('');
@@ -10,14 +11,12 @@ export default function AdminLoginPage() {
   const { show } = useSnackbar();
   
   const handleLogin = async (e: React.FormEvent) => {
-
     e.preventDefault();
     setError('');
 
-    const DUMMY_ADMIN = { id: 'admin', pw: 'admin' };
-
     try {
-      if (id === DUMMY_ADMIN.id && password === DUMMY_ADMIN.pw) {
+      const res = await adminLogin({ email: id, password });
+      if (res.ok) {
         show('로그인 성공');
         localStorage.setItem('admin-auth', 'true');
         navigate('/admin/products');

@@ -3,6 +3,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { getProduct } from '../../utils/api';
 
 type Product = {
   id: number;
@@ -72,12 +73,10 @@ interface ProductDetailPageProps {
 }
 
 export default function ProductDetailPage({ isOpen, onClose, productId }: ProductDetailPageProps) {
-  const { show } = useSnackbar();
-  const API_BASE = process.env.REACT_APP_API_BASE || '';
-
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [activeImage, setActiveImage] = useState<string>('');
+  const { show } = useSnackbar();
 
   useEffect(() => {
     if (!isOpen || !productId) return;
@@ -87,6 +86,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
       try {
         setLoading(true);
         if (USE_MOCKS) {
+          await new Promise(resolve => setTimeout(resolve, 500));
           const data = getProductById(productId);
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
           if (alive) {
@@ -94,12 +94,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
             setActiveImage((data as Product).images?.[0] || (data as Product).imageUrl);
           }
         } else {
-          const res = await fetch(`${API_BASE}/api/products/${productId}`);
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            await res.text();
-            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-          }
+          const res = await getProduct(productId);
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const data = await res.json() as Product;
           if (alive) {
@@ -115,7 +110,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
       }
     })();
     return () => { alive = false; };
-  }, [isOpen, productId, show, API_BASE]);
+  }, [isOpen, productId, show]);
 
   if (!isOpen) return null;
 

@@ -1,7 +1,10 @@
 // src/pages/admin/AdminReservationsPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSnackbar } from '../../components/snackbar';
-import { mockReservations } from '../../mocks/reservations';
+import { USE_MOCKS } from '../../config';
+import { listReservations } from '../../mocks/reservations';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { togglePicked } from '../../utils/api';
 
 type ReservationRow = {
   id: number;
@@ -30,24 +33,39 @@ export default function AdminReservationsPage() {
   const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('all'); // 기본값을 전체로 변경
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
-  const [rows, setRows] = useState<ReservationRow[]>(() => mockReservations);
+  const [rows, setRows] = useState<ReservationRow[]>([]);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | null>(null);
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
 
+  // 예약 데이터 로드
+  useEffect(() => {
+    const loadReservations = async () => {
+      if (USE_MOCKS) {
+        const data = await listReservations(today);
+        setRows(data);
+      } else {
+        // 실제 API 호출은 여기에 구현
+        // const res = await getReservationReports();
+        // const data = await res.json();
+        // setRows(data);
+      }
+    };
+    loadReservations();
+  }, [today]);
+
   const filtered = useMemo(() => {
     const v = term.trim();
 
-    return rows.filter(r => {
-      const dateMatch = r.date === selectedDate;
-      const fieldHit = !v
-        ? true  // 검색값이 없으면 모든 사용자 표시
-        : field === 'buyerName'
-        ? r.buyerName.includes(v)
-        : r.productName.includes(v);
-      const pickupHit = pickupFilter === 'all' ? true : r.pickupStatus === pickupFilter;
+    return rows.filter(row => {
+      const dateMatch = selectedDate === 'all' || row.date === selectedDate;
+      const fieldHit = !v || 
+        row.productName.toLowerCase().includes(v.toLowerCase()) ||
+        row.buyerName.toLowerCase().includes(v.toLowerCase());
+      const pickupHit = pickupFilter === 'all' || row.pickupStatus === pickupFilter;
+
       return dateMatch && fieldHit && pickupHit;
     });
   }, [rows, selectedDate, term, field, pickupFilter]);

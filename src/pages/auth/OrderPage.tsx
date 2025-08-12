@@ -4,6 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
+import { getReservations, cancelReservation } from '../../utils/api';
 
 // 취소 확인 dialog 타입
 interface CancelDialogProps {
@@ -68,17 +69,14 @@ export default function OrdersPage() {
             setHasMore(mockData.hasMore);
           }
         } else {
-          const res = await fetch(`/api/my/orders?page=${page}`);
-          const contentType = res.headers.get('content-type') || '';
-          if (!contentType.includes('application/json')) {
-            await res.text();
-            throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-          }
-          if (!res.ok) throw new Error('주문 목록을 불러오지 못했습니다.');
-          const data = (await res.json()) as { rows: OrderRow[]; hasMore: boolean };
-          if (alive) {
-            setOrders(data.rows);
-            setHasMore(data.hasMore);
+          try {
+            const res = await getReservations();
+            if (!res.ok) throw new Error('주문 목록을 불러오지 못했습니다.');
+            const data = await res.json();
+            setOrders(data);
+          } catch (e: any) {
+            safeErrorLog(e, 'OrderPage - loadOrders');
+            show(getSafeErrorMessage(e, '주문 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
           }
         }
       } catch (e: any) {
@@ -128,34 +126,36 @@ export default function OrdersPage() {
   };
 
   // 주문 취소 처리
-  const handleCancelOrder = async (orderId: number) => {
+  const handleCancelOrder = async () => {
+    if (!cancelDialog.isOpen) return;
+    
     try {
       if (USE_MOCKS) {
-        // Mock 데이터에서 상태 변경
-        setOrders(prev => prev.map(order => 
-          order.id === orderId 
-            ? { ...order, status: 'canceled' as const }
-            : order
+        // Mock 취소 처리
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setOrders(prev => prev.map(o => 
+          o.id === cancelDialog.orderId 
+            ? { ...o, status: 'canceled' as const }
+            : o
         ));
-        show(`${cancelDialog.productName}이 취소되었습니다.`, { variant: 'success' });
+        show(`${cancelDialog.productName} 주문이 취소되었습니다.`);
+        setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
       } else {
-        // 실제 API 호출
-        const res = await fetch(`/api/my/orders/${orderId.toString()}/cancel`, { method: 'PUT' });
+        const res = await cancelReservation(cancelDialog.orderId);
         if (!res.ok) throw new Error('주문 취소에 실패했습니다.');
         
         // 성공 시 로컬 상태 업데이트
-        setOrders(prev => prev.map(order => 
-          order.id === orderId 
-            ? { ...order, status: 'canceled' as const }
-            : order
+        setOrders(prev => prev.map(o => 
+          o.id === cancelDialog.orderId 
+            ? { ...o, status: 'canceled' as const }
+            : o
         ));
-        show(`${cancelDialog.productName} 주문이 취소되었습니다.`, { variant: 'success' });
+        show(`${cancelDialog.productName} 주문이 취소되었습니다.`);
+        setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
       }
     } catch (e: any) {
       safeErrorLog(e, 'OrderPage - handleCancelOrder');
       show(getSafeErrorMessage(e, '주문 취소 중 오류가 발생했습니다.'), { variant: 'error' });
-    } finally {
-      setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
     }
   };
 
@@ -326,7 +326,7 @@ export default function OrdersPage() {
                 취소
               </button>
               <button
-                onClick={() => handleCancelOrder(cancelDialog.orderId)}
+                onClick={() => handleCancelOrder()}
                 className="flex-1 h-10 rounded bg-red-500 text-white hover:bg-red-600"
               >
                 확인

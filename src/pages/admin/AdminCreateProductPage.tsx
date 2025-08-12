@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { createAdminProduct, getUploadUrl } from '../../utils/api';
 
 type ProductForm = {
   name: string;
@@ -75,11 +76,7 @@ export default function ProductCreatePage() {
         setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
       } else {
         // 1) presigned URL 요청
-        const presignedUrlRes = await fetch('/api/admin/presigned-url', {
-          method: 'POST',
-          body: JSON.stringify({ fileName: form.image.name }),
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const presignedUrlRes = await getUploadUrl();
         if (!presignedUrlRes.ok) throw new Error('이미지 업로드 URL 발급 실패');
         const { url, imageUrl } = await presignedUrlRes.json();
 
@@ -99,11 +96,7 @@ export default function ProductCreatePage() {
           sellDate: form.sellDate,
           status: form.status,
         };
-        const res = await fetch('/api/admin/products', {
-          method: 'POST',
-          body: JSON.stringify(productPayload),
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const res = await createAdminProduct(productPayload);
         if (!res.ok) throw new Error('상품 등록 실패');
 
         show('상품이 등록되었습니다!', { variant: 'success' });

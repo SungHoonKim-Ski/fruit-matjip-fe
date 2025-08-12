@@ -1,55 +1,60 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
+import { adminSignup } from '../../utils/api';
 
 export default function AdminRegisterPage() {
-  const { show } = useSnackbar(); 
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
-  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { show } = useSnackbar();
+  
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async () => {
-    const { name, email, password, confirmPassword } = form;
-
-    // Required
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+    // 유효성 검사
+    if (!name || !email || !password || !confirmPassword) {
       show('모든 필드를 입력해주세요.', { variant: 'error' });
       return;
     }
 
     // Email length: 5 ~ 15 chars
     if (email.length < 5 || email.length > 15) {
-      show('아이디(이메일)는 5~15자로 입력해주세요.', { variant: 'error' });
+      show('아이디는 5~15자로 입력해주세요.', { variant: 'error' });
       return;
     }
 
-    // Password rules: min 8, letters+numbers
-    const pwMin = 8;
-    const hasLetter = /[A-Za-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    if (password.length < pwMin || !hasLetter || !hasNumber) {
-      show('비밀번호는 최소 8자, 영문과 숫자를 포함해야 합니다.', { variant: 'error' });
+    // Password min 8 chars with letters + numbers
+    if (password.length < 8) {
+      show('비밀번호는 8자 이상 입력해주세요.', { variant: 'error' });
       return;
     }
 
-    // Confirm match
+    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+      show('비밀번호는 영문자와 숫자를 포함해야 합니다.', { variant: 'error' });
+      return;
+    }
+
+    // Password confirmation
     if (password !== confirmPassword) {
       show('비밀번호가 일치하지 않습니다.', { variant: 'error' });
       return;
     }
 
     try {
-      setLoading(true);
-      await new Promise((r) => setTimeout(r, 1000));
-      show('관리자 계정이 등록되었습니다.');
-      setForm({ name: '', email: '', password: '', confirmPassword: '' });
+      const res = await adminSignup();
+      if (res.ok) {
+        show('회원가입이 완료되었습니다.');
+        navigate('/admin/login');
+      } else {
+        show('회원가입에 실패했습니다.', { variant: 'error' });
+      }
     } catch {
-      show('등록 중 오류가 발생했습니다.', { variant: 'error' });
-    } finally {
-      setLoading(false);
+      setError('회원가입에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -60,8 +65,8 @@ export default function AdminRegisterPage() {
       <input
         name="name"
         placeholder="이름"
-        value={form.name}
-        onChange={handleChange}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
         autoComplete="name"
         className="w-full border px-3 py-2 rounded"
       />
@@ -69,8 +74,8 @@ export default function AdminRegisterPage() {
         name="email"
         type="text"
         placeholder="아이디"
-        value={form.email}
-        onChange={handleChange}
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         autoComplete="username"
         className="w-full border px-3 py-2 rounded"
       />
@@ -78,8 +83,8 @@ export default function AdminRegisterPage() {
         name="password"
         type="password"
         placeholder="비밀번호 (최소 8자, 영문/숫자 포함)"
-        value={form.password}
-        onChange={handleChange}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
         autoComplete="new-password"
         className="w-full border px-3 py-2 rounded"
       />
@@ -87,19 +92,18 @@ export default function AdminRegisterPage() {
         name="confirmPassword"
         type="password"
         placeholder="비밀번호 확인"
-        value={form.confirmPassword}
-        onChange={handleChange}
+        value={confirmPassword}
+        onChange={(e) => setConfirmPassword(e.target.value)}
         autoComplete="new-password"
         className="w-full border px-3 py-2 rounded"
       />
 
       <button
         type="button"
-        onClick={handleSubmit}
-        disabled={loading}
-        className={`btn btn-cta ${loading ? 'btn-disabled' : 'btn-primary'} w-full`}
+        onClick={handleRegister}
+        className="btn btn-cta btn-primary w-full"
       >
-        {loading ? '등록 중...' : '관리자 등록'}
+        관리자 등록
       </button>
     </main>
   );
