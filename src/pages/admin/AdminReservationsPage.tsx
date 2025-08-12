@@ -110,7 +110,7 @@ export default function AdminReservationsPage() {
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="productName">상품명</option>
-              <option value="buyerName">이름</option>
+              <option value="buyerName">닉네임</option>
             </select>
           </div>
 

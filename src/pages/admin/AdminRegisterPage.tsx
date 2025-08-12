@@ -45,7 +45,7 @@ export default function AdminRegisterPage() {
       <input
         name="email"
         type="email"
-        placeholder="이메일"
+        placeholder="아이디"
         value={form.email}
         onChange={handleChange}
         autoComplete="email"
