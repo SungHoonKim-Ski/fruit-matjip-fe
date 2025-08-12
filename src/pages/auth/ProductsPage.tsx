@@ -255,7 +255,7 @@ export default function ReservePage() {
           <div className="flex-1 flex flex-col items-center leading-tight">
             <button
               type="button"
-              onClick={() => nav('/shop')}
+              onClick={() => nav('/products')}
               className="text-lg font-bold text-gray-800 hover:underline"
               aria-label="메인으로 이동"
             >

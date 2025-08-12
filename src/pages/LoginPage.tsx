@@ -122,7 +122,7 @@ export default function LoginPage() {
           localStorage.setItem('refresh', data.refresh);
           window.history.replaceState({}, '', '/login');
 
-          nav('/shop', { replace: true });
+          nav('/products', { replace: true });
         }
       } catch (e: any) {
         safeErrorLog(e, 'LoginPage - login');
