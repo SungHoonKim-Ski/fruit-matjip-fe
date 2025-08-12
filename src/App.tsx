@@ -7,7 +7,7 @@ import ProductDetailPage from './pages/auth/ProductDetailPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
 import AdminProductPage from './pages/admin/AdminProductPage';
-import CreateProductPage from './pages/admin/CreateProductPage';
+import AdminCreateProductPage from './pages/admin/AdminCreateProductPage';
 import AdminSalesPage from './pages/admin/AdminSalesPage';
 import AdminReservationsPage from './pages/admin/AdminReservationsPage';
 import AdminEditProductPage from './pages/admin/AdminEditProductPage';
@@ -27,7 +27,7 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/register" element={<AdminRegisterPage />} />
       <Route path="/admin/products" element={<AdminProductPage />} />
-      <Route path="/admin/products/new" element={<CreateProductPage />} />
+      <Route path="/admin/products/new" element={<AdminCreateProductPage />} />
       <Route path="/admin/sales" element={<AdminSalesPage />} />
       <Route path="/admin/reservations" element={<AdminReservationsPage />} />
       <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />

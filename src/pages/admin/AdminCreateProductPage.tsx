@@ -8,7 +8,6 @@ type ProductForm = {
   price: number;
   stock: number;
   image: File | null;
-  extraImages: File[]; // 추가 이미지
   sellDate: string; // Required now
   status: 'active' | 'inactive'; // Added status field
 };
@@ -24,7 +23,6 @@ export default function ProductCreatePage() {
     price: 0,
     stock: 0,
     image: null,
-    extraImages: [],
     sellDate: today, // 오늘 날짜를 기본값으로
     status: 'active', // 기본값은 활성
   });
@@ -46,19 +44,6 @@ export default function ProductCreatePage() {
         e.target.value = '';
       }
       // 파일을 선택하지 않은 경우 아무 동작도 하지 않음 (기존 이미지 유지)
-    } else if (name === 'extraImages') {
-      if (files && files.length > 0) {
-        // png, jpg만 허용
-        const validFiles = Array.from(files).filter(f => {
-          const ext = f.name.split('.').pop()?.toLowerCase();
-          return ext === 'png' || ext === 'jpg' || ext === 'jpeg';
-        });
-        if (validFiles.length !== files.length) {
-          show('이미지는 PNG, JPG만 업로드할 수 있습니다.', { variant: 'error' });
-        }
-        setForm({ ...form, extraImages: [...form.extraImages, ...validFiles] });
-        e.target.value = '';
-      }
     } else if (name === 'price' || name === 'stock') {
       const num = Number(value);
       if (!Number.isInteger(num) || num < 0) return;
@@ -87,7 +72,7 @@ export default function ProductCreatePage() {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연
         
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 0, stock: 0, image: null, extraImages: [], sellDate: today, status: 'active' });
+        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
       } else {
         // 1) presigned URL 요청
         const presignedUrlRes = await fetch('/api/admin/presigned-url', {
@@ -122,7 +107,7 @@ export default function ProductCreatePage() {
         if (!res.ok) throw new Error('상품 등록 실패');
 
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 0, stock: 0, image: null, extraImages: [], sellDate: today, status: 'active' });
+        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
       }
     } catch (err: any) {
       safeErrorLog(err, 'ProductCreatePage - handleSubmit');
@@ -208,38 +193,36 @@ export default function ProductCreatePage() {
 
         <div className="space-y-2">
           <label className="block text-sm font-medium">상품 이미지<span className="text-red-500">*</span></label>
-          <input
-            type="file"
-            name="image"
-            accept="image/png, image/jpeg"
-            onChange={handleChange}
-            className="w-full"
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">추가 이미지 (여러 개 선택 가능, PNG/JPG만)</label>
-          <input
-            type="file"
-            name="extraImages"
-            accept="image/png, image/jpeg"
-            multiple
-            onChange={handleChange}
-            className="w-full"
-          />
-          <div className="flex flex-wrap gap-2 mt-2">
-            {form.extraImages.map((file, idx) => (
-              <div key={file.name + idx} className="relative">
-                <img src={URL.createObjectURL(file)} alt="추가 이미지 미리보기" className="w-16 h-16 object-cover rounded border" />
-                <button
-                  type="button"
-                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                  onClick={() => setForm({ ...form, extraImages: form.extraImages.filter((_, i) => i !== idx) })}
-                >✕</button>
-              </div>
-            ))}
+          <div className="mt-2">
+            {form.image && (
+              <img
+                src={URL.createObjectURL(form.image)}
+                alt="상품 이미지 미리보기"
+                className="w-28 h-28 rounded object-cover border"
+              />
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <input
+              id="main-image"
+              type="file"
+              name="image"
+              accept="image/png, image/jpeg"
+              onChange={handleChange}
+              className="hidden"
+              required
+            />
+            <label htmlFor="main-image" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
+              파일 선택
+            </label>
+            {form.image && (
+              <span className="text-sm text-gray-700 truncate max-w-full">
+                {form.image.name}
+              </span>
+            )}
           </div>
         </div>
+
 
         <button
           onClick={handleSubmit}
