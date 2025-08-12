@@ -1,7 +1,7 @@
 // src/App.tsx
 import { Route, Routes, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
-import ShopPage from './pages/auth/ShopPage';
+import ProductsPage from './pages/auth/ProductsPage';
 import OrderPage from './pages/auth/OrderPage';
 import ProductDetailPage from './pages/auth/ProductDetailPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
@@ -19,7 +19,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/shop" element={<ShopPage />} />
+      <Route path="/products" element={<ProductsPage />} />
       <Route path="/me/orders" element={<OrderPage />} />
       <Route path="/products/:id" element={<ProductDetailPage />} />
 
