@@ -82,6 +82,10 @@ export default function ProductCreatePage() {
           if (!presignedUrlRes.ok) {
             // 401, 403 에러는 이미 adminFetch에서 처리됨
             if (presignedUrlRes.status === 401 || presignedUrlRes.status === 403) {
+              const errorMessage = presignedUrlRes.status === 401 
+                ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+                : '접근 권한이 없습니다.';
+              show(errorMessage, { variant: 'error' });
               return; // 리다이렉트가 이미 처리됨
             }
             
@@ -104,11 +108,15 @@ export default function ProductCreatePage() {
           }
 
           // 2) 이미지 업로드
-          await fetch(url, {
+          const uploadResponse = await fetch(url, {
             method: method || 'PUT', // 서버에서 받은 method 사용, 기본값은 PUT
             body: form.image,
             // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
           });
+          
+          if (!uploadResponse.ok) {
+            throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
+          }
 
           // 3) 상품 등록
           // key를 사용하여 이미지 URL 구성 (서버 설정에 따라 조정 필요)

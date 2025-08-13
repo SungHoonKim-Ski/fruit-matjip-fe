@@ -81,9 +81,17 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
   
   // 401, 403 에러 시 /admin/login으로 리다이렉트
   if (response.status === 401 || response.status === 403) {
-    console.log(`🔍 Admin API ${response.status} error, redirecting to /admin/login`);
+    const errorMessage = response.status === 401 
+      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+      : '접근 권한이 없습니다.';
+    
+    console.log(`🔍 Admin API ${response.status} error: ${errorMessage}`);
+    
+    // 에러 메시지를 localStorage에 저장하여 리다이렉트 후 표시
+    localStorage.setItem('admin-error-message', errorMessage);
     localStorage.removeItem('admin-auth');
     localStorage.removeItem('admin-userid');
+    
     window.location.href = '/admin/login';
     return response; // 리다이렉트 후에도 response 반환 (상위에서 처리할 수 있도록)
   }

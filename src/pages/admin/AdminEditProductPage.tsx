@@ -113,7 +113,17 @@ export default function AdminEditProductPage() {
         }
         
         const res = await getUpdateUrl(Number(id), adminIdNumber, file.name, file.type);
-        if (!res.ok) throw new Error('업로드 URL을 가져오지 못했습니다.');
+        if (!res.ok) {
+          // 401, 403 에러는 이미 adminFetch에서 처리됨
+          if (res.status === 401 || res.status === 403) {
+            const errorMessage = res.status === 401 
+              ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+              : '접근 권한이 없습니다.';
+            show(errorMessage, { variant: 'error' });
+            return null; // 리다이렉트가 이미 처리됨
+          }
+          throw new Error('업로드 URL을 가져오지 못했습니다.');
+        }
         
         const { uploadUrl } = await res.json();
         
@@ -121,6 +131,7 @@ export default function AdminEditProductPage() {
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: file,
+          mode: 'cors',
           // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
         });
         
@@ -204,7 +215,17 @@ export default function AdminEditProductPage() {
         mockUpdateProduct({ id: form.id, ...payload });
       } else {
         const res = await updateAdminProduct(Number(id), payload);
-        if (!res.ok) throw new Error('저장에 실패했습니다.');
+        if (!res.ok) {
+          // 401, 403 에러는 이미 adminFetch에서 처리됨
+          if (res.status === 401 || res.status === 403) {
+            const errorMessage = res.status === 401 
+              ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+              : '접근 권한이 없습니다.';
+            show(errorMessage, { variant: 'error' });
+            return; // 리다이렉트가 이미 처리됨
+          }
+          throw new Error('저장에 실패했습니다.');
+        }
       }
 
       show('저장되었습니다.');

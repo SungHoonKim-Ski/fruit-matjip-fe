@@ -10,6 +10,15 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const { show } = useSnackbar();
   
+  // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
+  React.useEffect(() => {
+    const errorMessage = localStorage.getItem('admin-error-message');
+    if (errorMessage) {
+      show(errorMessage, { variant: 'error' });
+      localStorage.removeItem('admin-error-message'); // 메시지 표시 후 삭제
+    }
+  }, [show]);
+  
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
