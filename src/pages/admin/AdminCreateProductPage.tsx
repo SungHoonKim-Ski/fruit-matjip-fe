@@ -10,7 +10,7 @@ type ProductForm = {
   stock: number;
   image: File | null;
   sellDate: string; // Required now
-  status: 'active' | 'inactive'; // Added status field
+  visible: boolean; // Changed from status to visible
 };
 
 export default function ProductCreatePage() {
@@ -25,7 +25,7 @@ export default function ProductCreatePage() {
     stock: 0,
     image: null,
     sellDate: today, // 오늘 날짜를 기본값으로
-    status: 'active', // 기본값은 활성
+    visible: true, // 기본값은 활성
   });
   const [uploading, setUploading] = useState(false);
 
@@ -51,8 +51,8 @@ export default function ProductCreatePage() {
       setForm({ ...form, [name]: num });
     } else if (name === 'sellDate') {
       setForm({ ...form, sellDate: value });
-    } else if (name === 'status') {
-      setForm({ ...form, status: value as 'active' | 'inactive' });
+    } else if (name === 'visible') {
+      setForm({ ...form, visible: value === 'true' });
     } else {
       setForm({ ...form, [name]: value });
     }
@@ -73,7 +73,7 @@ export default function ProductCreatePage() {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연
         
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
+        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, visible: true });
       } else {
         // 1) presigned URL 요청
         try {
@@ -118,29 +118,42 @@ export default function ProductCreatePage() {
             throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
           }
 
-          // 3) 상품 등록
-          // key를 사용하여 이미지 URL 구성 (서버 설정에 따라 조정 필요)
-          const imageUrl = key || url;
+          const adminUserId = localStorage.getItem('admin-userid');
+          if (!adminUserId) {
+            throw new Error('관리자 ID를 찾을 수 없습니다. 다시 로그인해주세요.');
+          }
+          
+          const adminIdNumber = Number(adminUserId);
+          if (isNaN(adminIdNumber)) {
+            throw new Error('관리자 ID가 유효하지 않습니다. 다시 로그인해주세요.');
+          }
+          
+          const imageUrl = key;
           
           const productPayload = {
+            adminId: adminIdNumber, // adminId 추가
             name: form.name,
             price: form.price,
             stock: form.stock,
             imageUrl,
             sellDate: form.sellDate,
-            status: form.status,
+            visible: form.visible,
           };
+      
           const res = await createAdminProduct(productPayload);
+          
           if (!res.ok) {
             // 401, 403 에러는 이미 adminFetch에서 처리됨
             if (res.status === 401 || res.status === 403) {
               return; // 리다이렉트가 이미 처리됨
             }
-            throw new Error('상품 등록 실패');
+            
+            const errorText = await res.text();
+            throw new Error(`상품 등록 실패: ${res.status} ${res.statusText}`);
           }
-
+          
           show('상품이 등록되었습니다!', { variant: 'success' });
-          setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
+          setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, visible: true });
         } catch (uploadError) {
           throw uploadError;
         }
@@ -216,14 +229,14 @@ export default function ProductCreatePage() {
         <div className="space-y-2">
           <label className="block text-sm font-medium">노출 여부 <span className="text-red-500">*</span></label>
           <select
-            name="status"
-            value={form.status}
+            name="visible"
+            value={form.visible ? 'true' : 'false'}
             onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             required
           >
-            <option value="active">상품 목록 노출 O</option>
-            <option value="inactive">상품 목록 노출 X</option>
+            <option value="true">상품 목록 노출 O</option>
+            <option value="false">상품 목록 노출 X</option>
           </select>
         </div>
 
