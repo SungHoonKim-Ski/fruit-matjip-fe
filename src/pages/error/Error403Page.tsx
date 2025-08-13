@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from '../../components/snackbar';
 
 export default function Error403Page() {
   const nav = useNavigate();
+  const { show } = useSnackbar();
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
+    // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
+    const errorMessage = localStorage.getItem('user-error-message');
+    if (errorMessage) {
+      show(errorMessage, { variant: 'error' });
+      localStorage.removeItem('user-error-message'); // 메시지 표시 후 삭제
+    }
+    
     const t = setTimeout(() => nav('/login', { replace: true }), 3000);
     
     // 카운트다운 업데이트
@@ -20,7 +29,7 @@ export default function Error403Page() {
       clearTimeout(t);
       clearInterval(interval);
     };
-  }, [nav]);
+  }, [nav, show]);
 
   const getCountdownText = () => {
     if (countdown === 0) return '로그인 페이지로 이동합니다.';

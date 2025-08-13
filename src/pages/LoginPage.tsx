@@ -67,6 +67,15 @@ export default function LoginPage() {
     if (!JS_KAKAO_KEY) return;
     ensureKakaoSDK(JS_KAKAO_KEY).catch(() => {});
   }, []);
+  
+  // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
+  useEffect(() => {
+    const errorMessage = localStorage.getItem('user-error-message');
+    if (errorMessage) {
+      show(errorMessage, { variant: 'error' });
+      localStorage.removeItem('user-error-message'); // 메시지 표시 후 삭제
+    }
+  }, [show]);
 
   // 콜백 처리 (?code=...)
   useEffect(() => {

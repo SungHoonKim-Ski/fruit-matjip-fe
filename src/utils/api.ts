@@ -53,6 +53,27 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
     credentials: isAdminApi ? 'include' : 'omit', // admin API만 쿠키 사용
   });
   
+  // 401, 403 에러 시 403 에러 페이지로 리다이렉트 (User 로그인 제외)
+  if ((response.status === 401 || response.status === 403) && !isAdminApi && !url.includes('/login')) {
+    const errorMessage = response.status === 401 
+      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+      : '접근 권한이 없습니다.';
+    
+    console.log(`🔍 API ${response.status} error: ${errorMessage}`);
+    
+    // 에러 메시지를 localStorage에 저장
+    localStorage.setItem('user-error-message', errorMessage);
+    localStorage.removeItem('access');
+    localStorage.removeItem('refresh');
+    localStorage.removeItem('nickname');
+    
+    // 3초 후 403 에러 페이지로 리다이렉트 (에러 메시지 확인 시간 확보)
+    setTimeout(() => {
+      window.location.href = '/403';
+    }, 3000);
+    return response;
+  }
+  
   return response;
 };
 
@@ -105,6 +126,27 @@ export const userFetch = async (url: string, options: RequestInit = {}) => {
     headers,
     credentials: 'include', // User API도 쿠키 사용 (refresh token용)
   });
+  
+  // 401, 403 에러 시 403 에러 페이지로 리다이렉트 (User 로그인 제외)
+  if ((response.status === 401 || response.status === 403) && !url.includes('/login')) {
+    const errorMessage = response.status === 401 
+      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
+      : '접근 권한이 없습니다.';
+    
+    console.log(`🔍 User API ${response.status} error: ${errorMessage}`);
+    
+    // 에러 메시지를 localStorage에 저장
+    localStorage.setItem('user-error-message', errorMessage);
+    localStorage.removeItem('access');
+    localStorage.removeItem('refresh');
+    localStorage.removeItem('nickname');
+    
+    // 3초 후 403 에러 페이지로 리다이렉트 (에러 메시지 확인 시간 확보)
+    setTimeout(() => {
+      window.location.href = '/403';
+    }, 3000);
+    return response;
+  }
   
   return response;
 };
