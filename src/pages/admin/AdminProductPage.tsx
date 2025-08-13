@@ -120,24 +120,46 @@ export default function AdminProductPage() {
     };
   }, []);
 
-  // Load from mocks for admin list as well (to reflect sellDate/totalSold etc.)
+  // 상품 목록 조회
   useEffect(() => {
-    if (USE_MOCKS) {
-      const mocked = listProducts();
-      const mapped: Product[] = mocked.map(p => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        stock: p.stock,
-        totalSold: p.totalSold ?? 0,
-        status: p.stock > 0 ? 'active' : 'inactive',
-        imageUrl: p.imageUrl,
-        sellDate: p.sellDate,
-      }));
-      setProducts(mapped);
-      setOriginalProducts(mapped);
-    }
-  }, []); // Empty dependency array to run once on mount
+    const loadProducts = async () => {
+      if (USE_MOCKS) {
+        const mocked = listProducts();
+        const mapped: Product[] = mocked.map(p => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          stock: p.stock,
+          totalSold: p.totalSold ?? 0,
+          status: p.stock > 0 ? 'active' : 'inactive',
+          imageUrl: p.imageUrl,
+          sellDate: p.sellDate,
+        }));
+        setProducts(mapped);
+        setOriginalProducts(mapped);
+      } else {
+        // TODO: Admin Product API 구현 후 실제 API 호출로 변경
+        console.log('🔍 AdminProductPage - Admin Product API not implemented yet, using mock data');
+        
+        // 임시로 Mock 데이터 사용 (Snackbar 메시지 제거)
+        const mocked = listProducts();
+        const mapped: Product[] = mocked.map(p => ({
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          stock: p.stock,
+          totalSold: p.totalSold ?? 0,
+          status: p.stock > 0 ? 'active' : 'inactive',
+          imageUrl: p.imageUrl,
+          sellDate: p.sellDate,
+        }));
+        setProducts(mapped);
+        setOriginalProducts(mapped);
+      }
+    };
+    
+    loadProducts();
+  }, []); // 빈 배열로 변경하여 한 번만 실행
 
   const goNewProduct = () => navigate('/admin/products/new');
   const goSales = () => navigate('/admin/sales');     // 라우트 준비 필요

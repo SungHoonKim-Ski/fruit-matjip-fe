@@ -58,17 +58,6 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
 
 // Admin API 전용 fetch (쿠키 분리)
 export const adminFetch = async (url: string, options: RequestInit = {}) => {
-  console.log('🔍 adminFetch request:', {
-    url: `${API_BASE}${url}`,
-    method: options.method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    },
-    body: options.body,
-    bodyType: typeof options.body,
-    bodyLength: options.body ? String(options.body).length : 0
-  });
   
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
@@ -85,7 +74,6 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
       ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
       : '접근 권한이 없습니다.';
     
-    console.log(`🔍 Admin API ${response.status} error: ${errorMessage}`);
     
     // 에러 메시지를 localStorage에 저장하여 리다이렉트 후 표시
     localStorage.setItem('admin-error-message', errorMessage);
@@ -168,8 +156,16 @@ export const handleApiResponse = async (response: Response) => {
 };
 
 // 편의 함수들 (자동 JSON 검증 포함)
-export const getProducts = async () => {
-  const res = await userFetch('/api/auth/products');
+export const getProducts = async (from?: string, to?: string) => {
+  let url = '/api/auth/products';
+  
+  if (from && to) {
+    // URL 인코딩 적용
+    const encodedFrom = encodeURIComponent(from);
+    const encodedTo = encodeURIComponent(to);
+    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  }
+  const res = await userFetch(url);
   return validateJsonResponse(res);
 };
 
@@ -193,8 +189,17 @@ export const cancelReservation = async (id: number) => {
   return validateJsonResponse(res);
 };
 
-export const getReservations = async () => {
-  const res = await userFetch('/api/auth/reservations/');
+export const getReservations = async (from?: string, to?: string) => {
+  let url = '/api/auth/reservations/';
+  
+  if (from && to) {
+    // URL 인코딩 적용
+    const encodedFrom = encodeURIComponent(from);
+    const encodedTo = encodeURIComponent(to);
+    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  }
+  
+  const res = await userFetch(url);
   return validateJsonResponse(res);
 };
 
@@ -226,8 +231,31 @@ export const adminSignup = async () => {
   return validateJsonResponse(res);
 };
 
-export const getAdminProducts = async () => {
-  const res = await adminFetch('/api/admin/products');
+export const getAdminProducts = async (from?: string, to?: string) => {
+  let url = '/api/admin/products';
+  
+  
+  if (from && to) {
+    // URL 인코딩 적용
+    const encodedFrom = encodeURIComponent(from);
+    const encodedTo = encodeURIComponent(to);
+    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  }   
+  const res = await adminFetch(url);
+  return validateJsonResponse(res);
+};
+
+export const getAdminReservations = async (from?: string, to?: string) => {
+  let url = '/api/admin/reservations';
+  
+  if (from && to) {
+    // URL 인코딩 적용
+    const encodedFrom = encodeURIComponent(from);
+    const encodedTo = encodeURIComponent(to);
+    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  }
+  
+  const res = await adminFetch(url);
   return validateJsonResponse(res);
 };
 

@@ -96,10 +96,35 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          const res = await getProducts();
+          // 한국 시간 기준으로 오늘 날짜 계산
+          const now = new Date();
+          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+          
+          // 오늘 날짜 (YYYY-MM-DD)
+          const fromStr = koreaTime.toISOString().split('T')[0];
+          
+          // 2일 후 날짜 (YYYY-MM-DD)
+          const toDate = new Date(koreaTime);
+          toDate.setDate(koreaTime.getDate() + 2);
+          const toStr = toDate.toISOString().split('T')[0];
+          
+          const res = await getProducts(fromStr, toStr);
           if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
           const data = await res.json();
-          setProducts(data.map((p: any, i: number) => ({
+          
+          let productsArray = data;
+          
+          // ProductListResponse 구조에서 response 필드 추출
+          if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
+            productsArray = data.response;
+          }
+          
+          // 여전히 배열이 아닌 경우 에러
+          if (!Array.isArray(productsArray)) {
+            throw new Error('상품 데이터가 배열 형태가 아닙니다.');
+          }
+          
+          setProducts(productsArray.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
             quantity: p.stock > 0 ? 1 : 0,

@@ -70,10 +70,69 @@ export default function OrdersPage() {
           }
         } else {
           try {
-            const res = await getReservations();
+            // 한국 시간 기준으로 오늘 날짜 계산
+            const now = new Date();
+            const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+            
+            // 오늘 날짜 (YYYY-MM-DD)
+            const fromStr = koreaTime.toISOString().split('T')[0];
+            
+            // 2일 후 날짜 (YYYY-MM-DD)
+            const toDate = new Date(koreaTime);
+            toDate.setDate(koreaTime.getDate() + 2);
+            const toStr = toDate.toISOString().split('T')[0];
+            
+            
+            const res = await getReservations(fromStr, toStr);
             if (!res.ok) throw new Error('주문 목록을 불러오지 못했습니다.');
             const data = await res.json();
-            setOrders(data);
+            
+            
+            // ReservationListResponse 구조에서 response 필드 추출
+            let reservationsArray = data;
+            if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
+              reservationsArray = data.response;
+            }
+            
+            if (!Array.isArray(reservationsArray)) {
+              throw new Error('주문 데이터가 배열 형태가 아닙니다.');
+            }
+            
+            // ReservationResponse를 OrderRow로 변환
+            const orderRows = reservationsArray.map((r: any) => {
+              // ReservationStatus를 OrderRow status로 매핑
+              let orderStatus: 'pending' | 'picked' | 'canceled';
+              switch (r.status?.toLowerCase()) {
+                case 'pending':
+                  orderStatus = 'pending';
+                  break;
+                case 'picked':
+                case 'completed':
+                  orderStatus = 'picked';
+                  break;
+                case 'canceled':
+                case 'cancelled':
+                  orderStatus = 'canceled';
+                  break;
+                default:
+                  orderStatus = 'pending';
+              }
+              
+              return {
+                id: r.id,
+                date: r.orderDate,
+                status: orderStatus,
+                items: [{
+                  id: r.id,
+                  name: r.productName,
+                  quantity: 1,
+                  price: r.amount,
+                  imageUrl: r.productImage
+                }]
+              };
+            });
+            
+            setOrders(orderRows);
           } catch (e: any) {
             safeErrorLog(e, 'OrderPage - loadOrders');
             show(getSafeErrorMessage(e, '주문 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });

@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { togglePicked } from '../../utils/api';
+import { togglePicked, getAdminReservations } from '../../utils/api';
 
 type ReservationRow = {
   id: number;
@@ -47,14 +47,79 @@ export default function AdminReservationsPage() {
         const data = await listReservations(today);
         setRows(data);
       } else {
-        // 실제 API 호출은 여기에 구현
-        // const res = await getReservationReports();
-        // const data = await res.json();
-        // setRows(data);
+        try {
+          // 한국 시간 기준으로 오늘 날짜 계산
+          const now = new Date();
+          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+          
+          // 오늘 날짜 (YYYY-MM-DD)
+          const fromStr = koreaTime.toISOString().split('T')[0];
+          
+          // 2일 후 날짜 (YYYY-MM-DD)
+          const toDate = new Date(koreaTime);
+          toDate.setDate(koreaTime.getDate() + 2);
+          const toStr = toDate.toISOString().split('T')[0];
+          
+          const response = await getAdminReservations(fromStr, toStr);
+          if (!response.ok) {
+            // 401, 403 에러 시 즉시 리다이렉트 (ProtectedAdminRoute에서 처리)
+            if (response.status === 401 || response.status === 403) {
+              window.location.href = '/admin/login';
+              return;
+            }
+            
+            const errorData = await response.json();
+            throw new Error(errorData.message || '예약 목록을 불러오지 못했습니다.');
+          }
+          
+          const data = await response.json();
+          
+          // ReservationListResponse 구조에서 response 필드 추출
+          let reservationsArray = data;
+          if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
+            reservationsArray = data.response;
+          }
+          
+          if (!Array.isArray(reservationsArray)) {
+            throw new Error('예약 데이터가 배열 형태가 아닙니다.');
+          }
+          
+          // ReservationResponse를 ReservationRow로 변환
+          const reservationRows = reservationsArray.map((r: any) => {
+            // ReservationStatus를 pickupStatus로 매핑
+            let pickupStatus: 'pending' | 'picked';
+            switch (r.status?.toLowerCase()) {
+              case 'pending':
+                pickupStatus = 'pending';
+                break;
+              case 'picked':
+              case 'completed':
+                pickupStatus = 'picked';
+                break;
+              default:
+                pickupStatus = 'pending';
+            }
+            
+            return {
+              id: r.id,
+              date: r.orderDate,
+              productName: r.productName,
+              buyerName: '사용자', // 서버에서 제공하지 않는 경우
+              quantity: 1, // 서버에서 제공하지 않는 경우
+              amount: r.amount,
+              pickupStatus: pickupStatus
+            };
+          });
+          
+          setRows(reservationRows);
+        } catch (e: any) {
+          safeErrorLog(e, 'AdminReservationsPage - loadReservations');
+          show(getSafeErrorMessage(e, '예약 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+        }
       }
     };
     loadReservations();
-  }, [today]);
+  }, [today, show]);
 
   const filtered = useMemo(() => {
     const v = term.trim();
