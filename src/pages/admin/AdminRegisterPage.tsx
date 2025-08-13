@@ -46,7 +46,7 @@ export default function AdminRegisterPage() {
     }
 
     try {
-      const res = await adminSignup();
+      const res = await adminSignup({ name, email, password });
       if (res.ok) {
         show('회원가입이 완료되었습니다.');
         navigate('/admin/login');

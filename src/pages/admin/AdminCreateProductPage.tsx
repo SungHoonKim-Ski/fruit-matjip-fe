@@ -80,13 +80,9 @@ export default function ProductCreatePage() {
           const presignedUrlRes = await getUploadUrl(1, form.image.name, form.image.type);
           
           if (!presignedUrlRes.ok) {
-            // 401, 403 에러는 이미 adminFetch에서 처리됨
+            // 401, 403 에러는 통합 에러 처리로 위임
             if (presignedUrlRes.status === 401 || presignedUrlRes.status === 403) {
-              const errorMessage = presignedUrlRes.status === 401 
-                ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-                : '접근 권한이 없습니다.';
-              show(errorMessage, { variant: 'error' });
-              return; // 리다이렉트가 이미 처리됨
+              return; // adminFetch에서 이미 처리됨
             }
             
             const errorText = await presignedUrlRes.text();
@@ -143,9 +139,9 @@ export default function ProductCreatePage() {
           const res = await createAdminProduct(productPayload);
           
           if (!res.ok) {
-            // 401, 403 에러는 이미 adminFetch에서 처리됨
+            // 401, 403 에러는 통합 에러 처리로 위임
             if (res.status === 401 || res.status === 403) {
-              return; // 리다이렉트가 이미 처리됨
+              return; // adminFetch에서 이미 처리됨
             }
             
             const errorText = await res.text();

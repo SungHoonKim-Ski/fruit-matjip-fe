@@ -62,10 +62,9 @@ export default function AdminReservationsPage() {
           
           const response = await getAdminReservations(fromStr, toStr);
           if (!response.ok) {
-            // 401, 403 에러 시 즉시 리다이렉트 (ProtectedAdminRoute에서 처리)
+            // 401, 403 에러는 통합 에러 처리로 위임
             if (response.status === 401 || response.status === 403) {
-              window.location.href = '/admin/login';
-              return;
+              return; // adminFetch에서 이미 처리됨
             }
             
             const errorData = await response.json();

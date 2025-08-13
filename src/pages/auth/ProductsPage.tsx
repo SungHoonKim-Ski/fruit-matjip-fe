@@ -109,7 +109,13 @@ export default function ReservePage() {
           const toStr = toDate.toISOString().split('T')[0];
           
           const res = await getProducts(fromStr, toStr);
-          if (!res.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
+          if (!res.ok) {
+            // 401, 403 에러는 통합 에러 처리로 위임
+            if (res.status === 401 || res.status === 403) {
+              return; // userFetch에서 이미 처리됨
+            }
+            throw new Error('상품 목록을 불러오지 못했습니다.');
+          }
           const data = await res.json();
           
           let productsArray = data;

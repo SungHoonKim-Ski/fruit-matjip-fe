@@ -8,14 +8,23 @@ export default function Error403Page() {
   const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
-    const errorMessage = localStorage.getItem('user-error-message');
+    // 페이지 로드 시 저장된 에러 정보 확인
+    const errorMessage = localStorage.getItem('error-message');
+    const errorType = localStorage.getItem('error-type');
+    const errorRedirect = localStorage.getItem('error-redirect');
+    
     if (errorMessage) {
       show(errorMessage, { variant: 'error' });
-      localStorage.removeItem('user-error-message'); // 메시지 표시 후 삭제
+      // 에러 정보 표시 후 삭제
+      localStorage.removeItem('error-message');
+      localStorage.removeItem('error-type');
+      localStorage.removeItem('error-redirect');
     }
     
-    const t = setTimeout(() => nav('/login', { replace: true }), 3000);
+    // 리다이렉트 URL 결정
+    const redirectUrl = errorRedirect || (errorType === 'admin' ? '/admin/login' : '/login');
+    
+    const t = setTimeout(() => nav(redirectUrl, { replace: true }), 3000);
     
     // 카운트다운 업데이트
     const interval = setInterval(() => {
@@ -32,8 +41,12 @@ export default function Error403Page() {
   }, [nav, show]);
 
   const getCountdownText = () => {
-    if (countdown === 0) return '로그인 페이지로 이동합니다.';
-    return `${countdown}초 후 로그인 페이지로 이동합니다.`;
+    const errorType = localStorage.getItem('error-type');
+    const isAdmin = errorType === 'admin';
+    const pageName = isAdmin ? '관리자 로그인' : '로그인';
+    
+    if (countdown === 0) return `${pageName} 페이지로 이동합니다.`;
+    return `${countdown}초 후 ${pageName} 페이지로 이동합니다.`;
   };
 
   return (
@@ -43,7 +56,12 @@ export default function Error403Page() {
         <p className="mt-2 text-sm text-gray-500">{getCountdownText()}</p>
         <button
           className="mt-6 h-10 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white"
-          onClick={() => nav('/login', { replace: true })}
+          onClick={() => {
+            const errorType = localStorage.getItem('error-type');
+            const errorRedirect = localStorage.getItem('error-redirect');
+            const redirectUrl = errorRedirect || (errorType === 'admin' ? '/admin/login' : '/login');
+            nav(redirectUrl, { replace: true });
+          }}
         >
           바로 이동
         </button>

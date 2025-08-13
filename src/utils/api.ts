@@ -59,18 +59,18 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
       ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
       : '접근 권한이 없습니다.';
     
-    console.log(`🔍 API ${response.status} error: ${errorMessage}`);
+    // 에러 정보를 localStorage에 저장
+    localStorage.setItem('error-message', errorMessage);
+    localStorage.setItem('error-type', 'user');
+    localStorage.setItem('error-redirect', '/login');
     
-    // 에러 메시지를 localStorage에 저장
-    localStorage.setItem('user-error-message', errorMessage);
+    // 사용자 토큰 제거
     localStorage.removeItem('access');
     localStorage.removeItem('refresh');
     localStorage.removeItem('nickname');
     
-    // 3초 후 403 에러 페이지로 리다이렉트 (에러 메시지 확인 시간 확보)
-    setTimeout(() => {
-      window.location.href = '/403';
-    }, 3000);
+    // 403 에러 페이지로 리다이렉트
+    window.location.href = '/403';
     return response;
   }
   
@@ -89,20 +89,24 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
     credentials: 'include', // Admin API는 항상 쿠키 사용
   });
   
-  // 401, 403 에러 시 /admin/login으로 리다이렉트
+  // 401, 403 에러 시 403 에러 페이지로 리다이렉트
   if (response.status === 401 || response.status === 403) {
     const errorMessage = response.status === 401 
       ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
       : '접근 권한이 없습니다.';
     
+    // 에러 정보를 localStorage에 저장
+    localStorage.setItem('error-message', errorMessage);
+    localStorage.setItem('error-type', 'admin');
+    localStorage.setItem('error-redirect', '/admin/login');
     
-    // 에러 메시지를 localStorage에 저장하여 리다이렉트 후 표시
-    localStorage.setItem('admin-error-message', errorMessage);
+    // 인증 정보 제거
     localStorage.removeItem('admin-auth');
     localStorage.removeItem('admin-userid');
     
-    window.location.href = '/admin/login';
-    return response; // 리다이렉트 후에도 response 반환 (상위에서 처리할 수 있도록)
+    // 403 에러 페이지로 리다이렉트
+    window.location.href = '/403';
+    return response;
   }
   
   return response;
@@ -133,7 +137,6 @@ export const userFetch = async (url: string, options: RequestInit = {}) => {
       ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
       : '접근 권한이 없습니다.';
     
-    console.log(`🔍 User API ${response.status} error: ${errorMessage}`);
     
     // 에러 메시지를 localStorage에 저장
     localStorage.setItem('user-error-message', errorMessage);
@@ -266,10 +269,18 @@ export const adminLogin = async (data: { email: string; password: string }) => {
   return res; // Response 객체 직접 반환
 };
 
-export const adminSignup = async () => {
-  const res = await adminFetch('/api/admin/sighup', {
+export const adminSignup = async (data: { name: string; email: string; password: string }) => {
+  console.log('🔐 AdminSignup - 요청 데이터:', data);
+  console.log('🔐 AdminSignup - 요청 URL:', '/api/admin/signup');
+  
+  const res = await adminFetch('/api/admin/signup', {
     method: 'POST',
+    body: JSON.stringify(data),
   });
+  
+  console.log('🔐 AdminSignup - 응답 상태:', res.status, res.statusText);
+  console.log('🔐 AdminSignup - 응답 헤더:', Object.fromEntries(res.headers.entries()));
+  
   return validateJsonResponse(res);
 };
 

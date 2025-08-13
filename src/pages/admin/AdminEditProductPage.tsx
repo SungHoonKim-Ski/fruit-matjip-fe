@@ -114,13 +114,9 @@ export default function AdminEditProductPage() {
         
         const res = await getUpdateUrl(Number(id), adminIdNumber, file.name, file.type);
         if (!res.ok) {
-          // 401, 403 에러는 이미 adminFetch에서 처리됨
+          // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
-            const errorMessage = res.status === 401 
-              ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-              : '접근 권한이 없습니다.';
-            show(errorMessage, { variant: 'error' });
-            return null; // 리다이렉트가 이미 처리됨
+            return null; // adminFetch에서 이미 처리됨
           }
           throw new Error('업로드 URL을 가져오지 못했습니다.');
         }
@@ -216,13 +212,9 @@ export default function AdminEditProductPage() {
       } else {
         const res = await updateAdminProduct(Number(id), payload);
         if (!res.ok) {
-          // 401, 403 에러는 이미 adminFetch에서 처리됨
+          // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
-            const errorMessage = res.status === 401 
-              ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-              : '접근 권한이 없습니다.';
-            show(errorMessage, { variant: 'error' });
-            return; // 리다이렉트가 이미 처리됨
+            return; // adminFetch에서 이미 처리됨
           }
           throw new Error('저장에 실패했습니다.');
         }
@@ -246,7 +238,13 @@ export default function AdminEditProductPage() {
         mockDelete(form.id);
       } else {
         const res = await deleteAdminProduct(form.id);
-        if (!res.ok) throw new Error('삭제에 실패했습니다.');
+        if (!res.ok) {
+          // 401, 403 에러는 통합 에러 처리로 위임
+          if (res.status === 401 || res.status === 403) {
+            return; // adminFetch에서 이미 처리됨
+          }
+          throw new Error('삭제에 실패했습니다.');
+        }
       }
       show('삭제되었습니다.');
       nav('/admin/products', { replace: true });
