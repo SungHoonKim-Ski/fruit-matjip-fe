@@ -23,11 +23,11 @@ const getAccessToken = () => localStorage.getItem('access');
 
 // JSON 응답 검증
 export const validateJsonResponse = async (response: Response) => {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-  }
+//   const contentType = response.headers.get('content-type') || '';
+//   if (!contentType.includes('application/json')) {
+//     const text = await response.text();
+//     throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+//   }
   return response;
 };
 
@@ -187,7 +187,7 @@ export const adminLogin = async (data: { email: string; password: string }) => {
     method: 'POST',
     body: JSON.stringify(data),
   });
-  return validateJsonResponse(res);
+  return res; // Response 객체 직접 반환
 };
 
 export const adminSignup = async () => {
