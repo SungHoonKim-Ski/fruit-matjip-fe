@@ -102,7 +102,17 @@ export default function AdminEditProductPage() {
       return URL.createObjectURL(file);
     } else {
       try {
-        const res = await getUpdateUrl(Number(id));
+        const adminUserId = localStorage.getItem('admin-userid');
+        if (!adminUserId) {
+          throw new Error('관리자 ID를 찾을 수 없습니다. 다시 로그인해주세요.');
+        }
+        
+        const adminIdNumber = Number(adminUserId);
+        if (isNaN(adminIdNumber)) {
+          throw new Error('관리자 ID가 유효하지 않습니다. 다시 로그인해주세요.');
+        }
+        
+        const res = await getUpdateUrl(Number(id), adminIdNumber, file.name, file.type);
         if (!res.ok) throw new Error('업로드 URL을 가져오지 못했습니다.');
         
         const { uploadUrl } = await res.json();

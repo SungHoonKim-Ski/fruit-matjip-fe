@@ -76,31 +76,66 @@ export default function ProductCreatePage() {
         setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
       } else {
         // 1) presigned URL 요청
-        const presignedUrlRes = await getUploadUrl();
-        if (!presignedUrlRes.ok) throw new Error('이미지 업로드 URL 발급 실패');
-        const { url, imageUrl } = await presignedUrlRes.json();
+        try {
+          const presignedUrlRes = await getUploadUrl(1, form.image.name, form.image.type);
+          
+          if (!presignedUrlRes.ok) {
+            // 401, 403 에러는 이미 adminFetch에서 처리됨
+            if (presignedUrlRes.status === 401 || presignedUrlRes.status === 403) {
+              return; // 리다이렉트가 이미 처리됨
+            }
+            
+            const errorText = await presignedUrlRes.text();
+            throw new Error(`이미지 업로드 URL 발급 실패: ${presignedUrlRes.status} ${presignedUrlRes.statusText} - ${errorText}`);
+          }
+          
+          const presignedData: {
+            url: string;
+            key: string;
+            method: string;
+            contentType: string;
+            expiresIn: number;
+          } = await presignedUrlRes.json();
+          
+          const { url, key, method, contentType, expiresIn } = presignedData;
+          
+          if (!url) {
+            throw new Error('Presigned URL이 응답에 포함되지 않았습니다.');
+          }
 
-        // 2) 이미지 업로드
-        await fetch(url, {
-          method: 'PUT',
-          body: form.image,
-          headers: { 'Content-Type': form.image.type },
-        });
+          // 2) 이미지 업로드
+          await fetch(url, {
+            method: method || 'PUT', // 서버에서 받은 method 사용, 기본값은 PUT
+            body: form.image,
+            headers: { 'Content-Type': form.image.type },
+          });
 
-        // 3) 상품 등록
-        const productPayload = {
-          name: form.name,
-          price: form.price,
-          stock: form.stock,
-          imageUrl,
-          sellDate: form.sellDate,
-          status: form.status,
-        };
-        const res = await createAdminProduct(productPayload);
-        if (!res.ok) throw new Error('상품 등록 실패');
+          // 3) 상품 등록
+          // key를 사용하여 이미지 URL 구성 (서버 설정에 따라 조정 필요)
+          const imageUrl = key || url;
+          
+          const productPayload = {
+            name: form.name,
+            price: form.price,
+            stock: form.stock,
+            imageUrl,
+            sellDate: form.sellDate,
+            status: form.status,
+          };
+          const res = await createAdminProduct(productPayload);
+          if (!res.ok) {
+            // 401, 403 에러는 이미 adminFetch에서 처리됨
+            if (res.status === 401 || res.status === 403) {
+              return; // 리다이렉트가 이미 처리됨
+            }
+            throw new Error('상품 등록 실패');
+          }
 
-        show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
+          show('상품이 등록되었습니다!', { variant: 'success' });
+          setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, status: 'active' });
+        } catch (uploadError) {
+          throw uploadError;
+        }
       }
     } catch (err: any) {
       safeErrorLog(err, 'ProductCreatePage - handleSubmit');

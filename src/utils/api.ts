@@ -58,6 +58,18 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
 
 // Admin API 전용 fetch (쿠키 분리)
 export const adminFetch = async (url: string, options: RequestInit = {}) => {
+  console.log('🔍 adminFetch request:', {
+    url: `${API_BASE}${url}`,
+    method: options.method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    },
+    body: options.body,
+    bodyType: typeof options.body,
+    bodyLength: options.body ? String(options.body).length : 0
+  });
+  
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
     headers: {
@@ -66,6 +78,15 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
     },
     credentials: 'include', // Admin API는 항상 쿠키 사용
   });
+  
+  // 401, 403 에러 시 /admin/login으로 리다이렉트
+  if (response.status === 401 || response.status === 403) {
+    console.log(`🔍 Admin API ${response.status} error, redirecting to /admin/login`);
+    localStorage.removeItem('admin-auth');
+    localStorage.removeItem('admin-userid');
+    window.location.href = '/admin/login';
+    return response; // 리다이렉트 후에도 response 반환 (상위에서 처리할 수 있도록)
+  }
   
   return response;
 };
@@ -256,23 +277,61 @@ export const getReservationReports = async () => {
   return validateJsonResponse(res);
 };
 
-export const getUploadUrl = async () => {
+export const getUploadUrl = async (adminId: number, filename: string, contentType: string): Promise<Response> => {
+  // adminId 검증
+  if (!adminId || typeof adminId !== 'number' || isNaN(adminId)) {
+    throw new Error(`Invalid adminId: ${adminId}`);
+  }
+  
+  // contentType 검증 및 정리
+  if (!contentType || typeof contentType !== 'string') {
+    throw new Error(`Invalid contentType: ${contentType}`);
+  }
+  
+  const cleanContentType = contentType.trim();
+  
+  if (!cleanContentType) {
+    throw new Error('contentType cannot be empty after trimming');
+  }
+  
+  const requestBody = {
+    admin_id: adminId,
+    file_name: filename,
+    content_type: cleanContentType
+  };
+  
   const res = await adminFetch('/api/admin/products/presigned-url', {
     method: 'POST',
+    body: JSON.stringify(requestBody),
   });
-  return validateJsonResponse(res);
+  return res; // Response 객체 직접 반환
 };
 
-export const getUpdateUrl = async (id: number) => {
+export const getUpdateUrl = async (id: number, adminId: number, filename: string, contentType: string): Promise<Response> => {
+  const requestBody = {
+    admin_id: adminId,
+    file_name: filename,
+    content_type: contentType
+  };
+  
   const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, {
     method: 'PATCH',
+    body: JSON.stringify(requestBody),
   });
   return validateJsonResponse(res);
 };
 
-export const getDetailUpdateUrl = async (id: number) => {
+export const getDetailUpdateUrl = async (id: number, adminId: number, filenames: string[], contentType: string): Promise<Response> => {
+  const requestBody = {
+    admin_id: adminId,
+    product_id: id,
+    file_names: filenames,
+    content_type: contentType
+  };
+  
   const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, {
     method: 'PATCH',
+    body: JSON.stringify(requestBody),
   });
   return validateJsonResponse(res);
 };
