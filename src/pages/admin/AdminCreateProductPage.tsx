@@ -107,7 +107,7 @@ export default function ProductCreatePage() {
           await fetch(url, {
             method: method || 'PUT', // 서버에서 받은 method 사용, 기본값은 PUT
             body: form.image,
-            headers: { 'Content-Type': form.image.type },
+            // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
           });
 
           // 3) 상품 등록

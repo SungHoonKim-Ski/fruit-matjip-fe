@@ -121,7 +121,7 @@ export default function AdminEditProductPage() {
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: file,
-          headers: { 'Content-Type': file.type },
+          // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
         });
         
         if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
