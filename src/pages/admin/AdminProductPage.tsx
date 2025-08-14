@@ -5,7 +5,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listProducts, deleteProduct, updateProduct } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { setSoldOut, toggleVisible, deleteAdminProduct } from '../../utils/api';
+import { setSoldOut, toggleVisible, deleteAdminProduct, getAdminProducts } from '../../utils/api';
 
 type Product = {
   id: number;
@@ -138,23 +138,58 @@ export default function AdminProductPage() {
         setProducts(mapped);
         setOriginalProducts(mapped);
       } else {
-        // TODO: Admin Product API 구현 후 실제 API 호출로 변경
-        console.log('🔍 AdminProductPage - Admin Product API not implemented yet, using mock data');
-        
-        // 임시로 Mock 데이터 사용 (Snackbar 메시지 제거)
-        const mocked = listProducts();
-        const mapped: Product[] = mocked.map(p => ({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          stock: p.stock,
-          totalSold: p.totalSold ?? 0,
-          status: p.stock > 0 ? 'active' : 'inactive',
-          imageUrl: p.imageUrl,
-          sellDate: p.sellDate,
-        }));
-        setProducts(mapped);
-        setOriginalProducts(mapped);
+        try {
+          // 한국 시간 기준으로 오늘 날짜 계산
+          const now = new Date();
+          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+          
+          // 오늘 날짜 (YYYY-MM-DD)
+          const fromStr = koreaTime.toISOString().split('T')[0];
+          
+          // 2일 후 날짜 (YYYY-MM-DD)
+          const toDate = new Date(koreaTime);
+          toDate.setDate(koreaTime.getDate() + 2);
+          const toStr = toDate.toISOString().split('T')[0];
+          
+          const res = await getAdminProducts(fromStr, toStr);
+          if (!res.ok) {
+            // 401, 403 에러는 통합 에러 처리로 위임
+            if (res.status === 401 || res.status === 403) {
+              return; // adminFetch에서 이미 처리됨
+            }
+            throw new Error('상품 목록을 불러오지 못했습니다.');
+          }
+          const data = await res.json();
+          
+          let productsArray = data;
+          
+          // AdminProductListResponse 구조에서 response 필드 추출
+          if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
+            productsArray = data.response;
+          }
+          
+          // 여전히 배열이 아닌 경우 에러
+          if (!Array.isArray(productsArray)) {
+            throw new Error('상품 데이터가 배열 형태가 아닙니다.');
+          }
+          
+          const mapped: Product[] = productsArray.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            stock: p.stock,
+            totalSold: p.totalSold ?? 0,
+            status: p.stock > 0 ? 'active' : 'inactive',
+            imageUrl: p.image_url ? `${process.env.REACT_APP_IMG_URL}/${p.image_url}` : p.imageUrl,
+            sellDate: p.sellDate,
+          }));
+          
+          setProducts(mapped);
+          setOriginalProducts(mapped);
+        } catch (e: any) {
+          safeErrorLog(e, 'AdminProductPage - loadProducts');
+          show(getSafeErrorMessage(e, '상품 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+        }
       }
     };
     
