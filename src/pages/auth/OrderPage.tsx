@@ -126,14 +126,14 @@ export default function OrdersPage() {
               
               return {
                 id: r.id,
-                date: r.orderDate,
+                date: r.order_date, // orderDate -> order_date로 수정
                 status: orderStatus,
                 items: [{
                   id: r.id,
-                  name: r.productName,
+                  name: r.product_name, // productName -> product_name으로 수정
                   quantity: 1,
                   price: r.amount,
-                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : r.productImage
+                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '' // productImage 제거
                 }]
               };
             });
