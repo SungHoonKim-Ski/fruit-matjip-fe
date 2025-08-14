@@ -184,9 +184,9 @@ export default function ReservePage() {
       } else {
         // 실제 예약 API 호출
         const reservationData = {
-          productId: product.id,
+          product_id: product.id,
           quantity: product.quantity,
-          pickupDate: product.sellDate,
+          pickup_date: product.sellDate,
           amount: product.price * product.quantity
         };
         
@@ -511,7 +511,7 @@ export default function ReservePage() {
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
                   <span className="text-l">
-                    {(item.stock - item.quantity) === 0 ? '마지막 상품이에요!' : `${item.stock - item.quantity}개 남았어요!`}
+                    {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
                   </span>
                 </div>
               
