@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
@@ -165,11 +165,50 @@ export default function ReservePage() {
     );
   };
 
-  const handleReserve = (product: Product) => {
+  const handleReserve = async (product: Product) => {
     if (product.quantity <= 0) return show('1개 이상 선택해주세요.', { variant: 'error' });
     if (product.quantity > product.stock) return show('재고보다 많이 예약할 수 없어요.', { variant: 'error' });
-    // TODO: 실제 예약 API 연동
-    show(`${product.name} ${product.quantity}개 예약 완료!`);
+    
+    try {
+      if (USE_MOCKS) {
+        // Mock 예약 처리
+        await new Promise(resolve => setTimeout(resolve, 500));
+        show(`${product.name} ${product.quantity}개 예약 완료!`);
+        
+        // Mock 모드에서는 재고 차감
+        setProducts(prev =>
+          prev.map(p =>
+            p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
+          )
+        );
+      } else {
+        // 실제 예약 API 호출
+        const reservationData = {
+          productId: product.id,
+          quantity: product.quantity,
+          pickupDate: product.sellDate,
+          amount: product.price * product.quantity
+        };
+        
+        const res = await createReservation(reservationData);
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || '예약에 실패했습니다.');
+        }
+        
+        show(`${product.name} ${product.quantity}개 예약 완료!`);
+        
+        // 성공 시 재고 차감
+        setProducts(prev =>
+          prev.map(p =>
+            p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
+          )
+        );
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'ProductsPage - handleReserve');
+      show(getSafeErrorMessage(e, '예약 중 오류가 발생했습니다.'), { variant: 'error' });
+    }
   };
 
   const prettyKdate = (iso: string) => {
@@ -471,7 +510,9 @@ export default function ReservePage() {
                 </h2>
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
-                  <span className="text-l">{item.stock - item.quantity}개 남았어요!</span>
+                  <span className="text-l">
+                    {item.stock === 0 ? '마지막 상품이에요!' : `${item.stock - item.quantity}개 남았어요!`}
+                  </span>
                 </div>
               
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
