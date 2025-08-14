@@ -133,7 +133,7 @@ export default function OrdersPage() {
                   name: r.productName,
                   quantity: 1,
                   price: r.amount,
-                  imageUrl: r.productImage
+                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : r.productImage
                 }]
               };
             });

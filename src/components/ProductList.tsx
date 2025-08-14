@@ -5,7 +5,7 @@ const ProductList = ({ products, onReserve }: { products: any[]; onReserve: (id:
   return (
     <div className="p-4">
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} onReserve={onReserve} />
+        <ProductCard key={product.id} product={product} onReserve={() => onReserve(product.id)} />
       ))}
     </div>
   );

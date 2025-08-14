@@ -136,7 +136,7 @@ export default function ReservePage() {
             quantity: p.stock > 0 ? 1 : 0,
             price: p.price,
             stock: p.stock,
-            imageUrl: p.imageUrl,
+            imageUrl: p.image_url ? `${process.env.REACT_APP_IMG_URL}/${p.image_url}` : p.imageUrl,
             sellDate: p.sellDate || dates[i % dates.length], // Default distribution if not provided
             totalSold: p.totalSold ?? 0,
           })));

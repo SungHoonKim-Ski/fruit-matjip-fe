@@ -67,7 +67,17 @@ export default function AdminEditProductPage() {
         } else {
           const res = await getAdminProduct(Number(id));
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
-          const data = (await res.json()) as ProductEdit;
+          const rawData = await res.json();
+          
+          // API 응답에서 image_url을 imageUrl로 매핑하고 절대 경로로 변환
+          const data: ProductEdit = {
+            ...rawData,
+            imageUrl: rawData.image_url ? `${process.env.REACT_APP_IMG_URL}/${rawData.image_url}` : rawData.imageUrl,
+            images: rawData.images?.map((img: string) => 
+              img.startsWith('http') ? img : `${process.env.REACT_APP_IMG_URL}/${img}`
+            ) || rawData.images
+          };
+          
           if (alive) setForm(data);
         }
       } catch (e: any) {
