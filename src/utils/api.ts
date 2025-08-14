@@ -70,54 +70,41 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
   // 401 에러 시 refresh token으로 재시도 (User API만)
   if (response.status === 401 && !isAdminApi && !url.includes('/login') && !url.includes('/refresh')) {
     try {
-      const refreshToken = localStorage.getItem('refresh');
-      if (refreshToken) {
-        console.log('🔄 토큰 만료, refresh token으로 재시도...');
+      // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
+      const refreshHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
+      if (token) {
+        refreshHeaders.Authorization = `Bearer ${token}`;
+
+      }
+      
+      const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
+        method: 'POST',
+        headers: refreshHeaders,
+        credentials: 'include',
+      });
+      
+      if (refreshResponse.ok) {
+        const newAccessToken = await refreshResponse.text();
+        localStorage.setItem('access', newAccessToken);
         
-        const refreshResponse = await fetch(`${API_BASE}/api/auth/refresh`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+        // 새로운 토큰으로 원래 요청 재시도
+
+        const newHeaders = { ...headers, Authorization: `Bearer ${newAccessToken}` };
+        
+        const retryResponse = await fetch(`${API_BASE}${url}`, {
+          ...options,
+          headers: newHeaders,
           credentials: 'include',
         });
         
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          localStorage.setItem('access', refreshData.accessToken);
-          
-          // 새로운 토큰으로 원래 요청 재시도
-          console.log('🔄 새로운 토큰으로 요청 재시도...');
-          const newHeaders = { ...headers, Authorization: `Bearer ${refreshData.accessToken}` };
-          
-          const retryResponse = await fetch(`${API_BASE}${url}`, {
-            ...options,
-            headers: newHeaders,
-            credentials: 'omit',
-          });
-          
-          return retryResponse;
-        } else {
-          console.log('🔄 refresh token도 만료됨');
-          // refresh token도 만료된 경우
-          if (autoRedirect) {
-            const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-            localStorage.setItem('error-message', errorMessage);
-            localStorage.setItem('error-type', 'user');
-            localStorage.setItem('error-redirect', '/login');
-            
-            // 사용자 토큰 제거
-            localStorage.removeItem('access');
-            localStorage.removeItem('refresh');
-            localStorage.removeItem('nickname');
-            
-            // 403 에러 페이지로 리다이렉트
-            window.location.href = '/403';
-          }
-          return response;
-        }
+        return retryResponse;
       } else {
-        // refresh token이 없는 경우
+
+        // refresh token도 만료된 경우에만 redirect
         if (autoRedirect) {
           const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
           localStorage.setItem('error-message', errorMessage);
@@ -135,8 +122,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
         return response;
       }
     } catch (error) {
-      console.error('🔄 refresh token 처리 중 오류:', error);
-      // refresh 처리 중 오류 발생 시
+      console.error('refresh token 처리 중 오류:', error);
+      // refresh 처리 중 오류 발생 시에만 redirect
       if (autoRedirect) {
         const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
         localStorage.setItem('error-message', errorMessage);
@@ -155,8 +142,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
     }
   }
   
-  // 403 에러 시 권한 부족 처리 (User API만)
-  if (autoRedirect && response.status === 403 && !isAdminApi && !url.includes('/login')) {
+  // 403 에러 시 권한 부족 처리 (refresh 시도 후에도 403이거나, refresh 대상이 아닌 403)
+  if (autoRedirect && response.status === 403 && !isAdminApi && !url.includes('/login') && !url.includes('/refresh')) {
     const errorMessage = '접근 권한이 없습니다.';
     localStorage.setItem('error-message', errorMessage);
     localStorage.setItem('error-type', 'user');
@@ -258,57 +245,47 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
     credentials: 'include', // User API도 쿠키 사용 (refresh token용)
   });
   
-  // 401 에러 시 refresh token으로 재시도
-  if (response.status === 401 && !url.includes('/login') && !url.includes('/refresh')) {
+                // 401 또는 403 에러 시 refresh token으로 재시도
+              if ((response.status === 401 || response.status === 403) && !url.includes('/login') && !url.includes('/refresh')) {
+    
     try {
-      const refreshToken = localStorage.getItem('refresh');
-      if (refreshToken) {
-        console.log('🔄 토큰 만료, refresh token으로 재시도...');
+      // refresh token은 쿠키에 있으므로 credentials: 'include'로 자동 전송
+      
+      // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
+      const refreshHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
+      if (token) {
+        refreshHeaders.Authorization = `Bearer ${token}`;
+
+      }
+      
+      const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
+        method: 'POST',
+        headers: refreshHeaders,
+        credentials: 'include',
+      });
+      
+      if (refreshResponse.ok) {
+        const newAccessToken = await refreshResponse.text();
+        localStorage.setItem('access', newAccessToken);
         
-        const refreshResponse = await fetch(`${API_BASE}/api/auth/refresh`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+        // 새로운 토큰으로 원래 요청 재시도
+
+        const newHeaders = { ...headers, Authorization: `Bearer ${newAccessToken}` };
+        
+        const retryResponse = await fetch(`${API_BASE}${url}`, {
+          ...options,
+          headers: newHeaders,
           credentials: 'include',
         });
         
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json();
-          localStorage.setItem('access', refreshData.accessToken);
-          
-          // 새로운 토큰으로 원래 요청 재시도
-          console.log('🔄 새로운 토큰으로 요청 재시도...');
-          const newHeaders = { ...headers, Authorization: `Bearer ${refreshData.accessToken}` };
-          
-          const retryResponse = await fetch(`${API_BASE}${url}`, {
-            ...options,
-            headers: newHeaders,
-            credentials: 'include',
-          });
-          
-          return retryResponse;
-        } else {
-          console.log('🔄 refresh token도 만료됨');
-          // refresh token도 만료된 경우
-          if (autoRedirect) {
-            const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-            localStorage.setItem('error-message', errorMessage);
-            localStorage.setItem('error-type', 'user');
-            localStorage.setItem('error-redirect', '/login');
-            
-            // 사용자 토큰 제거
-            localStorage.removeItem('access');
-            localStorage.removeItem('refresh');
-            localStorage.removeItem('nickname');
-            
-            // 403 에러 페이지로 리다이렉트
-            window.location.href = '/403';
-          }
-          return response;
-        }
+        return retryResponse;
       } else {
-        // refresh token이 없는 경우
+
+        // refresh token도 만료된 경우
         if (autoRedirect) {
           const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
           localStorage.setItem('error-message', errorMessage);
@@ -326,7 +303,7 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
         return response;
       }
     } catch (error) {
-      console.error('🔄 refresh token 처리 중 오류:', error);
+      console.error('refresh token 처리 중 오류:', error);
       // refresh 처리 중 오류 발생 시
       if (autoRedirect) {
         const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
@@ -382,13 +359,22 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
 export const refreshToken = async () => {
   try {
     const refresh = localStorage.getItem('refresh');
+    const accessToken = getAccessToken();
     if (!refresh) throw new Error('Refresh token not found');
+    
+    // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
+    const refreshHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
+    if (accessToken) {
+      refreshHeaders.Authorization = `Bearer ${accessToken}`;
+    }
     
     const response = await fetch(`${API_BASE}/api/refresh`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: refreshHeaders,
       credentials: 'include',
     });
     
@@ -613,10 +599,30 @@ export const getUploadUrl = async (adminId: number, filename: string, contentTyp
     content_type: cleanContentType
   };
   
+  console.log('🔐 getUploadUrl - 요청 데이터:', { adminId, filename, contentType: cleanContentType });
+  console.log('🔐 getUploadUrl - localStorage 상태:', {
+    'admin-auth': localStorage.getItem('admin-auth'),
+    'admin-userid': localStorage.getItem('admin-userid')
+  });
+  
   const res = await adminFetch('/api/admin/products/presigned-url', {
     method: 'POST',
     body: JSON.stringify(requestBody),
   });
+  
+  console.log('🔐 getUploadUrl - 응답 상태:', res.status, res.statusText);
+  console.log('🔐 getUploadUrl - 응답 헤더:', Object.fromEntries(res.headers.entries()));
+  
+  // 403 에러 시 더 자세한 정보 로깅
+  if (res.status === 403) {
+    try {
+      const errorData = await res.clone().json();
+      console.error('🔐 getUploadUrl - 403 에러 상세:', errorData);
+    } catch (e) {
+      console.error('🔐 getUploadUrl - 403 에러 (JSON 파싱 실패)');
+    }
+  }
+  
   return res; // Response 객체 직접 반환
 };
 

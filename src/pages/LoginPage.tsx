@@ -145,6 +145,54 @@ export default function LoginPage() {
 
   const startKakao = useCallback(async () => {
     try {
+      setBusy(true);
+      
+      // 먼저 기존 access token이 있는지 확인
+      const accessToken = localStorage.getItem('access');
+      if (accessToken) {
+        console.log('🔐 기존 access token 발견, 토큰 유효성 검증 중...');
+        
+        try {
+          // 상품 목록 API로 토큰 유효성 확인
+          const API_BASE = process.env.REACT_APP_API_BASE || '';
+          const response = await fetch(`${API_BASE}/api/auth/products`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            credentials: 'include'
+          });
+          
+          console.log('📦 토큰 검증 응답:', {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText
+          });
+          
+          if (response.ok) {
+            console.log('✅ 기존 토큰 유효, 자동 로그인 성공');
+            nav('/products', { replace: true });
+            return;
+          } else {
+            console.log('❌ 기존 토큰 무효, 새로운 카카오 로그인 진행');
+            // 무효한 토큰 정리
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+          }
+        } catch (error) {
+          console.error('❌ 토큰 검증 실패:', error);
+          // 에러 발생 시 토큰 정리
+          localStorage.removeItem('access');
+          localStorage.removeItem('refresh');
+          localStorage.removeItem('nickname');
+        }
+      }
+      
+      // 토큰이 없거나 무효한 경우 카카오 로그인 진행
+      console.log('🔄 카카오 로그인 시작...');
+      
       if (!JS_KAKAO_KEY) {
         show('카카오 JS 키가 설정되지 않았습니다. (REACT_APP_KAKAO_JAVASCRIPT_KEY)', { variant: 'error' });
         return;
@@ -160,9 +208,11 @@ export default function LoginPage() {
       });
     } catch (e: any) {
       safeErrorLog(e, 'LoginPage - startKakao');
-      show(getSafeErrorMessage(e, '카카오 인증 시작 중 오류가 발생했습니다.'), { variant: 'error' });
+      show(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setBusy(false);
     }
-  }, [show]);
+  }, [show, nav]);
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
@@ -177,7 +227,7 @@ export default function LoginPage() {
 
         {busy && (
           <div className="mt-6 rounded-lg border bg-orange-50 text-orange-700 text-sm p-3">
-            카카오와 통신 중입니다…
+            로그인 처리 중입니다…
           </div>
         )}
 
