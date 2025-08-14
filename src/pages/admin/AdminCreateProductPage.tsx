@@ -5,11 +5,11 @@ import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { createAdminProduct, getUploadUrl } from '../../utils/api';
 
 type ProductForm = {
-  name: string;      // NotBlank, Size max=15
+  name: string;      // NotBlank, Size max=20
   price: number;     // NotNull, Min=1
   stock: number;     // NotNull, Min=1
-  image: File | null;
-  sellDate: string;  // NotBlank, Pattern: YYYY-MM-DD
+  image_url: File | null;
+  sell_date: string;  // NotBlank, Pattern: YYYY-MM-DD
   visible: boolean;  // NotNull
 };
 
@@ -23,8 +23,8 @@ export default function ProductCreatePage() {
     name: '',
     price: 1, // 최소값 1로 변경
     stock: 1, // 최소값 1로 변경
-    image: null,
-    sellDate: today, // 오늘 날짜를 기본값으로
+    image_url: null,
+    sell_date: today, // 오늘 날짜를 기본값으로
     visible: true, // 기본값은 활성
   });
   const [uploading, setUploading] = useState(false);
@@ -42,7 +42,7 @@ export default function ProductCreatePage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, files } = e.target as HTMLInputElement;
 
-    if (name === 'image') {
+    if (name === 'image_url') {
       if (files?.[0]) {
         const file = files[0];
         const ext = file.name.split('.').pop()?.toLowerCase();
@@ -51,7 +51,7 @@ export default function ProductCreatePage() {
           e.target.value = '';
           return;
         }
-        setForm({ ...form, image: file });
+        setForm({ ...form, image_url: file });
         e.target.value = '';
       }
       // 파일을 선택하지 않은 경우 아무 동작도 하지 않음 (기존 이미지 유지)
@@ -70,8 +70,8 @@ export default function ProductCreatePage() {
       const num = Number(value);
       if (!Number.isInteger(num) || num < 1) return; // 최소값 1로 변경
       setForm({ ...form, [name]: num });
-    } else if (name === 'sellDate') {
-      setForm({ ...form, sellDate: value });
+    } else if (name === 'sell_date') {
+      setForm({ ...form, sell_date: value });
     } else if (name === 'visible') {
       setForm({ ...form, visible: value === 'true' });
     } else {
@@ -80,7 +80,7 @@ export default function ProductCreatePage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.name || !form.price || !form.stock || !form.image || !form.sellDate) {
+    if (!form.name || !form.price || !form.stock || !form.image_url || !form.sell_date) {
       show('모든 값을 입력해주세요.', { variant: 'error' });
       return;
     }
@@ -94,11 +94,11 @@ export default function ProductCreatePage() {
         await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연
         
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, visible: true });
+        setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
       } else {
         // 1) presigned URL 요청
         try {
-          const presignedUrlRes = await getUploadUrl(1, form.image.name, form.image.type);
+          const presignedUrlRes = await getUploadUrl(form.image_url!.name, form.image_url!.type);
           
           if (!presignedUrlRes.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
@@ -127,7 +127,7 @@ export default function ProductCreatePage() {
           // 2) 이미지 업로드
           const uploadResponse = await fetch(url, {
             method: method || 'PUT', // 서버에서 받은 method 사용, 기본값은 PUT
-            body: form.image,
+            body: form.image_url,
             // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
           });
           
@@ -135,25 +135,14 @@ export default function ProductCreatePage() {
             throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
           }
 
-          const adminUserId = localStorage.getItem('admin-userid');
-          if (!adminUserId) {
-            throw new Error('관리자 ID를 찾을 수 없습니다. 다시 로그인해주세요.');
-          }
-          
-          const adminIdNumber = Number(adminUserId);
-          if (isNaN(adminIdNumber)) {
-            throw new Error('관리자 ID가 유효하지 않습니다. 다시 로그인해주세요.');
-          }
-          
           const imageUrl = key;
           
           const productPayload = {
-            adminId: adminIdNumber, // adminId 추가
             name: form.name,
             price: form.price,
             stock: form.stock,
             image_url: imageUrl,
-            sell_date: form.sellDate,
+            sell_date: form.sell_date,
             visible: form.visible,
           };
       
@@ -170,7 +159,7 @@ export default function ProductCreatePage() {
           }
           
           show('상품이 등록되었습니다!', { variant: 'success' });
-          setForm({ name: '', price: 1, stock: 1, image: null, sellDate: today, visible: true });
+          setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
         } catch (uploadError) {
           throw uploadError;
         }
@@ -238,8 +227,8 @@ export default function ProductCreatePage() {
           <label className="block text-sm font-medium">판매일 <span className="text-red-500">*</span></label>
           <input
             type="date"
-            name="sellDate"
-            value={form.sellDate}
+            name="sell_date"
+            value={form.sell_date}
             onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
             required
@@ -263,9 +252,9 @@ export default function ProductCreatePage() {
         <div className="space-y-2">
           <label className="block text-sm font-medium">상품 이미지<span className="text-red-500">*</span></label>
           <div className="mt-2">
-            {form.image && (
+            {form.image_url && (
               <img
-                src={URL.createObjectURL(form.image)}
+                src={URL.createObjectURL(form.image_url)}
                 alt="상품 이미지 미리보기"
                 className="w-28 h-28 rounded object-cover border"
               />
@@ -275,7 +264,7 @@ export default function ProductCreatePage() {
             <input
               id="main-image"
               type="file"
-              name="image"
+              name="image_url"
               accept="image/png, image/jpeg"
               onChange={handleChange}
               className="hidden"
@@ -284,9 +273,9 @@ export default function ProductCreatePage() {
             <label htmlFor="main-image" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
               파일 선택
             </label>
-            {form.image && (
+            {form.image_url && (
               <span className="text-sm text-gray-700 truncate max-w-full">
-                {form.image.name}
+                {form.image_url.name}
               </span>
             )}
           </div>
