@@ -18,8 +18,32 @@ interface ApiResponse<T = any> {
 // API 유틸리티 함수들
 const API_BASE = process.env.REACT_APP_API_BASE || '';
 
+// 개별 API 요청별 retry 카운터 관리
+const apiRetryCounts = new Map<string, number>();
+const MAX_RETRY_PER_API = 3;
+
 // 토큰 가져오기
 const getAccessToken = () => localStorage.getItem('access');
+
+// 개별 API retry 카운터 관리 함수들
+export const incrementApiRetryCount = (apiKey: string) => {
+  const currentCount = apiRetryCounts.get(apiKey) || 0;
+  const newCount = Math.min(currentCount + 1, MAX_RETRY_PER_API);
+  apiRetryCounts.set(apiKey, newCount);
+  return newCount;
+};
+
+export const resetApiRetryCount = (apiKey: string) => {
+  apiRetryCounts.delete(apiKey);
+};
+
+export const getApiRetryCount = (apiKey: string) => {
+  return apiRetryCounts.get(apiKey) || 0;
+};
+
+export const canRetryApi = (apiKey: string) => {
+  return (apiRetryCounts.get(apiKey) || 0) < MAX_RETRY_PER_API;
+};
 
 // JSON 응답 검증
 export const validateJsonResponse = async (response: Response) => {
@@ -176,7 +200,6 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
 
 // Admin API 전용 fetch (쿠키 분리)
 export const adminFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = false) => {
-  
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
     headers: {
@@ -411,29 +434,50 @@ export const handleApiResponse = async (response: Response) => {
 
 // 편의 함수들 (자동 JSON 검증 포함)
 export const getProducts = async (from?: string, to?: string) => {
-  let url = '/api/auth/products';
-  
-  if (from && to) {
-    // URL 인코딩 적용
-    const encodedFrom = encodeURIComponent(from);
-    const encodedTo = encodeURIComponent(to);
-    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  try {
+    let url = '/api/auth/products';
+    
+    if (from && to) {
+      // URL 인코딩 적용
+      const encodedFrom = encodeURIComponent(from);
+      const encodedTo = encodeURIComponent(to);
+      url += `?from=${encodedFrom}&to=${encodedTo}`;
+    }
+    const res = await userFetch(url);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getProducts');
+    throw error;
   }
-  const res = await userFetch(url);
-  return validateJsonResponse(res);
 };
 
 export const getProduct = async (id: number) => {
-  const res = await userFetch(`/api/auth/products/${id}`);
-  return validateJsonResponse(res);
+  try {
+    const res = await userFetch(`/api/auth/products/${id}`);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getProduct');
+    throw error;
+  }
 };
 
 export const createReservation = async (data: any) => {
-  const res = await userFetch('/api/auth/reservations/', { 
-    method: 'POST', 
-    body: JSON.stringify(data) 
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await userFetch('/api/auth/reservations/', { 
+      method: 'POST', 
+      body: JSON.stringify(data) 
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('createReservation');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('createReservation');
+    throw error;
+  }
 };
 
 export const cancelReservation = async (id: number) => {
@@ -444,29 +488,56 @@ export const cancelReservation = async (id: number) => {
 };
 
 export const getReservations = async (from?: string, to?: string) => {
-  let url = '/api/auth/reservations/';
-  
-  if (from && to) {
-    // URL 인코딩 적용
-    const encodedFrom = encodeURIComponent(from);
-    const encodedTo = encodeURIComponent(to);
-    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  try {
+    let url = '/api/auth/reservations/';
+    
+    if (from && to) {
+      // URL 인코딩 적용
+      const encodedFrom = encodeURIComponent(from);
+      const encodedTo = encodeURIComponent(to);
+      url += `?from=${encodedFrom}&to=${encodedTo}`;
+    }
+    
+    const res = await userFetch(url);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getReservations');
+    throw error;
   }
-  
-  const res = await userFetch(url);
-  return validateJsonResponse(res);
 };
 
 export const modifyName = async (name: string) => {
-  const res = await userFetch(`/api/auth/name/${name}`, { 
-    method: 'PATCH' 
-  });
-  return res; // Response 객체 직접 반환 (JSON 검증 제거)
+  try {
+    const res = await userFetch(`/api/auth/name/${name}`, { 
+      method: 'PATCH' 
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('modifyName');
+    }
+    
+    return res; // Response 객체 직접 반환 (JSON 검증 제거)
+  } catch (error) {
+    incrementApiRetryCount('modifyName');
+    throw error;
+  }
 };
 
 export const checkNameExists = async (name: string) => {
-  const res = await userFetch(`/api/auth/name/${name}`);
-  return validateJsonResponse(res);
+  try {
+    const res = await userFetch(`/api/auth/name/${name}`);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('checkNameExists');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('checkNameExists');
+    throw error;
+  }
 };
 
 // Admin API (쿠키 기반 인증, User API와 분리)
@@ -494,80 +565,125 @@ export const adminSignup = async (data: { name: string; email: string; password:
 };
 
 export const getAdminProducts = async (from?: string, to?: string) => {
-  let url = '/api/admin/products';
-  
-  
-  if (from && to) {
-    // URL 인코딩 적용
-    const encodedFrom = encodeURIComponent(from);
-    const encodedTo = encodeURIComponent(to);
-    url += `?from=${encodedFrom}&to=${encodedTo}`;
-  }   
-  const res = await adminFetch(url);
-  return validateJsonResponse(res);
+  try {
+    let url = '/api/admin/products';
+    
+    
+    if (from && to) {
+      // URL 인코딩 적용
+      const encodedFrom = encodeURIComponent(from);
+      const encodedTo = encodeURIComponent(to);
+      url += `?from=${encodedFrom}&to=${encodedTo}`;
+    }   
+    const res = await adminFetch(url);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getAdminProducts');
+    throw error;
+  }
 };
 
 export const getAdminReservations = async (from?: string, to?: string) => {
-  let url = '/api/admin/reservations';
-  
-  if (from && to) {
-    // URL 인코딩 적용
-    const encodedFrom = encodeURIComponent(from);
-    const encodedTo = encodeURIComponent(to);
-    url += `?from=${encodedFrom}&to=${encodedTo}`;
+  try {
+    let url = '/api/admin/reservations';
+    
+    if (from && to) {
+      // URL 인코딩 적용
+      const encodedFrom = encodeURIComponent(from);
+      const encodedTo = encodeURIComponent(to);
+      url += `?from=${encodedFrom}&to=${encodedTo}`;
+    }
+    
+    const res = await adminFetch(url);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getAdminReservations');
+    throw error;
   }
-  
-  const res = await adminFetch(url);
-  return validateJsonResponse(res);
 };
 
 export const getAdminProduct = async (id: number) => {
-  const res = await adminFetch(`/api/admin/products/${id}`);
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/products/${id}`);
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getAdminProduct');
+    throw error;
+  }
 };
 
 export const createAdminProduct = async (data: any) => {
-  const res = await adminFetch('/api/admin/products', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch('/api/admin/products', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('createAdminProduct');
+    throw error;
+  }
 };
 
 export const updateAdminProduct = async (id: number, data: any) => {
-  const res = await adminFetch(`/api/admin/products/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/products/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('updateAdminProduct');
+    throw error;
+  }
 };
 
 export const setSoldOut = async (id: number) => {
-  const res = await adminFetch(`/api/admin/products/sold-out/${id}`, {
-    method: 'PATCH',
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/products/sold-out/${id}`, {
+      method: 'PATCH',
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('setSoldOut');
+    throw error;
+  }
 };
 
 export const toggleVisible = async (id: number, visible: boolean) => {
-  const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, {
-    method: 'PATCH',
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, {
+      method: 'PATCH',
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('toggleVisible');
+    throw error;
+  }
 };
 
 export const deleteAdminProduct = async (id: number) => {
-  const res = await adminFetch(`/api/admin/products/${id}`, {
-    method: 'DELETE',
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/products/${id}`, {
+      method: 'DELETE',
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('deleteAdminProduct');
+    throw error;
+  }
 };
 
 export const togglePicked = async (id: number, picked: boolean) => {
-  const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, {
-    method: 'POST',
-  });
-  return validateJsonResponse(res);
+  try {
+    const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, {
+      method: 'POST',
+    });
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('togglePicked');
+    throw error;
+  }
 };
 
 export const getReservationReports = async () => {
