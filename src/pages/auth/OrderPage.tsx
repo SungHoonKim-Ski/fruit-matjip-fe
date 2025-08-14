@@ -27,14 +27,14 @@ export default function OrdersPage() {
     return `${y}-${m}-${day}`;
   }
   
-  // ✅ 오늘 ~ 이번 달 말일 (로컬 기준)
+  // ✅ 오늘 ~ 이틀 뒤 (reservation API 기본값과 동일)
   const now = new Date();
   const today = formatDateKR(now);
-  const endOfMonth = formatDateKR(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const dayAfterTomorrow = formatDateKR(new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000)));
 
-  // 필터 - 기본값: 오늘 ~ 이번 달 말일
+  // 필터 - 기본값: 오늘 ~ 이틀 뒤
   const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(endOfMonth);
+  const [to, setTo] = useState(dayAfterTomorrow);
   const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all');
 
   // 데이터
@@ -165,8 +165,43 @@ export default function OrdersPage() {
       return inFrom && inTo && s;
     });
     
-    // 날짜 오름차순 정렬 (과거 → 최신)
-    filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // 복합 정렬: 주문일 (오늘/미래/과거 순) + 상태 (수령대기/예약완료/예약취소 순)
+    filtered.sort((a, b) => {
+      // 날짜 비교를 위해 YYYY-MM-DD 형식으로 변환
+      const aDate = a.date; // 이미 YYYY-MM-DD 형식
+      const bDate = b.date; // 이미 YYYY-MM-DD 형식
+      
+      // 1. 날짜가 다른 경우: 오늘 > 미래 > 과거 순
+      if (aDate !== bDate) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // 오늘인 주문이 가장 위에
+        if (aDate === today && bDate !== today) return -1;
+        if (aDate !== today && bDate === today) return 1;
+        
+        // 미래가 과거보다 위에
+        if (aDate > today && bDate <= today) return -1;
+        if (aDate <= today && bDate > today) return 1;
+        
+        // 둘 다 미래인 경우, 가까운 날짜가 위에
+        if (aDate > today && bDate > today) {
+          return aDate.localeCompare(bDate);
+        }
+        
+        // 둘 다 과거인 경우, 최근 과거가 위에
+        if (aDate < today && bDate < today) {
+          return bDate.localeCompare(aDate);
+        }
+      }
+      
+      // 2. 같은 날짜인 경우 상태별 정렬: pending > picked > canceled 순
+      if (aDate === bDate) {
+        const statusOrder = { pending: 0, picked: 1, canceled: 2 };
+        return statusOrder[a.status] - statusOrder[b.status];
+      }
+      
+      return 0;
+    });
     
     return filtered;
   }, [orders, from, to, status]);
@@ -262,7 +297,7 @@ export default function OrdersPage() {
           <div className="flex items-end">
             <button
               type="button"
-              onClick={() => { setFrom(today); setTo(endOfMonth); setStatus('all'); }}
+              onClick={() => { setFrom(today); setTo(dayAfterTomorrow); setStatus('all'); }}
               className="w-full h-10 rounded border hover:bg-gray-50"
             >
               초기화
