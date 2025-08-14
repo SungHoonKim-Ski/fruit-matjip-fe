@@ -140,8 +140,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
           localStorage.removeItem('refresh');
           localStorage.removeItem('nickname');
           
-          // 403 에러 페이지로 리다이렉트
-          window.location.href = '/403';
+          // 401 에러 페이지로 리다이렉트
+          window.location.href = '/401';
         }
         return response;
       }
@@ -159,8 +159,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
         localStorage.removeItem('refresh');
         localStorage.removeItem('nickname');
         
-        // 403 에러 페이지로 리다이렉트
-        window.location.href = '/403';
+        // 401 에러 페이지로 리다이렉트
+        window.location.href = '/401';
       }
       return response;
     }

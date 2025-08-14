@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 
-export default function Error403Page() {
+export default function Error401Page() {
   const nav = useNavigate();
   const { show } = useSnackbar();
   const [countdown, setCountdown] = useState(2);
@@ -52,7 +52,7 @@ export default function Error403Page() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">접근 권한이 없습니다 (403)</h1>
+        <h1 className="text-2xl font-bold text-gray-800">인증이 만료되었습니다 (401)</h1>
         <p className="mt-2 text-sm text-gray-500">{getCountdownText()}</p>
         <button
           className="mt-6 h-10 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white"
@@ -69,5 +69,3 @@ export default function Error403Page() {
     </main>
   );
 }
-
-

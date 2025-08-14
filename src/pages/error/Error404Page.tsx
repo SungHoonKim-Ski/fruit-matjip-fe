@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Error404Page() {
   const nav = useNavigate();
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(2);
 
   useEffect(() => {
-    const t = setTimeout(() => nav('/login', { replace: true }), 3000);
+    const t = setTimeout(() => nav('/login', { replace: true }), 2000);
     
     // 카운트다운 업데이트
     const interval = setInterval(() => {
