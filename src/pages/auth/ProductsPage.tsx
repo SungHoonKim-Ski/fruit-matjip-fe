@@ -38,6 +38,9 @@ const storeTitle = '과일맛집 1955';
 const branchName = '';
 
 export default function ReservePage() {
+  // 재고 상태 기준값 (static 변수)
+  const LOW_STOCK_THRESHOLD = 10;    // 품절임박 기준
+  
   const [products, setProducts] = useState<Product[]>([]);
   const { show } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -580,6 +583,17 @@ export default function ReservePage() {
                   {item.stock > 0 && (
                     <span className="text-l">
                       {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
+                      {(item.stock - item.quantity) < LOW_STOCK_THRESHOLD && (
+                        <span className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
+                          style={{
+                            backgroundColor: '#FECACA',
+                            borderColor: '#e5e7eb',
+                            color: '#374151'
+                          }}
+                        >
+                          품절임박
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>

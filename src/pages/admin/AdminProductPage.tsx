@@ -19,6 +19,10 @@ type Product = {
 };
 
 export default function AdminProductPage() {
+  // 재고 상태 기준값 (static 변수)
+  const LOW_STOCK_THRESHOLD = 10;    // 품절임박 기준
+  const DANGER_STOCK_THRESHOLD = 5;  // 위험 재고 기준
+  
   const { show } = useSnackbar(); 
   const [products, setProducts] = useState<Product[]>([]);
   const [originalProducts, setOriginalProducts] = useState<Product[]>([]);
@@ -303,6 +307,28 @@ export default function AdminProductPage() {
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold break-keep">{product.name}</h2>
                   <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
+                  <p className="text-sm text-gray-500">
+                    <span className="font-medium">재고: {product.stock.toLocaleString()}개</span>
+                    <span className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
+                      style={{
+                        backgroundColor: (() => {
+                          if (product.stock === 0) return '#E0F2FE'; // 품절 - light red
+                          if (product.stock < DANGER_STOCK_THRESHOLD) return '#FECACA'; // 위험 - light red
+                          if (product.stock < LOW_STOCK_THRESHOLD) return '#FEF3C7'; // 품절임박 - light yellow
+                          return '#DCFCE7'; // 여유 - light green
+                        })(),
+                        borderColor: '#e5e7eb',
+                        color: '#374151'
+                      }}
+                    >
+                      {(() => {
+                        if (product.stock === 0) return '품절';
+                        if (product.stock < DANGER_STOCK_THRESHOLD) return '위험';
+                        if (product.stock < LOW_STOCK_THRESHOLD) return '품절임박';
+                        return '여유';
+                      })()}
+                    </span>
+                  </p>
                   <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
                   <p className="text-sm text-gray-500">
                     판매일: {product.sellDate ?? '미설정'}
