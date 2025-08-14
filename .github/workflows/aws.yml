@@ -43,6 +43,7 @@ jobs:
         REACT_APP_JS_KAKAO_KEY=${{ secrets.JS_KAKAO_KEY }}
         REACT_APP_REDIRECT_URI=${{ secrets[format('{0}_REDIRECT_URI', steps.extract_env.outputs.env)] }}
         REACT_APP_API_BASE=${{ secrets[format('{0}_API_BASE', steps.extract_env.outputs.env)] }}
+        REACT_APP_IMG_URL=${{ secrets[format('{0}_IMG_URL', steps.extract_env.outputs.env)] }}
         EOF
       # 안전: 출력 로그에 비밀값이 노출되지 않도록 shell heredoc 사용  
 
