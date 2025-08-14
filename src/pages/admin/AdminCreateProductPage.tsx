@@ -5,12 +5,12 @@ import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { createAdminProduct, getUploadUrl } from '../../utils/api';
 
 type ProductForm = {
-  name: string;
-  price: number;
-  stock: number;
+  name: string;      // NotBlank, Size max=15
+  price: number;     // NotNull, Min=1
+  stock: number;     // NotNull, Min=1
   image: File | null;
-  sellDate: string; // Required now
-  visible: boolean; // Changed from status to visible
+  sellDate: string;  // NotBlank, Pattern: YYYY-MM-DD
+  visible: boolean;  // NotNull
 };
 
 export default function ProductCreatePage() {
@@ -21,13 +21,23 @@ export default function ProductCreatePage() {
   
   const [form, setForm] = useState<ProductForm>({
     name: '',
-    price: 0,
-    stock: 0,
+    price: 1, // 최소값 1로 변경
+    stock: 1, // 최소값 1로 변경
     image: null,
     sellDate: today, // 오늘 날짜를 기본값으로
     visible: true, // 기본값은 활성
   });
   const [uploading, setUploading] = useState(false);
+
+  const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const value = input.value;
+    
+    // 0으로 시작하는 경우 (0 하나만 있는 경우 제외) 마지막 문자 제거
+    if (value.length > 1 && value.startsWith('0')) {
+      input.value = value.slice(1);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, files } = e.target as HTMLInputElement;
@@ -46,8 +56,19 @@ export default function ProductCreatePage() {
       }
       // 파일을 선택하지 않은 경우 아무 동작도 하지 않음 (기존 이미지 유지)
     } else if (name === 'price' || name === 'stock') {
+      // 빈 문자열이거나 앞에 0이 오는 경우(0123, 0421 등) 처리
+      if (value === '') {
+        setForm({ ...form, [name]: 1 }); // 빈 값이면 최소값 1로 설정
+        return;
+      }
+      
+      // 앞에 0이 오는 경우 제거 (단, '0'만 입력한 경우는 허용하지 않음)
+      if (value.length > 1 && value.startsWith('0')) {
+        return; // 0123, 0421 같은 입력 무시
+      }
+      
       const num = Number(value);
-      if (!Number.isInteger(num) || num < 0) return;
+      if (!Number.isInteger(num) || num < 1) return; // 최소값 1로 변경
       setForm({ ...form, [name]: num });
     } else if (name === 'sellDate') {
       setForm({ ...form, sellDate: value });
@@ -149,7 +170,7 @@ export default function ProductCreatePage() {
           }
           
           show('상품이 등록되었습니다!', { variant: 'success' });
-          setForm({ name: '', price: 0, stock: 0, image: null, sellDate: today, visible: true });
+          setForm({ name: '', price: 1, stock: 1, image: null, sellDate: today, visible: true });
         } catch (uploadError) {
           throw uploadError;
         }
@@ -175,7 +196,8 @@ export default function ProductCreatePage() {
             value={form.name}
             onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
-            placeholder="상품명을 입력하세요"
+            placeholder="상품명을 입력하세요 (최대 20자)"
+            maxLength={20}
             required
           />
         </div>
@@ -188,9 +210,10 @@ export default function ProductCreatePage() {
               name="price"
               value={form.price}
               onChange={handleChange}
+              onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              placeholder="0"
-              min="0"
+              placeholder="1"
+              min="1"
               required
             />
           </div>
@@ -202,9 +225,10 @@ export default function ProductCreatePage() {
               name="stock"
               value={form.stock}
               onChange={handleChange}
+              onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              placeholder="0"
-              min="0"
+              placeholder="1"
+              min="1"
               required
             />
           </div>
