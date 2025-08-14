@@ -301,17 +301,26 @@ export default function ReservePage() {
         setNickModalOpen(false);
       } else {
         const res = await modifyName(value);
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          await res.text();
-          throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('닉네임 변경 API 응답:', res.status, errorText);
+          throw new Error(`닉네임 저장 실패: ${res.status} ${res.statusText}`);
         }
-        if (!res.ok) throw new Error('닉네임 저장 실패');
-
+        
+        // 성공 시 처리
         setNickname(value);
         localStorage.setItem('nickname', value);
         show('닉네임이 변경되었습니다.');
+        
+        // 모달 닫기
         setNickModalOpen(false);
+        
+        // 닉네임 상태 강제 업데이트 (UI 리렌더링 보장)
+        setTimeout(() => {
+          setNickname(value);
+        }, 100);
       }
     } catch (e: any) {
       safeErrorLog(e, 'ShopPage - saveNickname');

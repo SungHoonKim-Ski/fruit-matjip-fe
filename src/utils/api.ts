@@ -461,7 +461,7 @@ export const modifyName = async (name: string) => {
   const res = await userFetch(`/api/auth/name/${name}`, { 
     method: 'PATCH' 
   });
-  return validateJsonResponse(res);
+  return res; // Response 객체 직접 반환 (JSON 검증 제거)
 };
 
 export const checkNameExists = async (name: string) => {
