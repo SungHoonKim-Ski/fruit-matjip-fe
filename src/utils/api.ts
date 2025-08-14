@@ -434,6 +434,11 @@ export const handleApiResponse = async (response: Response) => {
 
 // 편의 함수들 (자동 JSON 검증 포함)
 export const getProducts = async (from?: string, to?: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('getProducts')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     let url = '/api/auth/products';
     
@@ -444,6 +449,12 @@ export const getProducts = async (from?: string, to?: string) => {
       url += `?from=${encodedFrom}&to=${encodedTo}`;
     }
     const res = await userFetch(url);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getProducts');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getProducts');
@@ -452,8 +463,19 @@ export const getProducts = async (from?: string, to?: string) => {
 };
 
 export const getProduct = async (id: number) => {
+  // retry 제한 체크
+  if (!canRetryApi('getProduct')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await userFetch(`/api/auth/products/${id}`);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getProduct');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getProduct');
@@ -462,6 +484,11 @@ export const getProduct = async (id: number) => {
 };
 
 export const createReservation = async (data: any) => {
+  // retry 제한 체크
+  if (!canRetryApi('createReservation')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await userFetch('/api/auth/reservations/', { 
       method: 'POST', 
@@ -481,13 +508,34 @@ export const createReservation = async (data: any) => {
 };
 
 export const cancelReservation = async (id: number) => {
-  const res = await userFetch(`/api/auth/reservations/cancel/${id}`, { 
-    method: 'PATCH' 
-  });
-  return validateJsonResponse(res);
+  // retry 제한 체크
+  if (!canRetryApi('cancelReservation')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
+  try {
+    const res = await userFetch(`/api/auth/reservations/cancel/${id}`, { 
+      method: 'PATCH' 
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('cancelReservation');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('cancelReservation');
+    throw error;
+  }
 };
 
 export const getReservations = async (from?: string, to?: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('getReservations')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     let url = '/api/auth/reservations/';
     
@@ -499,6 +547,12 @@ export const getReservations = async (from?: string, to?: string) => {
     }
     
     const res = await userFetch(url);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getReservations');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getReservations');
@@ -507,6 +561,11 @@ export const getReservations = async (from?: string, to?: string) => {
 };
 
 export const modifyName = async (name: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('modifyName')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await userFetch(`/api/auth/name/${name}`, { 
       method: 'PATCH' 
@@ -525,6 +584,11 @@ export const modifyName = async (name: string) => {
 };
 
 export const checkNameExists = async (name: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('checkNameExists')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await userFetch(`/api/auth/name/${name}`);
     
@@ -542,29 +606,65 @@ export const checkNameExists = async (name: string) => {
 
 // Admin API (쿠키 기반 인증, User API와 분리)
 export const adminLogin = async (data: { email: string; password: string }) => {
-  const res = await adminFetch('/api/admin/login', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  return res; // Response 객체 직접 반환
+  // retry 제한 체크
+  if (!canRetryApi('adminLogin')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
+  try {
+    const res = await adminFetch('/api/admin/login', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('adminLogin');
+    }
+    
+    return res; // Response 객체 직접 반환
+  } catch (error) {
+    incrementApiRetryCount('adminLogin');
+    throw error;
+  }
 };
 
 export const adminSignup = async (data: { name: string; email: string; password: string }) => {
-  console.log('🔐 AdminSignup - 요청 데이터:', data);
-  console.log('🔐 AdminSignup - 요청 URL:', '/api/admin/signup');
+  // retry 제한 체크
+  if (!canRetryApi('adminSignup')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
   
-  const res = await adminFetch('/api/admin/signup', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  
-  console.log('🔐 AdminSignup - 응답 상태:', res.status, res.statusText);
-  console.log('🔐 AdminSignup - 응답 헤더:', Object.fromEntries(res.headers.entries()));
-  
-  return validateJsonResponse(res);
+  try {
+    console.log('🔐 AdminSignup - 요청 데이터:', data);
+    console.log('🔐 AdminSignup - 요청 URL:', '/api/admin/signup');
+    
+    const res = await adminFetch('/api/admin/signup', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    
+    console.log('🔐 AdminSignup - 응답 상태:', res.status, res.statusText);
+    console.log('🔐 AdminSignup - 응답 헤더:', Object.fromEntries(res.headers.entries()));
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('adminSignup');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('adminSignup');
+    throw error;
+  }
 };
 
 export const getAdminProducts = async (from?: string, to?: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('getAdminProducts')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     let url = '/api/admin/products';
     
@@ -576,6 +676,12 @@ export const getAdminProducts = async (from?: string, to?: string) => {
       url += `?from=${encodedFrom}&to=${encodedTo}`;
     }   
     const res = await adminFetch(url);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getAdminProducts');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getAdminProducts');
@@ -584,6 +690,11 @@ export const getAdminProducts = async (from?: string, to?: string) => {
 };
 
 export const getAdminReservations = async (from?: string, to?: string) => {
+  // retry 제한 체크
+  if (!canRetryApi('getAdminReservations')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     let url = '/api/admin/reservations';
     
@@ -595,6 +706,12 @@ export const getAdminReservations = async (from?: string, to?: string) => {
     }
     
     const res = await adminFetch(url);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getAdminReservations');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getAdminReservations');
@@ -603,8 +720,19 @@ export const getAdminReservations = async (from?: string, to?: string) => {
 };
 
 export const getAdminProduct = async (id: number) => {
+  // retry 제한 체크
+  if (!canRetryApi('getAdminProduct')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/products/${id}`);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getAdminProduct');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('getAdminProduct');
@@ -613,11 +741,22 @@ export const getAdminProduct = async (id: number) => {
 };
 
 export const createAdminProduct = async (data: any) => {
+  // retry 제한 체크
+  if (!canRetryApi('createAdminProduct')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch('/api/admin/products', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('createAdminProduct');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('createAdminProduct');
@@ -626,11 +765,22 @@ export const createAdminProduct = async (data: any) => {
 };
 
 export const updateAdminProduct = async (id: number, data: any) => {
+  // retry 제한 체크
+  if (!canRetryApi('updateAdminProduct')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/products/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('updateAdminProduct');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('updateAdminProduct');
@@ -639,10 +789,21 @@ export const updateAdminProduct = async (id: number, data: any) => {
 };
 
 export const setSoldOut = async (id: number) => {
+  // retry 제한 체크
+  if (!canRetryApi('setSoldOut')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/products/sold-out/${id}`, {
       method: 'PATCH',
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('setSoldOut');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('setSoldOut');
@@ -651,10 +812,21 @@ export const setSoldOut = async (id: number) => {
 };
 
 export const toggleVisible = async (id: number, visible: boolean) => {
+  // retry 제한 체크
+  if (!canRetryApi('toggleVisible')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, {
       method: 'PATCH',
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('toggleVisible');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('toggleVisible');
@@ -663,10 +835,21 @@ export const toggleVisible = async (id: number, visible: boolean) => {
 };
 
 export const deleteAdminProduct = async (id: number) => {
+  // retry 제한 체크
+  if (!canRetryApi('deleteAdminProduct')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/products/${id}`, {
       method: 'DELETE',
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('deleteAdminProduct');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('deleteAdminProduct');
@@ -675,10 +858,21 @@ export const deleteAdminProduct = async (id: number) => {
 };
 
 export const togglePicked = async (id: number, picked: boolean) => {
+  // retry 제한 체크
+  if (!canRetryApi('togglePicked')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
   try {
     const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, {
       method: 'POST',
     });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('togglePicked');
+    }
+    
     return validateJsonResponse(res);
   } catch (error) {
     incrementApiRetryCount('togglePicked');
@@ -687,76 +881,155 @@ export const togglePicked = async (id: number, picked: boolean) => {
 };
 
 export const getReservationReports = async () => {
-  const res = await adminFetch('/api/admin/reservations/reports');
-  return validateJsonResponse(res);
+  // retry 제한 체크
+  if (!canRetryApi('getReservationReports')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
+  try {
+    const res = await adminFetch('/api/admin/reservations/reports');
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getReservationReports');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getReservationReports');
+    throw error;
+  }
 };
 
 export const getUploadUrl = async (filename: string, contentType: string): Promise<Response> => {
-  // contentType 검증 및 정리
-  if (!contentType || typeof contentType !== 'string') {
-    throw new Error(`Invalid contentType: ${contentType}`);
+  // retry 제한 체크
+  if (!canRetryApi('getUploadUrl')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
   }
   
-  const cleanContentType = contentType.trim();
-  
-  if (!cleanContentType) {
-    throw new Error('contentType cannot be empty after trimming');
-  }
-  
-  const requestBody = {
-    file_name: filename,
-    content_type: cleanContentType
-  };
-  
-  const res = await adminFetch('/api/admin/products/presigned-url', {
-    method: 'POST',
-    body: JSON.stringify(requestBody),
-  });
-  
-  console.log('🔐 getUploadUrl - 응답 상태:', res.status, res.statusText);
-  console.log('🔐 getUploadUrl - 응답 헤더:', Object.fromEntries(res.headers.entries()));
-  
-  // 403 에러 시 더 자세한 정보 로깅
-  if (res.status === 403) {
-    try {
-      const errorData = await res.clone().json();
-      console.error('🔐 getUploadUrl - 403 에러 상세:', errorData);
-    } catch (e) {
-      console.error('🔐 getUploadUrl - 403 에러 (JSON 파싱 실패)');
+  try {
+    // contentType 검증 및 정리
+    if (!contentType || typeof contentType !== 'string') {
+      throw new Error(`Invalid contentType: ${contentType}`);
     }
+    
+    const cleanContentType = contentType.trim();
+    
+    if (!cleanContentType) {
+      throw new Error('contentType cannot be empty after trimming');
+    }
+    
+    const requestBody = {
+      file_name: filename,
+      content_type: cleanContentType
+    };
+    
+    const res = await adminFetch('/api/admin/products/presigned-url', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log('🔐 getUploadUrl - 응답 상태:', res.status, res.statusText);
+    console.log('🔐 getUploadUrl - 응답 헤더:', Object.fromEntries(res.headers.entries()));
+    
+    // 403 에러 시 더 자세한 정보 로깅
+    if (res.status === 403) {
+      try {
+        const errorData = await res.clone().json();
+        console.error('🔐 getUploadUrl - 403 에러 상세:', errorData);
+      } catch (e) {
+        console.error('🔐 getUploadUrl - 403 에러 (JSON 파싱 실패)');
+      }
+    }
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getUploadUrl');
+    }
+    
+    return res; // Response 객체 직접 반환
+  } catch (error) {
+    incrementApiRetryCount('getUploadUrl');
+    throw error;
   }
-  
-  return res; // Response 객체 직접 반환
 };
 
 export const getUpdateUrl = async (id: number, filename: string, contentType: string): Promise<Response> => {
-  const requestBody = {
-    file_name: filename,
-    content_type: contentType
-  };
+  // retry 제한 체크
+  if (!canRetryApi('getUpdateUrl')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
   
-  const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, {
-    method: 'PATCH',
-    body: JSON.stringify(requestBody),
-  });
-  return validateJsonResponse(res);
+  try {
+    const requestBody = {
+      file_name: filename,
+      content_type: contentType
+    };
+    
+    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, {
+      method: 'PATCH',
+      body: JSON.stringify(requestBody),
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getUpdateUrl');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getUpdateUrl');
+    throw error;
+  }
 };
 
 export const getDetailUpdateUrl = async (id: number, filenames: string[], contentType: string): Promise<Response> => {
-  const requestBody = {
-    product_id: id,
-    file_names: filenames,
-    content_type: contentType
-  };
+  // retry 제한 체크
+  if (!canRetryApi('getDetailUpdateUrl')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
   
-  const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, {
-    method: 'PATCH',
-    body: JSON.stringify(requestBody),
-  });
-  return validateJsonResponse(res);
+  try {
+    const requestBody = {
+      product_id: id,
+      file_names: filenames,
+      content_type: contentType
+    };
+    
+    const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, {
+      method: 'PATCH',
+      body: JSON.stringify(requestBody),
+    });
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getDetailUpdateUrl');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getDetailUpdateUrl');
+    throw error;
+  }
 };
 
 export const getHealth = async () => {
-  const res = await fetch(`${API_BASE}/api/health`);
-  return validateJsonResponse(res);
+  // retry 제한 체크
+  if (!canRetryApi('getHealth')) {
+    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    
+    // 성공 시 retry 카운터 리셋
+    if (res.ok) {
+      resetApiRetryCount('getHealth');
+    }
+    
+    return validateJsonResponse(res);
+  } catch (error) {
+    incrementApiRetryCount('getHealth');
+    throw error;
+  }
 };
