@@ -511,7 +511,7 @@ export default function ReservePage() {
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
                   <span className="text-l">
-                    {item.stock === 0 ? '마지막 상품이에요!' : `${item.stock - item.quantity}개 남았어요!`}
+                    {(item.stock - item.quantity) === 0 ? '마지막 상품이에요!' : `${item.stock - item.quantity}개 남았어요!`}
                   </span>
                 </div>
               
