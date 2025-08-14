@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
@@ -58,6 +58,8 @@ export default function ReservePage() {
   const [draftNick, setDraftNick] = useState(nickname);
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
+  
+
 
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
@@ -314,6 +316,8 @@ export default function ReservePage() {
         localStorage.setItem('nickname', value);
         show('닉네임이 변경되었습니다.');
         
+
+        
         // 모달 닫기
         setNickModalOpen(false);
         
@@ -519,9 +523,11 @@ export default function ReservePage() {
                 </h2>
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
-                  <span className="text-l">
-                    {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                  </span>
+                  {item.stock > 0 && (
+                    <span className="text-l">
+                      {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
+                    </span>
+                  )}
                 </div>
               
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
