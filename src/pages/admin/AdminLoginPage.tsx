@@ -26,10 +26,8 @@ export default function AdminLoginPage() {
     try {
       const res = await adminLogin({ email: id, password });
       if (res.ok) {
-        const userId = await res.text();
         show('로그인 성공');
         localStorage.setItem('admin-auth', 'true');
-        localStorage.setItem('admin-userid', userId);
         
         navigate('/admin/products');
       } else {

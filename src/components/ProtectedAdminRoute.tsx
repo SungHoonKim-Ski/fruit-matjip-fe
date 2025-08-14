@@ -18,10 +18,8 @@ export default function ProtectedAdminRoute({ children }: ProtectedAdminRoutePro
       try {
         // localStorage에서 admin 인증 정보 확인
         const adminAuth = localStorage.getItem('admin-auth');
-        const adminUserId = localStorage.getItem('admin-userid');
-        
 
-        if (!adminAuth || !adminUserId) {
+        if (!adminAuth) {
           setIsAuthenticated(false);
           return;
         }
@@ -48,7 +46,6 @@ export default function ProtectedAdminRoute({ children }: ProtectedAdminRoutePro
           
           // 401, 403 에러 시에만 인증 정보 삭제
           localStorage.removeItem('admin-auth');
-          localStorage.removeItem('admin-userid');
           show('인증이 만료되었습니다. 다시 로그인해주세요.', { variant: 'error' });
           setIsAuthenticated(false);
         }

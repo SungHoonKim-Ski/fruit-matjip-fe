@@ -199,7 +199,6 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
     
     // 인증 정보 제거
     localStorage.removeItem('admin-auth');
-    localStorage.removeItem('admin-userid');
     
     // 403 에러 페이지로 리다이렉트
     window.location.href = '/403';
@@ -576,12 +575,7 @@ export const getReservationReports = async () => {
   return validateJsonResponse(res);
 };
 
-export const getUploadUrl = async (adminId: number, filename: string, contentType: string): Promise<Response> => {
-  // adminId 검증
-  if (!adminId || typeof adminId !== 'number' || isNaN(adminId)) {
-    throw new Error(`Invalid adminId: ${adminId}`);
-  }
-  
+export const getUploadUrl = async (filename: string, contentType: string): Promise<Response> => {
   // contentType 검증 및 정리
   if (!contentType || typeof contentType !== 'string') {
     throw new Error(`Invalid contentType: ${contentType}`);
@@ -594,16 +588,9 @@ export const getUploadUrl = async (adminId: number, filename: string, contentTyp
   }
   
   const requestBody = {
-    admin_id: adminId,
     file_name: filename,
     content_type: cleanContentType
   };
-  
-  console.log('🔐 getUploadUrl - 요청 데이터:', { adminId, filename, contentType: cleanContentType });
-  console.log('🔐 getUploadUrl - localStorage 상태:', {
-    'admin-auth': localStorage.getItem('admin-auth'),
-    'admin-userid': localStorage.getItem('admin-userid')
-  });
   
   const res = await adminFetch('/api/admin/products/presigned-url', {
     method: 'POST',
@@ -626,9 +613,8 @@ export const getUploadUrl = async (adminId: number, filename: string, contentTyp
   return res; // Response 객체 직접 반환
 };
 
-export const getUpdateUrl = async (id: number, adminId: number, filename: string, contentType: string): Promise<Response> => {
+export const getUpdateUrl = async (id: number, filename: string, contentType: string): Promise<Response> => {
   const requestBody = {
-    admin_id: adminId,
     file_name: filename,
     content_type: contentType
   };
@@ -640,9 +626,8 @@ export const getUpdateUrl = async (id: number, adminId: number, filename: string
   return validateJsonResponse(res);
 };
 
-export const getDetailUpdateUrl = async (id: number, adminId: number, filenames: string[], contentType: string): Promise<Response> => {
+export const getDetailUpdateUrl = async (id: number, filenames: string[], contentType: string): Promise<Response> => {
   const requestBody = {
-    admin_id: adminId,
     product_id: id,
     file_names: filenames,
     content_type: contentType

@@ -102,17 +102,9 @@ export default function AdminEditProductPage() {
       return URL.createObjectURL(file);
     } else {
       try {
-        const adminUserId = localStorage.getItem('admin-userid');
-        if (!adminUserId) {
-          throw new Error('관리자 ID를 찾을 수 없습니다. 다시 로그인해주세요.');
-        }
+
         
-        const adminIdNumber = Number(adminUserId);
-        if (isNaN(adminIdNumber)) {
-          throw new Error('관리자 ID가 유효하지 않습니다. 다시 로그인해주세요.');
-        }
-        
-        const res = await getUpdateUrl(Number(id), adminIdNumber, file.name, file.type);
+        const res = await getUpdateUrl(Number(id), file.name, file.type);
         if (!res.ok) {
           // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
