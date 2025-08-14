@@ -152,8 +152,8 @@ export default function ProductCreatePage() {
             name: form.name,
             price: form.price,
             stock: form.stock,
-            imageUrl,
-            sellDate: form.sellDate,
+            image_url: imageUrl,
+            sell_date: form.sellDate,
             visible: form.visible,
           };
       
