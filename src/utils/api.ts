@@ -31,8 +31,22 @@ export const validateJsonResponse = async (response: Response) => {
   return response;
 };
 
+// API 에러 메시지를 snackbar로 표시하는 유틸리티 함수
+export const showApiErrorMessage = (show: (message: string, options?: any) => void) => {
+  const errorMessage = localStorage.getItem('api-error-message');
+  const errorType = localStorage.getItem('api-error-type');
+  
+  if (errorMessage && errorType) {
+    show(errorMessage, { variant: errorType as any });
+    
+    // 표시 후 localStorage에서 제거
+    localStorage.removeItem('api-error-message');
+    localStorage.removeItem('api-error-type');
+  }
+};
+
 // API 호출 기본 함수 (토큰 자동 포함)
-export const apiFetch = async (url: string, options: RequestInit = {}) => {
+export const apiFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = true) => {
   const token = getAccessToken();
   
   // admin API는 토큰 사용하지 않음
@@ -53,32 +67,128 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
     credentials: isAdminApi ? 'include' : 'omit', // admin API만 쿠키 사용
   });
   
-  // 401, 403 에러 시 403 에러 페이지로 리다이렉트 (User 로그인 제외)
-  if ((response.status === 401 || response.status === 403) && !isAdminApi && !url.includes('/login')) {
-    const errorMessage = response.status === 401 
-      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-      : '접근 권한이 없습니다.';
-    
-    // 에러 정보를 localStorage에 저장
+  // 401 에러 시 refresh token으로 재시도 (User API만)
+  if (response.status === 401 && !isAdminApi && !url.includes('/login') && !url.includes('/refresh')) {
+    try {
+      const refreshToken = localStorage.getItem('refresh');
+      if (refreshToken) {
+        console.log('🔄 토큰 만료, refresh token으로 재시도...');
+        
+        const refreshResponse = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          localStorage.setItem('access', refreshData.accessToken);
+          
+          // 새로운 토큰으로 원래 요청 재시도
+          console.log('🔄 새로운 토큰으로 요청 재시도...');
+          const newHeaders = { ...headers, Authorization: `Bearer ${refreshData.accessToken}` };
+          
+          const retryResponse = await fetch(`${API_BASE}${url}`, {
+            ...options,
+            headers: newHeaders,
+            credentials: 'omit',
+          });
+          
+          return retryResponse;
+        } else {
+          console.log('🔄 refresh token도 만료됨');
+          // refresh token도 만료된 경우
+          if (autoRedirect) {
+            const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            localStorage.setItem('error-message', errorMessage);
+            localStorage.setItem('error-type', 'user');
+            localStorage.setItem('error-redirect', '/login');
+            
+            // 사용자 토큰 제거
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            
+            // 403 에러 페이지로 리다이렉트
+            window.location.href = '/403';
+          }
+          return response;
+        }
+      } else {
+        // refresh token이 없는 경우
+        if (autoRedirect) {
+          const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+          localStorage.setItem('error-message', errorMessage);
+          localStorage.setItem('error-type', 'user');
+          localStorage.setItem('error-redirect', '/login');
+          
+          // 사용자 토큰 제거
+          localStorage.removeItem('access');
+          localStorage.removeItem('refresh');
+          localStorage.removeItem('nickname');
+          
+          // 403 에러 페이지로 리다이렉트
+          window.location.href = '/403';
+        }
+        return response;
+      }
+    } catch (error) {
+      console.error('🔄 refresh token 처리 중 오류:', error);
+      // refresh 처리 중 오류 발생 시
+      if (autoRedirect) {
+        const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
+        localStorage.setItem('error-message', errorMessage);
+        localStorage.setItem('error-type', 'user');
+        localStorage.setItem('error-redirect', '/login');
+        
+        // 사용자 토큰 제거
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('nickname');
+        
+        // 403 에러 페이지로 리다이렉트
+        window.location.href = '/403';
+      }
+      return response;
+    }
+  }
+  
+  // 403 에러 시 권한 부족 처리 (User API만)
+  if (autoRedirect && response.status === 403 && !isAdminApi && !url.includes('/login')) {
+    const errorMessage = '접근 권한이 없습니다.';
     localStorage.setItem('error-message', errorMessage);
     localStorage.setItem('error-type', 'user');
     localStorage.setItem('error-redirect', '/login');
-    
-    // 사용자 토큰 제거
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
-    localStorage.removeItem('nickname');
     
     // 403 에러 페이지로 리다이렉트
     window.location.href = '/403';
     return response;
   }
   
+  // 400번대 에러 응답을 서버 메시지로 처리
+  if (response.status >= 400 && response.status < 500) {
+    try {
+      const errorData = await response.clone().json();
+      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      
+      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
+      localStorage.setItem('api-error-message', serverMessage);
+      localStorage.setItem('api-error-type', 'error');
+    } catch (parseError) {
+      // JSON 파싱 실패 시 기본 메시지
+      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      localStorage.setItem('api-error-message', defaultMessage);
+      localStorage.setItem('api-error-type', 'error');
+    }
+  }
+  
   return response;
 };
 
 // Admin API 전용 fetch (쿠키 분리)
-export const adminFetch = async (url: string, options: RequestInit = {}) => {
+export const adminFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = false) => {
   
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
@@ -89,8 +199,8 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
     credentials: 'include', // Admin API는 항상 쿠키 사용
   });
   
-  // 401, 403 에러 시 403 에러 페이지로 리다이렉트
-  if (response.status === 401 || response.status === 403) {
+  // autoRedirect가 true이고 401, 403 에러인 경우에만 리다이렉트
+  if (autoRedirect && (response.status === 401 || response.status === 403)) {
     const errorMessage = response.status === 401 
       ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
       : '접근 권한이 없습니다.';
@@ -109,11 +219,28 @@ export const adminFetch = async (url: string, options: RequestInit = {}) => {
     return response;
   }
   
+  // 400번대 에러 응답을 서버 메시지로 처리
+  if (response.status >= 400 && response.status < 500) {
+    try {
+      const errorData = await response.clone().json();
+      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      
+      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
+      localStorage.setItem('api-error-message', serverMessage);
+      localStorage.setItem('api-error-type', 'error');
+    } catch (parseError) {
+      // JSON 파싱 실패 시 기본 메시지
+      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      localStorage.setItem('api-error-message', defaultMessage);
+      localStorage.setItem('api-error-type', 'error');
+    }
+  }
+  
   return response;
 };
 
 // User API 전용 fetch (토큰 + 쿠키 분리)
-export const userFetch = async (url: string, options: RequestInit = {}) => {
+export const userFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = true) => {
   const token = getAccessToken();
   
   const headers: Record<string, string> = {
@@ -131,24 +258,121 @@ export const userFetch = async (url: string, options: RequestInit = {}) => {
     credentials: 'include', // User API도 쿠키 사용 (refresh token용)
   });
   
-  // 401, 403 에러 시 403 에러 페이지로 리다이렉트 (User 로그인 제외)
-  if ((response.status === 401 || response.status === 403) && !url.includes('/login')) {
-    const errorMessage = response.status === 401 
-      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-      : '접근 권한이 없습니다.';
+  // 401 에러 시 refresh token으로 재시도
+  if (response.status === 401 && !url.includes('/login') && !url.includes('/refresh')) {
+    try {
+      const refreshToken = localStorage.getItem('refresh');
+      if (refreshToken) {
+        console.log('🔄 토큰 만료, refresh token으로 재시도...');
+        
+        const refreshResponse = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        if (refreshResponse.ok) {
+          const refreshData = await refreshResponse.json();
+          localStorage.setItem('access', refreshData.accessToken);
+          
+          // 새로운 토큰으로 원래 요청 재시도
+          console.log('🔄 새로운 토큰으로 요청 재시도...');
+          const newHeaders = { ...headers, Authorization: `Bearer ${refreshData.accessToken}` };
+          
+          const retryResponse = await fetch(`${API_BASE}${url}`, {
+            ...options,
+            headers: newHeaders,
+            credentials: 'include',
+          });
+          
+          return retryResponse;
+        } else {
+          console.log('🔄 refresh token도 만료됨');
+          // refresh token도 만료된 경우
+          if (autoRedirect) {
+            const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            localStorage.setItem('error-message', errorMessage);
+            localStorage.setItem('error-type', 'user');
+            localStorage.setItem('error-redirect', '/login');
+            
+            // 사용자 토큰 제거
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            
+            // 403 에러 페이지로 리다이렉트
+            window.location.href = '/403';
+          }
+          return response;
+        }
+      } else {
+        // refresh token이 없는 경우
+        if (autoRedirect) {
+          const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
+          localStorage.setItem('error-message', errorMessage);
+          localStorage.setItem('error-type', 'user');
+          localStorage.setItem('error-redirect', '/login');
+          
+          // 사용자 토큰 제거
+          localStorage.removeItem('access');
+          localStorage.removeItem('refresh');
+          localStorage.removeItem('nickname');
+          
+          // 403 에러 페이지로 리다이렉트
+          window.location.href = '/403';
+        }
+        return response;
+      }
+    } catch (error) {
+      console.error('🔄 refresh token 처리 중 오류:', error);
+      // refresh 처리 중 오류 발생 시
+      if (autoRedirect) {
+        const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
+        localStorage.setItem('error-message', errorMessage);
+        localStorage.setItem('error-type', 'user');
+        localStorage.setItem('error-redirect', '/login');
+        
+        // 사용자 토큰 제거
+        localStorage.removeItem('access');
+        localStorage.removeItem('refresh');
+        localStorage.removeItem('nickname');
+        
+        // 403 에러 페이지로 리다이렉트
+        window.location.href = '/403';
+      }
+      return response;
+    }
+  }
+  
+  // 403 에러 시 권한 부족 처리
+  if (autoRedirect && response.status === 403 && !url.includes('/login')) {
+    const errorMessage = '접근 권한이 없습니다.';
+    localStorage.setItem('error-message', errorMessage);
+    localStorage.setItem('error-type', 'user');
+    localStorage.setItem('error-redirect', '/login');
     
-    
-    // 에러 메시지를 localStorage에 저장
-    localStorage.setItem('user-error-message', errorMessage);
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
-    localStorage.removeItem('nickname');
-    
-    // 3초 후 403 에러 페이지로 리다이렉트 (에러 메시지 확인 시간 확보)
-    setTimeout(() => {
-      window.location.href = '/403';
-    }, 3000);
+    // 403 에러 페이지로 리다이렉트
+    window.location.href = '/403';
     return response;
+  }
+  
+  // 400번대 에러 응답을 서버 메시지로 처리
+  if (response.status >= 400 && response.status < 500) {
+    try {
+      const errorData = await response.clone().json();
+      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      
+      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
+      localStorage.setItem('api-error-message', serverMessage);
+      localStorage.setItem('api-error-type', 'error');
+    } catch (parseError) {
+      // JSON 파싱 실패 시 기본 메시지
+      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+      localStorage.setItem('api-error-message', defaultMessage);
+      localStorage.setItem('api-error-type', 'error');
+    }
   }
   
   return response;
