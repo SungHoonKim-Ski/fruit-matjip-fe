@@ -139,19 +139,7 @@ export default function AdminProductPage() {
         setOriginalProducts(mapped);
       } else {
         try {
-          // 한국 시간 기준으로 오늘 날짜 계산
-          const now = new Date();
-          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-          
-          // 오늘 날짜 (YYYY-MM-DD)
-          const fromStr = koreaTime.toISOString().split('T')[0];
-          
-          // 2일 후 날짜 (YYYY-MM-DD)
-          const toDate = new Date(koreaTime);
-          toDate.setDate(koreaTime.getDate() + 2);
-          const toStr = toDate.toISOString().split('T')[0];
-          
-          const res = await getAdminProducts(fromStr, toStr);
+          const res = await getAdminProducts();
           if (!res.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
             if (res.status === 401 || res.status === 403) {
@@ -161,14 +149,9 @@ export default function AdminProductPage() {
           }
           const data = await res.json();
           
-          let productsArray = data;
+          // API 응답에서 response 필드 추출
+          const productsArray = data?.response || [];
           
-          // AdminProductListResponse 구조에서 response 필드 추출
-          if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
-            productsArray = data.response;
-          }
-          
-          // 여전히 배열이 아닌 경우 에러
           if (!Array.isArray(productsArray)) {
             throw new Error('상품 데이터가 배열 형태가 아닙니다.');
           }
@@ -178,10 +161,10 @@ export default function AdminProductPage() {
             name: p.name,
             price: p.price,
             stock: p.stock,
-            totalSold: p.totalSold ?? 0,
+            totalSold: p.total_sold ?? 0,  // total_sold로 수정
             status: p.stock > 0 ? 'active' : 'inactive',
-            imageUrl: p.image_url ? `${process.env.REACT_APP_IMG_URL}/${p.image_url}` : p.imageUrl,
-            sellDate: p.sellDate,
+            imageUrl: p.product_url ? `${process.env.REACT_APP_IMG_URL}/${p.product_url}` : '',  // product_url로 수정
+            sellDate: p.sell_date || '',  // sell_date로 수정
           }));
           
           setProducts(mapped);

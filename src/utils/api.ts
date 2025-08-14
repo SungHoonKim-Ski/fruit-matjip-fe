@@ -659,22 +659,14 @@ export const adminSignup = async (data: { name: string; email: string; password:
   }
 };
 
-export const getAdminProducts = async (from?: string, to?: string) => {
+export const getAdminProducts = async () => {
   // retry 제한 체크
   if (!canRetryApi('getAdminProducts')) {
     throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
   }
   
   try {
-    let url = '/api/admin/products';
-    
-    
-    if (from && to) {
-      // URL 인코딩 적용
-      const encodedFrom = encodeURIComponent(from);
-      const encodedTo = encodeURIComponent(to);
-      url += `?from=${encodedFrom}&to=${encodedTo}`;
-    }   
+    const url = '/api/admin/products';
     const res = await adminFetch(url);
     
     // 성공 시 retry 카운터 리셋
