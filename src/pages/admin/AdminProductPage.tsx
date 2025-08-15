@@ -5,20 +5,13 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { setSoldOut, toggleVisible, deleteAdminProduct, getAdminProducts } from '../../utils/api';
+import { setSoldOut, toggleVisible, deleteAdminProduct, getAdminProductsMapped, AdminProductListItem } from '../../utils/api';
+import { useLocation } from 'react-router-dom';
 
-type Product = {
-  id: number;
-  name: string;
-  price: number;
-  stock: number;
-  totalSold: number;
-  status: 'active' | 'inactive';
-  imageUrl: string;
-  sellDate?: string;
-};
+type Product = AdminProductListItem;
 
 export default function AdminProductPage() {
+  const location = useLocation() as any;
   // 재고 상태 기준값 (UI 배지 표시용)
   const LOW_STOCK_THRESHOLD = 10;    // 품절임박 기준
   const DANGER_STOCK_THRESHOLD = 5;  // 위험 재고 기준
@@ -96,7 +89,6 @@ export default function AdminProductPage() {
 
   // --- 다이얼로그 열기: pushState로 히스토리 한 단계 추가 (뒤로가기 시 다이얼로그만 닫힘) ---
   const pushDialogState = () => {
-    // 같은 URL로 state만 추가 (주소창 변경 없음)
     window.history.pushState({ modal: true }, '');
   };
 
@@ -111,19 +103,14 @@ export default function AdminProductPage() {
   };
 
   const openToggleStatusDialog = (id: number, name: string, currentStatus: 'active' | 'inactive') => {
-    setToggleStatusDialog({
-      isOpen: true,
-      productId: id,
-      productName: name,
-      newStatus: currentStatus === 'active' ? 'inactive' : 'active'
-    });
+    setToggleStatusDialog({ isOpen: true, productId: id, productName: name, newStatus: currentStatus === 'active' ? 'inactive' : 'active' });
     pushDialogState();
   };
 
   // --- 다이얼로그 닫기(취소/확인 공통): 상태 닫고, 우리가 추가한 히스토리 1스텝만 소비 ---
   const programmaticCloseDialog = () => {
     suppressNextPop.current = true;
-    window.history.back(); // 우리가 pushState로 추가한 한 단계만 소비 → 실제로는 페이지 이동 없음
+    window.history.back();
   };
 
   // --- 브라우저/안드로이드 뒤로가기 처리: 다이얼로그만 닫기 ---
@@ -133,14 +120,10 @@ export default function AdminProductPage() {
         suppressNextPop.current = false;
         return;
       }
-      // 열린 다이얼로그가 있으면 닫기 (하나만 열리므로 우선순위 불문)
       if (toggleStatusDialog.isOpen || deleteProductDialog.isOpen || deleteStockDialog.isOpen) {
         setToggleStatusDialog({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' });
         setDeleteProductDialog({ isOpen: false, productId: 0, productName: '' });
         setDeleteStockDialog({ isOpen: false, productId: 0, productName: '' });
-        // 여기서 추가 pushState는 하지 않음: 정상적으로 다이얼로그만 닫힘
-      } else {
-        // 다이얼로그가 열려있지 않은 경우에는 기본 동작(페이지 뒤로가기)을 허용
       }
     };
     window.addEventListener('popstate', onPop);
@@ -154,7 +137,7 @@ export default function AdminProductPage() {
         setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0, status: 'inactive' } : p)));
         show('품절 처리되었습니다.', { variant: 'success' });
       } else {
-        const res = await setSoldOut(id); // 서버: 품절(재고 0) 처리 API
+        const res = await setSoldOut(id);
         if (!res.ok) throw new Error('품절 처리에 실패했습니다.');
         setProducts(prev => prev.map(p => (p.id === id ? { ...p, stock: 0, status: 'inactive' } : p)));
         show('품절 처리되었습니다.', { variant: 'success' });
@@ -188,7 +171,7 @@ export default function AdminProductPage() {
         setProducts(prev => prev.map(p => (p.id === id ? { ...p, status: newStatus } : p)));
         show(`상품이 ${newStatus === 'active' ? '노출' : '숨김'} 처리되었습니다.`, { variant: 'success' });
       } else {
-        const res = await toggleVisible(id, newStatus === 'active'); // 서버: 노출 상태 변경 API
+        const res = await toggleVisible(id, newStatus === 'active');
         if (!res.ok) throw new Error('상태 변경에 실패했습니다.');
         setProducts(prev => prev.map(p => (p.id === id ? { ...p, status: newStatus } : p)));
         show(`상품이 ${newStatus === 'active' ? '노출' : '숨김'} 처리되었습니다.`, { variant: 'success' });
@@ -217,26 +200,8 @@ export default function AdminProductPage() {
         setProducts(mapped);
       } else {
         try {
-          const res = await getAdminProducts();
-          if (!res.ok) {
-            if (res.status === 401 || res.status === 403) return; // 공통 처리에 위임
-            throw new Error('상품 목록을 불러오지 못했습니다.');
-          }
-          const data = await res.json();
-          const productsArray = data?.response || [];
-          if (!Array.isArray(productsArray)) {
-            throw new Error('상품 데이터가 배열 형태가 아닙니다.');
-          }
-          const mapped: Product[] = productsArray.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            price: p.price,
-            stock: p.stock,
-            totalSold: p.total_sold ?? 0,
-            status: p.stock > 0 ? 'active' : 'inactive',
-            imageUrl: p.product_url ? `${process.env.REACT_APP_IMG_URL}/${p.product_url}` : '',
-            sellDate: p.sell_date || '',
-          }));
+          const forceTs = location?.state?.bustTs as number | undefined;
+          const mapped = await getAdminProductsMapped(forceTs);
           setProducts(mapped);
         } catch (e: any) {
           safeErrorLog(e, 'AdminProductPage - loadProducts');
@@ -245,7 +210,7 @@ export default function AdminProductPage() {
       }
     };
     loadProducts();
-  }, [show]);
+  }, [show, location?.state?.bustTs]);
 
   const goNewProduct = () => navigate('/admin/products/new');
   const goSales = () => navigate('/admin/sales');
@@ -297,7 +262,12 @@ export default function AdminProductPage() {
           <div key={product.id} className="bg-white rounded-lg shadow p-4">
             <div className="flex flex-col sm:flex-row sm:items-start gap-4">
               <img
-                src={product.imageUrl}
+                src={(() => {
+                  const url = product.imageUrl || '';
+                  const ts = location?.state?.bustTs;
+                  if (!ts) return url;
+                  return url.includes('?') ? `${url}&ts=${ts}` : `${url}?ts=${ts}`;
+                })()}
                 alt={product.name}
                 className="w-full sm:w-28 md:w-32 aspect-square object-cover rounded border"
               />
@@ -312,10 +282,10 @@ export default function AdminProductPage() {
                       className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
                       style={{
                         backgroundColor: (() => {
-                          if (product.stock === 0) return '#E0F2FE'; // 품절
-                          if (product.stock < DANGER_STOCK_THRESHOLD) return '#FECACA'; // 위험
-                          if (product.stock < LOW_STOCK_THRESHOLD) return '#FEF3C7'; // 임박
-                          return '#DCFCE7'; // 여유
+                          if (product.stock === 0) return '#E0F2FE';
+                          if (product.stock < DANGER_STOCK_THRESHOLD) return '#FECACA';
+                          if (product.stock < LOW_STOCK_THRESHOLD) return '#FEF3C7';
+                          return '#DCFCE7';
                         })(),
                         borderColor: '#e5e7eb',
                         color: '#374151'
@@ -342,9 +312,9 @@ export default function AdminProductPage() {
                             const d = new Date(ds);
                             const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
                             const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                            if (dd > t) return '#E0F2FE'; // 예정
-                            if (dd === t) return '#DCFCE7'; // 당일
-                            return '#FEE2E2'; // 종료
+                            if (dd > t) return '#E0F2FE';
+                            if (dd === t) return '#DCFCE7';
+                            return '#FEE2E2';
                           })(),
                           borderColor: '#e5e7eb',
                           color: '#374151'
@@ -433,7 +403,6 @@ export default function AdminProductPage() {
               </button>
               <button
                 onClick={async () => {
-                  // 먼저 다이얼로그 닫고 히스토리 스텝 제거
                   setDeleteStockDialog({ isOpen: false, productId: 0, productName: '' });
                   programmaticCloseDialog();
                   await handleDeleteStock(deleteStockDialog.productId);
@@ -509,9 +478,7 @@ export default function AdminProductPage() {
                   await handleToggleStatus(productId, newStatus);
                 }}
                 className={`flex-1 h-10 rounded text-white font-medium ${
-                  toggleStatusDialog.newStatus === 'active'
-                    ? 'bg-green-500 hover:bg-green-600'
-                    : 'bg-rose-500 hover:bg-rose-600'
+                  toggleStatusDialog.newStatus === 'active' ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
                 }`}
               >
                 확인

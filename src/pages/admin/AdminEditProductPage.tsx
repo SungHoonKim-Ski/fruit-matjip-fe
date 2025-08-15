@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct, mockUploadImage } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateAdminProduct, getUpdateUrl, deleteAdminProduct, getAdminProduct } from '../../utils/api';
+import { updateAdminProduct, getUpdateUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
 
 // 상품 설명 글자 수 제한
 const DESCRIPTION_LIMIT = 300;
@@ -20,6 +20,12 @@ type ProductEdit = {
   images?: string[];
 };
 
+const addPrefix = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${process.env.REACT_APP_IMG_URL}/${url}`;
+};
+
 export default function AdminEditProductPage() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -33,8 +39,14 @@ export default function AdminEditProductPage() {
   const additionalFileRef = useRef<HTMLInputElement>(null);
   const localPreviewUrlRef = useRef<string | null>(null);
   const initialFormRef = useRef<ProductEdit | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const editorHtmlRef = useRef<string>('');
+  const shouldApplyEditorHtmlRef = useRef<boolean>(false);
+  const [descLength, setDescLength] = useState<number>(0);
   const [selectedAdditionalNames, setSelectedAdditionalNames] = useState<string[]>([]);
   const [additionalStock, setAdditionalStock] = useState<number>(0);
+
+  const initialStorageKey = useMemo(() => `adminEditInitial:${id ?? ''}`,[id]);
 
   const formatPrice = (price: number) =>
     price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
@@ -62,7 +74,9 @@ export default function AdminEditProductPage() {
             const cloned: ProductEdit = JSON.parse(JSON.stringify(data));
             initialFormRef.current = cloned;
             setForm(cloned);
+            try { sessionStorage.setItem(initialStorageKey, JSON.stringify(cloned)); } catch {}
             setAdditionalStock(0);
+            shouldApplyEditorHtmlRef.current = true;
           }
         } else {
           const res = await getAdminProduct(Number(id));
@@ -71,14 +85,25 @@ export default function AdminEditProductPage() {
           
           // API 응답에서 image_url을 imageUrl로 매핑하고 절대 경로로 변환
           const data: ProductEdit = {
-            ...rawData,
-            imageUrl: rawData.image_url ? `${process.env.REACT_APP_IMG_URL}/${rawData.image_url}` : rawData.imageUrl,
-            images: rawData.images?.map((img: string) => 
-              img.startsWith('http') ? img : `${process.env.REACT_APP_IMG_URL}/${img}`
-            ) || rawData.images
+            id: rawData.id,
+            name: rawData.name,
+            price: Number(rawData.price),
+            stock: Number(rawData.stock),
+            imageUrl: addPrefix(rawData.product_url),
+            images: Array.isArray(rawData.detail_url)
+              ? rawData.detail_url.map((u: string) => addPrefix(u))
+              : (rawData.images || []),
+            sellDate: rawData.sell_date,
+            description: rawData.description || ''
           };
           
-          if (alive) setForm(data);
+          if (alive) {
+            initialFormRef.current = data;
+            setForm(data);
+            try { sessionStorage.setItem(initialStorageKey, JSON.stringify(data)); } catch {}
+            // editor HTML은 프로그램적으로 주입하도록 플래그 설정
+            shouldApplyEditorHtmlRef.current = true;
+          }
         }
       } catch (e: any) {
         safeErrorLog(e, 'AdminEditProductPage - loadProduct');
@@ -88,7 +113,36 @@ export default function AdminEditProductPage() {
       }
     })();
     return () => { alive = false; };
-  }, [id, show]);
+  }, [id, show, initialStorageKey]);
+
+  // 에디터 HTML 주입(프로그램적 변경시에만): 포커스 점프 방지
+  useEffect(() => {
+    if (!editorRef.current) return;
+    if (!shouldApplyEditorHtmlRef.current) return;
+    const html = form?.description || '';
+    const el = editorRef.current;
+    let raf = 0;
+    raf = window.requestAnimationFrame(() => {
+      el.innerHTML = html;
+      editorHtmlRef.current = html;
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      setDescLength((temp.innerText?.length || 0));
+      shouldApplyEditorHtmlRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [form?.description]);
+
+  // 페이지 이탈 시 초기값 저장본 제거 및 로컬 미리보기 URL 정리
+  useEffect(() => {
+    return () => {
+      try { sessionStorage.removeItem(initialStorageKey); } catch {}
+      if (localPreviewUrlRef.current) {
+        URL.revokeObjectURL(localPreviewUrlRef.current);
+        localPreviewUrlRef.current = null;
+      }
+    };
+  }, [initialStorageKey]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!form) return;
@@ -199,14 +253,67 @@ export default function AdminEditProductPage() {
       setSaving(true);
       const newImageUrl = await uploadIfNeeded();
 
-      const payload = {
-        name: form.name?.trim(),
-        price: form.price,
-        stock: Math.max(0, form.stock + additionalStock),
-        imageUrl: newImageUrl ?? form.imageUrl,
-        sellDate: form.sellDate?.trim() || null,
-        description: form.description?.trim() || '',
-        images: form.images && form.images.length ? form.images : undefined,
+      // 초기 스냅샷 불러오기 (세션 우선)
+      const initialRaw = sessionStorage.getItem(initialStorageKey);
+      const initial: ProductEdit | null = initialRaw
+        ? JSON.parse(initialRaw)
+        : (initialFormRef.current ? JSON.parse(JSON.stringify(initialFormRef.current)) : null);
+
+      const currentName = (form.name || '').trim();
+      const initialName = (initial?.name || '').trim();
+      const nameChanged = currentName !== initialName;
+
+      const currentPrice = form.price;
+      const initialPrice = initial?.price ?? 0;
+      const priceChanged = currentPrice !== initialPrice;
+
+      // 재고는 합산값이 아니라 변경값(∆)만 전송. 음수 가능
+      const stockChanged = additionalStock !== 0;
+
+      const currentMainUrl = (newImageUrl ?? form.imageUrl) || '';
+      const initialMainUrl = initial?.imageUrl || '';
+      const productUrlChanged = currentMainUrl !== initialMainUrl;
+
+      const currentSellDate = (form.sellDate || '').trim();
+      const initialSellDate = (initial?.sellDate || '').trim();
+      const sellDateChanged = currentSellDate !== initialSellDate;
+
+      const normalizeHtml = (s: string) => s.replace(/\s+/g, ' ').trim();
+      const currentDesc = normalizeHtml(form.description || '');
+      const initialDesc = normalizeHtml(initial?.description || '');
+      const descriptionChanged = currentDesc !== initialDesc;
+
+      const arraysEqual = (a?: string[], b?: string[]) => {
+        const aa = a || [];
+        const bb = b || [];
+        if (aa.length !== bb.length) return false;
+        for (let i = 0; i < aa.length; i++) {
+          if (aa[i] !== bb[i]) return false;
+        }
+        return true;
+      };
+      const currentDetail = form.images || [];
+      const initialDetail = initial?.images || [];
+      const detailChanged = !arraysEqual(currentDetail, initialDetail);
+
+      const hasAnyChange = nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || descriptionChanged || detailChanged;
+      if (!hasAnyChange) {
+        show('변경 사항이 없습니다.', { variant: 'info' });
+        setSaving(false);
+        try { sessionStorage.removeItem(initialStorageKey); } catch {}
+        nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
+        return;
+      }
+
+      // 변경 사항만 값, 미변경은 null. (sellDate를 비우고자 할 때는 빈 문자열로 전송해 구분)
+      const payload: any = {
+        name: nameChanged ? currentName : null,
+        price: priceChanged ? currentPrice : null,
+        stock_change: stockChanged ? additionalStock : null,
+        product_url: productUrlChanged ? currentMainUrl : null,
+        sell_date: sellDateChanged ? currentSellDate : null, // ''은 값 초기화를 의미
+        description: descriptionChanged ? (form.description || '') : null,
+        detail_urls: detailChanged ? currentDetail : null,
       };
 
       if (USE_MOCKS) {
@@ -223,7 +330,8 @@ export default function AdminEditProductPage() {
       }
 
       show('저장되었습니다.');
-      nav('/admin/products', { replace: true });
+      try { sessionStorage.removeItem(initialStorageKey); } catch {}
+      nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - save');
       show(getSafeErrorMessage(e, '저장 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -375,7 +483,7 @@ export default function AdminEditProductPage() {
               <div className="flex items-center gap-1 p-2 border-b bg-gray-50">
                 <select
                   onChange={(e) => {
-                    const editor = document.getElementById('description-editor');
+                    const editor = editorRef.current;
                     if (editor && e.target.value) {
                       const selection = window.getSelection();
                       if (selection && selection.rangeCount > 0) {
@@ -411,7 +519,7 @@ export default function AdminEditProductPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const editor = document.getElementById('description-editor');
+                    const editor = editorRef.current;
                     if (editor) {
                       document.execCommand('bold', false);
                       editor.focus();
@@ -429,18 +537,18 @@ export default function AdminEditProductPage() {
               <div className="relative">
                 <div
                   id="description-editor"
+                  ref={editorRef}
                   contentEditable
-                  dangerouslySetInnerHTML={{ __html: form.description || '' }}
+                  suppressContentEditableWarning
+                  // 초기 내용은 마운트 후 주입해 포커스 점프 방지
+                  dangerouslySetInnerHTML={undefined}
                   onInput={(e) => {
                     const target = e.target as HTMLDivElement;
                     const textContent = target.innerText || target.textContent || '';
-                    
                     // 글자 수 제한
                     if (textContent.length > DESCRIPTION_LIMIT) {
-                      // 제한 글자까지만 자르기
                       const truncatedText = textContent.substring(0, DESCRIPTION_LIMIT);
                       target.innerText = truncatedText;
-                      
                       // 커서를 끝으로 이동
                       const range = document.createRange();
                       const sel = window.getSelection();
@@ -449,8 +557,10 @@ export default function AdminEditProductPage() {
                       sel?.removeAllRanges();
                       sel?.addRange(range);
                     }
-                    
-                    setForm({ ...form, description: target.innerHTML });
+                    // 사용자가 입력할 때만 상태 갱신 (프로그램적 주입은 useEffect에서 처리)
+                    editorHtmlRef.current = target.innerHTML;
+                    setDescLength(textContent.length);
+                    setForm(prev => prev ? { ...prev, description: target.innerHTML } : prev);
                   }}
                   className="w-full min-h-[144px] border-0 rounded-none px-3 py-2 focus:outline-none focus:ring-0 leading-relaxed"
                   style={{ 
@@ -460,12 +570,7 @@ export default function AdminEditProductPage() {
                 />
                 {/* 글자 수 카운터 - 에디터 우측 하단 고정 */}
                 <div className="pointer-events-none absolute bottom-1 right-2 text-[11px] text-gray-500 bg-white/80 px-1 rounded">
-                  {(() => {
-                    if (!form.description) return `0 / ${DESCRIPTION_LIMIT}자`;
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = form.description;
-                    return `${tempDiv.innerText?.length || 0} / ${DESCRIPTION_LIMIT}자`;
-                  })()}
+                  {`${descLength} / ${DESCRIPTION_LIMIT}자`}
                 </div>
                 {(!form.description || form.description === '') && (
                   <div 
@@ -521,7 +626,7 @@ export default function AdminEditProductPage() {
                 )}
               </div>
               {/* 추가 이미지 목록 (mock 전용) */}
-              {USE_MOCKS && (
+              {(
                 <div className="mt-4">
                   <label className="text-sm font-medium">추가 이미지</label>
                   <div className="mt-2 flex gap-3 flex-wrap">
@@ -554,12 +659,41 @@ export default function AdminEditProductPage() {
                         if (!files.length) return;
                         setSelectedAdditionalNames(files.map(f => f.name));
                         try {
-                          const uploadedUrls: string[] = [];
-                          for (const file of files) {
-                            const url = await mockUploadImage(file);
-                            uploadedUrls.push(url);
+                          if (USE_MOCKS) {
+                            const uploadedUrls: string[] = [];
+                            for (const file of files) {
+                              const url = await mockUploadImage(file);
+                              uploadedUrls.push(url);
+                            }
+                            setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...uploadedUrls] } : prev);
+                          } else {
+                            // 파일들을 contentType 별로 그룹핑하여 presigned URL 배치 요청
+                            const byType = new Map<string, { names: string[]; files: File[] }>();
+                            for (const f of files) {
+                              const key = f.type || 'application/octet-stream';
+                              if (!byType.has(key)) byType.set(key, { names: [], files: [] });
+                              byType.get(key)!.names.push(f.name);
+                              byType.get(key)!.files.push(f);
+                            }
+                            const finalUrls: string[] = [];
+                            for (const [contentType, pack] of byType.entries()) {
+                              const uploadUrls = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
+                              if (!uploadUrls || uploadUrls.length !== pack.files.length) {
+                                throw new Error('업로드 URL 발급 수가 선택 파일 수와 일치하지 않습니다.');
+                              }
+                              // 업로드 실행 (순서 보장)
+                              for (let i = 0; i < pack.files.length; i++) {
+                                const putUrl = uploadUrls[i];
+                                const f = pack.files[i];
+                                const putRes = await fetch(putUrl, { method: 'PUT', body: f, mode: 'cors' });
+                                if (!putRes.ok) throw new Error('상세 이미지 업로드에 실패했습니다.');
+                                finalUrls.push(putUrl.split('?')[0]);
+                              }
+                            }
+                            if (finalUrls.length) {
+                              setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...finalUrls] } : prev);
+                            }
                           }
-                          setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...uploadedUrls] } : prev);
                         } finally {
                           input.value = '';
                         }
@@ -582,15 +716,32 @@ export default function AdminEditProductPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!initialFormRef.current) return;
-                  // 로컬 프리뷰 URL 정리
-                  if (localPreviewUrlRef.current) {
-                    URL.revokeObjectURL(localPreviewUrlRef.current);
-                    localPreviewUrlRef.current = null;
+                  try {
+                    const raw = sessionStorage.getItem(initialStorageKey);
+                    const initial = raw ? (JSON.parse(raw) as ProductEdit) : initialFormRef.current;
+                    if (!initial) return;
+                    if (localPreviewUrlRef.current) {
+                      URL.revokeObjectURL(localPreviewUrlRef.current);
+                      localPreviewUrlRef.current = null;
+                    }
+                    // deep clone 후 복원
+                    const cloned: ProductEdit = JSON.parse(JSON.stringify(initial));
+                    initialFormRef.current = cloned;
+                    // 에디터에 프로그램적 주입을 트리거
+                    shouldApplyEditorHtmlRef.current = true;
+                    setForm(cloned);
+                    setAdditionalStock(0);
+                    setSelectedAdditionalNames([]);
+                  } catch {
+                    if (initialFormRef.current) {
+                      const cloned: ProductEdit = JSON.parse(JSON.stringify(initialFormRef.current));
+                      // 에디터에 프로그램적 주입을 트리거ㅋ
+                      shouldApplyEditorHtmlRef.current = true;
+                      setForm(cloned);
+                      setAdditionalStock(0);
+                      setSelectedAdditionalNames([]);
+                    }
                   }
-                  setForm(JSON.parse(JSON.stringify(initialFormRef.current)));
-                  setAdditionalStock(0);
-                  setSelectedAdditionalNames([]);
                 }}
                 className="h-10 px-4 rounded border text-gray-700"
               >

@@ -2,7 +2,10 @@ import { safeErrorLog, getSafeErrorMessage } from './environment';
 
 /**
  * 공통 API fetch 유틸리티
- * 403 에러 시 자동으로 /403 페이지로 리다이렉트
+ * - User API: Bearer AccessToken + Refresh 쿠키
+ * - Admin API: 세션 쿠키(ADMINSESSIONID 등)
+ * - 401/403 처리 및 비즈니스 에러 메시지 전파
+ * - API별 Retry 카운트(최대 3회) + (관리자/유저 모두 적용)
  */
 
 interface ApiFetchOptions extends RequestInit {
@@ -15,1026 +18,741 @@ interface ApiResponse<T = any> {
   ok: boolean;
 }
 
-// API 유틸리티 함수들
+// === 공통 상수 ===
 const API_BASE = process.env.REACT_APP_API_BASE || '';
-
-// 개별 API 요청별 retry 카운터 관리
-const apiRetryCounts = new Map<string, number>();
 const MAX_RETRY_PER_API = 3;
+const BASE_BACKOFF_MS = 300;
 
-// 토큰 가져오기
+// === 공통 Retry 상태 (API 키별 관리) ===
+const apiRetryCounts = new Map<string, number>();
+const makeApiKey = (scope: 'ADMIN'|'USER'|'GEN', method: string, url: string) => `${scope}:${method.toUpperCase()}:${url}`;
+
+export const getApiRetryCount = (apiKey: string) => apiRetryCounts.get(apiKey) || 0;
+export const canRetryApi = (apiKey: string) => (apiRetryCounts.get(apiKey) || 0) < MAX_RETRY_PER_API;
+export const resetApiRetryCount = (apiKey: string) => { apiRetryCounts.delete(apiKey); };
+export const incrementApiRetryCount = (apiKey: string) => {
+  const current = apiRetryCounts.get(apiKey) || 0;
+  const next = Math.min(current + 1, MAX_RETRY_PER_API);
+  apiRetryCounts.set(apiKey, next);
+  return next;
+};
+
+// === 공통 유틸 ===
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isIdempotent = (method = 'GET') => ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+const shouldRetry = (method: string, errorOrResponse: unknown): boolean => {
+  // 네트워크 오류(TypeError) → 항상 재시도 허용
+  if (errorOrResponse instanceof TypeError) return true;
+  // Response 기반 판정
+  const res = errorOrResponse as Response;
+  if (!res || typeof res.status !== 'number') return false;
+  // 5xx는 idempotent 메서드에서만 재시도
+  if (res.status >= 500 && res.status <= 599) return isIdempotent(method);
+  return false;
+};
+
+// === 토큰 유틸 ===
 const getAccessToken = () => localStorage.getItem('access');
 
-// 개별 API retry 카운터 관리 함수들
-export const incrementApiRetryCount = (apiKey: string) => {
-  const currentCount = apiRetryCounts.get(apiKey) || 0;
-  const newCount = Math.min(currentCount + 1, MAX_RETRY_PER_API);
-  apiRetryCounts.set(apiKey, newCount);
-  return newCount;
+// === 공통 에러 메시지 저장 ===
+const pushUiError = (message: string, type: 'error'|'admin'|'user' = 'error') => {
+  // 구 UI/신 UI 동시 호환
+  localStorage.setItem('api-error-message', message);
+  localStorage.setItem('api-error-type', 'error');
+  localStorage.setItem('error-message', message);
+  localStorage.setItem('error-type', type);
+  window.dispatchEvent(new CustomEvent('api-error'));
 };
 
-export const resetApiRetryCount = (apiKey: string) => {
-  apiRetryCounts.delete(apiKey);
-};
-
-export const getApiRetryCount = (apiKey: string) => {
-  return apiRetryCounts.get(apiKey) || 0;
-};
-
-export const canRetryApi = (apiKey: string) => {
-  return (apiRetryCounts.get(apiKey) || 0) < MAX_RETRY_PER_API;
-};
-
-// JSON 응답 검증
+// === JSON 응답 검증(필요 시 확장) ===
 export const validateJsonResponse = async (response: Response) => {
-//   const contentType = response.headers.get('content-type') || '';
-//   if (!contentType.includes('application/json')) {
-//     const text = await response.text();
-//     throw new Error('서버 응답이 JSON이 아닙니다. API 주소 설정을 확인해주세요.');
-//   }
   return response;
 };
 
-// API 에러 메시지를 snackbar로 표시하는 유틸리티 함수
+// === 스낵바 표시 유틸 ===
 export const showApiErrorMessage = (show: (message: string, options?: any) => void) => {
-  const errorMessage = localStorage.getItem('api-error-message');
-  const errorType = localStorage.getItem('api-error-type');
-  
-  if (errorMessage && errorType) {
-    show(errorMessage, { variant: errorType as any });
-    
-    // 표시 후 localStorage에서 제거
+  const msg = localStorage.getItem('api-error-message') || localStorage.getItem('error-message');
+  const type = (localStorage.getItem('api-error-type') || localStorage.getItem('error-type')) as any;
+  if (msg && type) {
+    show(msg, { variant: type });
     localStorage.removeItem('api-error-message');
     localStorage.removeItem('api-error-type');
+    localStorage.removeItem('error-message');
+    localStorage.removeItem('error-type');
   }
 };
 
-// API 호출 기본 함수 (토큰 자동 포함)
-export const apiFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = true) => {
+// === 에러 페이지 연동 유틸 ===
+type ErrorScope = 'admin' | 'user';
+const setAuthErrorAndRedirect = (status: number, scope: ErrorScope, message: string) => {
+  localStorage.setItem('error-message', message);
+  localStorage.setItem('error-type', scope);
+  localStorage.setItem('error-redirect', scope === 'admin' ? '/admin/login' : '/login');
+  window.location.href = status === 401 ? '/401' : '/403';
+};
+
+
+// === 공통 API Fetch (토큰 자동 포함) ===
+export const apiFetch = async (url: string, options: RequestInit = {}, autoRedirect = true) => {
   const token = getAccessToken();
-  
-  // admin API는 토큰 사용하지 않음
-  const isAdminApi = url.includes('/api/admin');
-  
+  const isAdminApi = url.includes('/api/admin'); // admin은 쿠키 세션 사용
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...(options.headers as Record<string, string> | undefined),
   };
-  
-  if (token && !isAdminApi) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  
-  const response = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers,
-    credentials: isAdminApi ? 'include' : 'omit', // admin API만 쿠키 사용
-  });
-  
-  // 401 에러 시 refresh token으로 재시도 (User API만)
-  if (response.status === 401 && !isAdminApi && !url.includes('/login') && !url.includes('/refresh')) {
+  if (token && !isAdminApi) headers.Authorization = `Bearer ${token}`;
+
+  const method = (options.method || 'GET').toString().toUpperCase();
+  const apiKey = makeApiKey(isAdminApi ? 'ADMIN' : 'USER', method, url);
+
+  let attempt = 0;
+  while (attempt <= MAX_RETRY_PER_API) {
     try {
-      // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
-      const refreshHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
-      if (token) {
-        refreshHeaders.Authorization = `Bearer ${token}`;
-
-      }
-      
-      const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
-        method: 'POST',
-        headers: refreshHeaders,
-        credentials: 'include',
+      const response = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers,
+        credentials: isAdminApi ? 'include' : 'omit',
       });
-      
-      if (refreshResponse.ok) {
-        const newAccessToken = await refreshResponse.text();
-        localStorage.setItem('access', newAccessToken);
-        
-        // 새로운 토큰으로 원래 요청 재시도
 
-        const newHeaders = { ...headers, Authorization: `Bearer ${newAccessToken}` };
-        
-        const retryResponse = await fetch(`${API_BASE}${url}`, {
-          ...options,
-          headers: newHeaders,
-          credentials: 'include',
-        });
-        
-        return retryResponse;
-      } else {
+      // === User API 전용: 401 → refresh 시도 ===
+      if (!isAdminApi && response.status === 401 && !url.includes('/login') && !url.includes('/refresh')) {
+        try {
+          const refreshHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (token) refreshHeaders.Authorization = `Bearer ${token}`;
 
-        // refresh token도 만료된 경우에만 redirect
-        if (autoRedirect) {
-          const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-          localStorage.setItem('error-message', errorMessage);
-          localStorage.setItem('error-type', 'user');
-          localStorage.setItem('error-redirect', '/login');
-          
-          // 사용자 토큰 제거
-          localStorage.removeItem('access');
-          localStorage.removeItem('refresh');
-          localStorage.removeItem('nickname');
-          
-          // 401 에러 페이지로 리다이렉트
-          window.location.href = '/401';
+          const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
+            method: 'POST', headers: refreshHeaders, credentials: 'include',
+          });
+          if (refreshResponse.ok) {
+            const newAccessToken = await refreshResponse.text();
+            localStorage.setItem('access', newAccessToken);
+            const newHeaders = { ...headers, Authorization: `Bearer ${newAccessToken}` };
+            return await fetch(`${API_BASE}${url}`, { ...options, headers: newHeaders, credentials: 'include' });
+          }
+          if (autoRedirect) {
+            const msg = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            pushUiError(msg, 'user');
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            setAuthErrorAndRedirect(401, 'user', msg);
+          }
+          return response;
+        } catch (e) {
+          safeErrorLog(e);
+          if (autoRedirect) {
+            const msg = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            pushUiError(msg, 'user');
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            setAuthErrorAndRedirect(401, 'user', msg);
+          }
+          return response;
         }
+      }
+
+      // === 403 처리(User) ===
+      if (autoRedirect && response.status === 403 && !url.includes('/login')) {
+        const msg = '접근 권한이 없습니다.';
+        pushUiError(msg, 'user');
+        setAuthErrorAndRedirect(403, 'user', msg);
         return response;
       }
-    } catch (error) {
-      console.error('refresh token 처리 중 오류:', error);
-      // refresh 처리 중 오류 발생 시에만 redirect
-      if (autoRedirect) {
-        const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
-        localStorage.setItem('error-message', errorMessage);
-        localStorage.setItem('error-type', 'user');
-        localStorage.setItem('error-redirect', '/login');
-        
-        // 사용자 토큰 제거
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('nickname');
-        
-        // 401 에러 페이지로 리다이렉트
-        window.location.href = '/401';
+
+      // === 4xx(401,403 제외) 비즈니스 에러 메시지 전파 ===
+      if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
+        try {
+          const err = await response.clone().json();
+          const serverMessage = err.message || err.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+          pushUiError(serverMessage);
+        } catch {
+          pushUiError(`요청 처리 중 오류가 발생했습니다. (${response.status})`);
+        }
       }
+
+      // 성공 또는 재시도 불필요한 응답
+      resetApiRetryCount(apiKey);
       return response;
+    } catch (err) {
+      attempt = incrementApiRetryCount(apiKey);
+      const isNetwork = err instanceof TypeError;
+      const allowRetry = isNetwork;
+
+      if (!canRetryApi(apiKey) || !allowRetry) {
+        resetApiRetryCount(apiKey);
+        throw err;
+      }
+      const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt - 1) + Math.random() * 100;
+      await delay(backoff);
     }
   }
-  
-  // 403 에러 시 권한 부족 처리 (refresh 시도 후에도 403이거나, refresh 대상이 아닌 403)
-  if (autoRedirect && response.status === 403 && !isAdminApi && !url.includes('/login') && !url.includes('/refresh')) {
-    const errorMessage = '접근 권한이 없습니다.';
-    localStorage.setItem('error-message', errorMessage);
-    localStorage.setItem('error-type', 'user');
-    localStorage.setItem('error-redirect', '/login');
-    
-    // 403 에러 페이지로 리다이렉트
-    window.location.href = '/403';
-    return response;
-  }
-  
-  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
-  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
-    try {
-      const errorData = await response.clone().json();
-      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      
-      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
-      localStorage.setItem('api-error-message', serverMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
-    } catch (parseError) {
-      // JSON 파싱 실패 시 기본 메시지
-      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      localStorage.setItem('api-error-message', defaultMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
-    }
-  }
-  
-  return response;
+  throw new Error('예기치 못한 오류가 발생했습니다.');
 };
 
-// Admin API 전용 fetch (쿠키 분리)
-export const adminFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = false) => {
-  const response = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string> || {}),
-    },
-    credentials: 'include', // Admin API는 항상 쿠키 사용
-  });
-  
-  // autoRedirect가 true이고 401, 403 에러인 경우에만 리다이렉트
-  if (autoRedirect && (response.status === 401 || response.status === 403)) {
-    const errorMessage = response.status === 401 
-      ? '인증이 만료되었습니다. 다시 로그인해주세요.' 
-      : '접근 권한이 없습니다.';
-    
-    // 에러 정보를 localStorage에 저장
-    localStorage.setItem('error-message', errorMessage);
-    localStorage.setItem('error-type', 'admin');
-    localStorage.setItem('error-redirect', '/admin/login');
-    
-    // 인증 정보 제거
-    localStorage.removeItem('admin-auth');
-    
-    // 403 에러 페이지로 리다이렉트
-    window.location.href = '/403';
-    return response;
-  }
-  
-  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
-  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
+// === Admin API 전용(fetch + 쿠키, Retry 포함) ===
+export const adminFetch = async (url: string, options: RequestInit = {}, autoRedirect = false): Promise<Response> => {
+  const method = (options.method || 'GET').toString().toUpperCase();
+  const apiKey = makeApiKey('ADMIN', method, url);
+
+  let attempt = 0;
+  while (attempt <= MAX_RETRY_PER_API) {
     try {
-      const errorData = await response.clone().json();
-      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      
-      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
-      localStorage.setItem('api-error-message', serverMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
-    } catch (parseError) {
-      // JSON 파싱 실패 시 기본 메시지
-      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      localStorage.setItem('api-error-message', defaultMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
+      const response = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string> | undefined),
+        },
+        credentials: 'include',
+      });
+
+      // Admin: 401/403 처리
+      if (autoRedirect && (response.status === 401 || response.status === 403)) {
+        const msg = response.status === 401 ? '인증이 만료되었습니다. 다시 로그인해주세요.' : '접근 권한이 없습니다.';
+        pushUiError(msg, 'admin');
+        localStorage.removeItem('admin-auth');
+        setAuthErrorAndRedirect(response.status, 'admin', msg);
+        return response;
+      }
+
+      // Admin: 4xx(401,403 제외) 비즈니스 에러 메시지 전파
+      if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
+        try {
+          const err = await response.clone().json();
+          const serverMessage = err.message || err.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+          pushUiError(serverMessage, 'admin');
+        } catch {
+          pushUiError(`요청 처리 중 오류가 발생했습니다. (${response.status})`, 'admin');
+        }
+      }
+
+      resetApiRetryCount(apiKey);
+      return response;
+    } catch (err) {
+      attempt = incrementApiRetryCount(apiKey);
+      // Admin: 비멱등 메서드는 네트워크 오류에만 재시도, 멱등 메서드는 5xx/네트워크 오류 재시도
+      if (!canRetryApi(apiKey) || !shouldRetry(method, err)) {
+        resetApiRetryCount(apiKey);
+        throw err;
+      }
+      const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt - 1) + Math.random() * 100;
+      await delay(backoff);
     }
   }
-  
-  return response;
+  throw new Error('예기치 못한 오류가 발생했습니다.');
 };
 
-// User API 전용 fetch (토큰 + 쿠키 분리)
-export const userFetch = async (url: string, options: RequestInit = {}, autoRedirect: boolean = true) => {
+// === User API 전용(fetch + 토큰 + 쿠키, Retry 포함) ===
+export const userFetch = async (url: string, options: RequestInit = {}, autoRedirect = true) => {
   const token = getAccessToken();
-  
-  const headers: Record<string, string> = {
+  const method = (options.method || 'GET').toString().toUpperCase();
+  const apiKey = makeApiKey('USER', method, url);
+
+  const baseHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
+    ...(options.headers as Record<string, string> | undefined),
   };
-  
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  
-  const response = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers,
-    credentials: 'include', // User API도 쿠키 사용 (refresh token용)
-  });
-  
-                // 401 또는 403 에러 시 refresh token으로 재시도
-              if ((response.status === 401 || response.status === 403) && !url.includes('/login') && !url.includes('/refresh')) {
-    
+  if (token) baseHeaders.Authorization = `Bearer ${token}`;
+
+  let attempt = 0;
+  while (attempt <= MAX_RETRY_PER_API) {
     try {
-      // refresh token은 쿠키에 있으므로 credentials: 'include'로 자동 전송
-      
-      // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
-      const refreshHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
-      if (token) {
-        refreshHeaders.Authorization = `Bearer ${token}`;
-
-      }
-      
-      const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
-        method: 'POST',
-        headers: refreshHeaders,
-        credentials: 'include',
+      const response = await fetch(`${API_BASE}${url}`, {
+        ...options,
+        headers: baseHeaders,
+        credentials: 'include', // refresh용 쿠키
       });
-      
-      if (refreshResponse.ok) {
-        const newAccessToken = await refreshResponse.text();
-        localStorage.setItem('access', newAccessToken);
-        
-        // 새로운 토큰으로 원래 요청 재시도
 
-        const newHeaders = { ...headers, Authorization: `Bearer ${newAccessToken}` };
-        
-        const retryResponse = await fetch(`${API_BASE}${url}`, {
-          ...options,
-          headers: newHeaders,
-          credentials: 'include',
-        });
-        
-        return retryResponse;
-      } else {
-
-        // refresh token도 만료된 경우
-        if (autoRedirect) {
-          const errorMessage = '인증이 만료되었습니다. 다시 로그인해주세요.';
-          localStorage.setItem('error-message', errorMessage);
-          localStorage.setItem('error-type', 'user');
-          localStorage.setItem('error-redirect', '/login');
-          
-          // 사용자 토큰 제거
-          localStorage.removeItem('access');
-          localStorage.removeItem('refresh');
-          localStorage.removeItem('nickname');
-          
-          // 403 에러 페이지로 리다이렉트
-          window.location.href = '/403';
+      // 401/403 → refresh 시도 (login/refresh 자체 제외)
+      if ((response.status === 401 || response.status === 403) && !url.includes('/login') && !url.includes('/refresh')) {
+        try {
+          const refreshHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (token) refreshHeaders.Authorization = `Bearer ${token}`;
+          const refreshResponse = await fetch(`${API_BASE}/api/refresh`, {
+            method: 'POST', headers: refreshHeaders, credentials: 'include',
+          });
+          if (refreshResponse.ok) {
+            const newAccessToken = await refreshResponse.text();
+            localStorage.setItem('access', newAccessToken);
+            const newHeaders = { ...baseHeaders, Authorization: `Bearer ${newAccessToken}` };
+            return await fetch(`${API_BASE}${url}`, { ...options, headers: newHeaders, credentials: 'include' });
+          } else if (autoRedirect) {
+            const msg = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            pushUiError(msg, 'user');
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            setAuthErrorAndRedirect(401, 'user', msg);
+          }
+          return response;
+        } catch (e) {
+          safeErrorLog(e);
+          if (autoRedirect) {
+            const msg = '인증이 만료되었습니다. 다시 로그인해주세요.';
+            pushUiError(msg, 'user');
+            localStorage.removeItem('access');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('nickname');
+            setAuthErrorAndRedirect(401, 'user', msg);
+          }
+          return response;
         }
+      }
+
+      // 403 처리
+      if (autoRedirect && response.status === 403 && !url.includes('/login')) {
+        const msg = '접근 권한이 없습니다.';
+        pushUiError(msg, 'user');
+        setAuthErrorAndRedirect(403, 'user', msg);
         return response;
       }
-    } catch (error) {
-      console.error('refresh token 처리 중 오류:', error);
-      // refresh 처리 중 오류 발생 시
-      if (autoRedirect) {
-        const errorMessage = '인증 처리 중 오류가 발생했습니다. 다시 로그인해주세요.';
-        localStorage.setItem('error-message', errorMessage);
-        localStorage.setItem('error-type', 'user');
-        localStorage.setItem('error-redirect', '/login');
-        
-        // 사용자 토큰 제거
-        localStorage.removeItem('access');
-        localStorage.removeItem('refresh');
-        localStorage.removeItem('nickname');
-        
-        // 403 에러 페이지로 리다이렉트
-        window.location.href = '/403';
+
+      // 4xx(401,403 제외) 비즈니스 에러 메시지 전파
+      if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
+        try {
+          const err = await response.clone().json();
+          const serverMessage = err.message || err.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
+          pushUiError(serverMessage);
+        } catch {
+          pushUiError(`요청 처리 중 오류가 발생했습니다. (${response.status})`);
+        }
       }
+
+      resetApiRetryCount(apiKey);
       return response;
+    } catch (err) {
+      attempt = incrementApiRetryCount(apiKey);
+      if (!canRetryApi(apiKey) || !shouldRetry(method, err)) {
+        resetApiRetryCount(apiKey);
+        throw err;
+      }
+      const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt - 1) + Math.random() * 100;
+      await delay(backoff);
     }
   }
-  
-  // 403 에러 시 권한 부족 처리
-  if (autoRedirect && response.status === 403 && !url.includes('/login')) {
-    const errorMessage = '접근 권한이 없습니다.';
-    localStorage.setItem('error-message', errorMessage);
-    localStorage.setItem('error-type', 'user');
-    localStorage.setItem('error-redirect', '/login');
-    
-    // 403 에러 페이지로 리다이렉트
-    window.location.href = '/403';
-    return response;
-  }
-  
-  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
-  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
-    try {
-      const errorData = await response.clone().json();
-      const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      
-      // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
-      localStorage.setItem('api-error-message', serverMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
-    } catch (parseError) {
-      // JSON 파싱 실패 시 기본 메시지
-      const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
-      localStorage.setItem('api-error-message', defaultMessage);
-      localStorage.setItem('api-error-type', 'error');
-      // 즉시 표시를 위해 커스텀 이벤트 발행
-      window.dispatchEvent(new CustomEvent('api-error'));
-    }
-  }
-  
-  return response;
+  throw new Error('예기치 못한 오류가 발생했습니다.');
 };
 
-// 토큰 갱신
+// === 토큰 갱신(직접 호출용) ===
 export const refreshToken = async () => {
   try {
     const refresh = localStorage.getItem('refresh');
     const accessToken = getAccessToken();
     if (!refresh) throw new Error('Refresh token not found');
-    
-    // refresh API는 Authorization 헤더와 REFRESH_TOKEN 쿠키를 모두 요구
-    const refreshHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    // 기존 access token이 있으면 Authorization 헤더에 포함 (만료되었을 수 있음)
-    if (accessToken) {
-      refreshHeaders.Authorization = `Bearer ${accessToken}`;
-    }
-    
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
     const response = await fetch(`${API_BASE}/api/refresh`, {
-      method: 'POST',
-      headers: refreshHeaders,
-      credentials: 'include',
+      method: 'POST', headers, credentials: 'include',
     });
-    
     if (response.ok) {
       const newToken = await response.text();
       localStorage.setItem('access', newToken);
       return newToken;
     }
   } catch (error) {
-    console.error('Token refresh failed:', error);
-    // 토큰 갱신 실패 시 로그아웃 처리
+    safeErrorLog(error);
     localStorage.removeItem('access');
     localStorage.removeItem('refresh');
     localStorage.removeItem('nickname');
     window.location.href = '/login';
   }
-  
   throw new Error('Token refresh failed');
 };
 
-// API 응답 처리 (토큰 만료 시 자동 갱신)
+// === 공통 응답 처리(옵셔널) ===
 export const handleApiResponse = async (response: Response) => {
   if (response.status === 401) {
-    // 토큰 만료 시 갱신 시도
-    try {
-      await refreshToken();
-      // 갱신된 토큰으로 재요청은 여기서 구현하지 않음 (상위에서 처리)
-    } catch {
-      throw new Error('Authentication failed');
-    }
+    try { await refreshToken(); } catch { throw new Error('Authentication failed'); }
   }
-  
   return response;
 };
 
-// 편의 함수들 (자동 JSON 검증 포함)
+// === 편의 함수들 ===
 export const getProducts = async (from?: string, to?: string) => {
-  // retry 제한 체크
-  if (!canRetryApi('getProducts')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     let url = '/api/auth/products';
-    
-    if (from && to) {
-      // URL 인코딩 적용
-      const encodedFrom = encodeURIComponent(from);
-      const encodedTo = encodeURIComponent(to);
-      url += `?from=${encodedFrom}&to=${encodedTo}`;
-    }
+    if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     const res = await userFetch(url);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getProducts');
-    }
-    
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getProducts');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getProduct = async (id: number) => {
-  // retry 제한 체크
-  if (!canRetryApi('getProduct')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await userFetch(`/api/auth/products/${id}`);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getProduct');
-    }
-    
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getProduct');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const createReservation = async (data: any) => {
-  // retry 제한 체크
-  if (!canRetryApi('createReservation')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'createReservation';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/reservations/', { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('createReservation');
-    }
-    
+    const res = await userFetch('/api/auth/reservations/', { method: 'POST', body: JSON.stringify(data) });
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('createReservation');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const cancelReservation = async (id: number) => {
-  // retry 제한 체크
-  if (!canRetryApi('cancelReservation')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'cancelReservation';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/cancel/${id}`, { 
-      method: 'PATCH' 
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('cancelReservation');
-    }
-    
+    const res = await userFetch(`/api/auth/reservations/cancel/${id}`, { method: 'PATCH' });
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('cancelReservation');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getReservations = async (from?: string, to?: string) => {
-  // retry 제한 체크
-  if (!canRetryApi('getReservations')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getReservations';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     let url = '/api/auth/reservations/';
-    
-    if (from && to) {
-      // URL 인코딩 적용
-      const encodedFrom = encodeURIComponent(from);
-      const encodedTo = encodeURIComponent(to);
-      url += `?from=${encodedFrom}&to=${encodedTo}`;
-    }
-    
+    if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     const res = await userFetch(url);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getReservations');
-    }
-    
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getReservations');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const modifyName = async (name: string) => {
-  // retry 제한 체크
-  if (!canRetryApi('modifyName')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'modifyName';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/name/${name}`, { 
-      method: 'PATCH' 
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('modifyName');
-    }
-    
-    return res; // Response 객체 직접 반환 (JSON 검증 제거)
-  } catch (error) {
-    incrementApiRetryCount('modifyName');
-    throw error;
-  }
+    const res = await userFetch(`/api/auth/name/${name}`, { method: 'PATCH' });
+    if (res.ok) resetApiRetryCount(key);
+    return res; // text 응답 등 유연 처리
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const checkNameExists = async (name: string) => {
-  // retry 제한 체크
-  if (!canRetryApi('checkNameExists')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'checkNameExists';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await userFetch(`/api/auth/name/${name}`);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('checkNameExists');
-    }
-    
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('checkNameExists');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-// Admin API (쿠키 기반 인증, User API와 분리)
+// === Admin 편의 함수들 ===
 export const adminLogin = async (data: { email: string; password: string }) => {
-  // retry 제한 체크
-  if (!canRetryApi('adminLogin')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'adminLogin';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/login', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('adminLogin');
-    }
-    
-    return res; // Response 객체 직접 반환
-  } catch (error) {
-    incrementApiRetryCount('adminLogin');
-    throw error;
-  }
+    const res = await adminFetch('/api/admin/login', { method: 'POST', body: JSON.stringify(data) });
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const adminSignup = async (data: { name: string; email: string; password: string }) => {
-  // retry 제한 체크
-  if (!canRetryApi('adminSignup')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'adminSignup';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    console.log('🔐 AdminSignup - 요청 데이터:', data);
-    console.log('🔐 AdminSignup - 요청 URL:', '/api/admin/signup');
-    
-    const res = await adminFetch('/api/admin/signup', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    
-    console.log('🔐 AdminSignup - 응답 상태:', res.status, res.statusText);
-    console.log('🔐 AdminSignup - 응답 헤더:', Object.fromEntries(res.headers.entries()));
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('adminSignup');
-    }
-    
+    const res = await adminFetch('/api/admin/signup', { method: 'POST', body: JSON.stringify(data) });
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('adminSignup');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getAdminProducts = async () => {
-  // retry 제한 체크
-  if (!canRetryApi('getAdminProducts')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getAdminProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const url = '/api/admin/products';
-    const res = await adminFetch(url);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getAdminProducts');
-    }
-    
-    // 응답이 성공이 아닌 경우에도 Response 객체를 반환하여 컴포넌트에서 처리할 수 있도록 함
+    const res = await adminFetch('/api/admin/products', {}, true);
+    if (res.ok) resetApiRetryCount(key);
     return res;
-  } catch (error) {
-    incrementApiRetryCount('getAdminProducts');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getAdminReservations = async (from?: string, to?: string) => {
-  // retry 제한 체크
-  if (!canRetryApi('getAdminReservations')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getAdminReservations';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     let url = '/api/admin/reservations';
-    
-    if (from && to) {
-      // URL 인코딩 적용
-      const encodedFrom = encodeURIComponent(from);
-      const encodedTo = encodeURIComponent(to);
-      url += `?from=${encodedFrom}&to=${encodedTo}`;
-    }
-    
-    const res = await adminFetch(url);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getAdminReservations');
-    }
-    
+    if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    const res = await adminFetch(url, {}, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getAdminReservations');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getAdminProduct = async (id: number) => {
-  // retry 제한 체크
-  if (!canRetryApi('getAdminProduct')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getAdminProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getAdminProduct');
-    }
-    
+    const res = await adminFetch(`/api/admin/products/${id}`, {}, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getAdminProduct');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const createAdminProduct = async (data: any) => {
-  // retry 제한 체크
-  if (!canRetryApi('createAdminProduct')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'createAdminProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('createAdminProduct');
-    }
-    
+    const res = await adminFetch('/api/admin/products', { method: 'POST', body: JSON.stringify(data) }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('createAdminProduct');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const updateAdminProduct = async (id: number, data: any) => {
-  // retry 제한 체크
-  if (!canRetryApi('updateAdminProduct')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'updateAdminProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('updateAdminProduct');
-    }
-    
+    const res = await adminFetch(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('updateAdminProduct');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const setSoldOut = async (id: number) => {
-  // retry 제한 체크
-  if (!canRetryApi('setSoldOut')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'setSoldOut';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/sold-out/${id}`, {
-      method: 'PATCH',
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('setSoldOut');
-    }
-    
+    const res = await adminFetch(`/api/admin/products/sold-out/${id}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('setSoldOut');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const toggleVisible = async (id: number, visible: boolean) => {
-  // retry 제한 체크
-  if (!canRetryApi('toggleVisible')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'toggleVisible';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, {
-      method: 'PATCH',
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('toggleVisible');
-    }
-    
+    const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('toggleVisible');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const deleteAdminProduct = async (id: number) => {
-  // retry 제한 체크
-  if (!canRetryApi('deleteAdminProduct')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'deleteAdminProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`, {
-      method: 'DELETE',
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('deleteAdminProduct');
-    }
-    
+    const res = await adminFetch(`/api/admin/products/${id}`, { method: 'DELETE' }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('deleteAdminProduct');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const togglePicked = async (id: number, picked: boolean) => {
-  // retry 제한 체크
-  if (!canRetryApi('togglePicked')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'togglePicked';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, {
-      method: 'POST',
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('togglePicked');
-    }
-    
+    const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, { method: 'POST' }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('togglePicked');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getReservationReports = async () => {
-  // retry 제한 체크
-  if (!canRetryApi('getReservationReports')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getReservationReports';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/reservations/reports');
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getReservationReports');
-    }
-    
+    const res = await adminFetch('/api/admin/reservations/reports', {}, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getReservationReports');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getUploadUrl = async (filename: string, contentType: string): Promise<Response> => {
-  // retry 제한 체크
-  if (!canRetryApi('getUploadUrl')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getUploadUrl';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    // contentType 검증 및 정리
-    if (!contentType || typeof contentType !== 'string') {
-      throw new Error(`Invalid contentType: ${contentType}`);
-    }
-    
+    if (!contentType || typeof contentType !== 'string') throw new Error(`Invalid contentType: ${contentType}`);
     const cleanContentType = contentType.trim();
-    
-    if (!cleanContentType) {
-      throw new Error('contentType cannot be empty after trimming');
-    }
-    
-    const requestBody = {
-      file_name: filename,
-      content_type: cleanContentType
-    };
-    
-    const res = await adminFetch('/api/admin/products/presigned-url', {
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-    });
-    
-    console.log('🔐 getUploadUrl - 응답 상태:', res.status, res.statusText);
-    console.log('🔐 getUploadUrl - 응답 헤더:', Object.fromEntries(res.headers.entries()));
-    
-    // 403 에러 시 더 자세한 정보 로깅
+    if (!cleanContentType) throw new Error('contentType cannot be empty after trimming');
+
+    const body = { file_name: filename, content_type: cleanContentType };
+    const res = await adminFetch('/api/admin/products/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+
     if (res.status === 403) {
-      try {
-        const errorData = await res.clone().json();
-        console.error('🔐 getUploadUrl - 403 에러 상세:', errorData);
-      } catch (e) {
-        console.error('🔐 getUploadUrl - 403 에러 (JSON 파싱 실패)');
-      }
+      try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
     }
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getUploadUrl');
-    }
-    
-    return res; // Response 객체 직접 반환
-  } catch (error) {
-    incrementApiRetryCount('getUploadUrl');
-    throw error;
-  }
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getUpdateUrl = async (id: number, filename: string, contentType: string): Promise<Response> => {
-  // retry 제한 체크
-  if (!canRetryApi('getUpdateUrl')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getUpdateUrl';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const requestBody = {
-      file_name: filename,
-      content_type: contentType
-    };
-    
-    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, {
-      method: 'PATCH',
-      body: JSON.stringify(requestBody),
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getUpdateUrl');
-    }
-    
+    const body = { file_name: filename, content_type: contentType };
+    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getUpdateUrl');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
 export const getDetailUpdateUrl = async (id: number, filenames: string[], contentType: string): Promise<Response> => {
-  // retry 제한 체크
-  if (!canRetryApi('getDetailUpdateUrl')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
-  }
-  
+  const key = 'getDetailUpdateUrl';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const requestBody = {
-      product_id: id,
-      file_names: filenames,
-      content_type: contentType
-    };
-    
-    const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, {
-      method: 'PATCH',
-      body: JSON.stringify(requestBody),
-    });
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getDetailUpdateUrl');
-    }
-    
+    const body = { product_id: id, file_names: filenames, content_type: contentType };
+    const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getDetailUpdateUrl');
-    throw error;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// New: Detail images batch presigned URL (server expects camelCase keys)
+export const getDetailPresignedUrlsBatch = async (
+  productId: number,
+  fileNames: string[],
+  contentType: string
+): Promise<string[]> => {
+  const key = 'getDetailPresignedUrlsBatch';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const body = { fileNames, contentType } as any;
+    const res = await adminFetch(`/api/admin/products/${productId}/detail/presigned-url`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }, true);
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) return [];
+      throw new Error('상세 이미지 업로드 URL 발급에 실패했습니다.');
+    }
+    const list = await res.json();
+    // 기대 형식: [{ uploadUrl: string }, ...]
+    if (!Array.isArray(list)) return [];
+    return list.map((it: any) => String(it.uploadUrl || ''));
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
   }
 };
 
-export const getHealth = async () => {
-  // retry 제한 체크
-  if (!canRetryApi('getHealth')) {
-    throw new Error('API 호출 제한에 도달했습니다. 잠시 후 다시 시도해주세요.');
+// ===== Admin 전용: 요청/응답 매핑 헬퍼 =====
+
+export type AdminProductListItem = {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  totalSold: number;
+  status: 'active' | 'inactive';
+  imageUrl: string;
+  sellDate?: string;
+};
+
+const addImgPrefix = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  const base = process.env.REACT_APP_IMG_URL || '';
+  return base ? `${base}/${url}` : url;
+};
+
+const mapAdminListItem = (p: any): AdminProductListItem => {
+  const stockNum = Number(p.stock ?? 0);
+  // 서버 가시성 필드 추정치: visible | is_visible | visibility | status(boolean-like)
+  const rawVisible = (
+    p.visible ??
+    p.is_visible ??
+    p.visibility ??
+    (typeof p.status === 'boolean' ? p.status : undefined)
+  );
+  const visible = typeof rawVisible === 'boolean' ? rawVisible : (stockNum > 0);
+  return {
+    id: Number(p.id),
+    name: String(p.name ?? ''),
+    price: Number(p.price ?? 0),
+    stock: stockNum,
+    totalSold: Number((p.totalSold ?? p.total_sold) ?? 0),
+    status: visible ? 'active' : 'inactive',
+    imageUrl: addImgPrefix(p.productUrl ?? p.product_url ?? p.imageUrl ?? ''),
+    sellDate: (p.sellDate ?? p.sell_date) || undefined,
+  };
+};
+
+export const getAdminProductsMapped = async (forceTs?: number): Promise<AdminProductListItem[]> => {
+  const ts = forceTs ? `?ts=${forceTs}` : '';
+  const res = await adminFetch(`/api/admin/products${ts}`, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  }, true);
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) return [];
+    throw new Error('상품 목록을 불러오지 못했습니다.');
   }
-  
+  const body = await res.json();
+  const arr = Array.isArray(body) ? body : (body?.response || []);
+  if (!Array.isArray(arr)) throw new Error('상품 데이터가 배열 형태가 아닙니다.');
+  return arr.map(mapAdminListItem);
+};
+
+export type AdminProductDetail = {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  imageUrl: string;
+  images?: string[];
+  sellDate?: string;
+  description?: string;
+};
+
+export const getAdminProductDetailMapped = async (id: number): Promise<AdminProductDetail> => {
+  const res = await adminFetch(`/api/admin/products/${id}`, {}, true);
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error('권한이 없습니다.');
+    throw new Error('상품 정보를 불러오지 못했습니다.');
+  }
+  const raw = await res.json();
+  return {
+    id: Number(raw.id),
+    name: String(raw.name ?? ''),
+    price: Number(raw.price ?? 0),
+    stock: Number(raw.stock ?? 0),
+    imageUrl: addImgPrefix(raw.productUrl ?? raw.imageUrl ?? raw.product_url ?? ''),
+    images: Array.isArray(raw.detail_urls)
+      ? raw.detail_urls.map((u: string) => addImgPrefix(u))
+      : (Array.isArray(raw.detailUrl)
+        ? raw.detailUrl.map((u: string) => addImgPrefix(u))
+        : (raw.images || undefined)),
+    sellDate: (raw.sellDate ?? raw.sell_date) || undefined,
+    description: raw.description || undefined,
+  };
+};
+
+export type AdminProductUpdatePayload = {
+  name: string;
+  price: number;
+  stock: number;
+  productUrl: string;
+  sellDate: string | null;
+  description?: string;
+  detailUrl?: string[];
+};
+
+export const updateAdminProductWithPayload = async (id: number, payload: AdminProductUpdatePayload) => {
+  return adminFetch(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, true);
+};
+
+export const getHealth = async () => {
+  const key = 'getHealth';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await fetch(`${API_BASE}/api/health`);
-    
-    // 성공 시 retry 카운터 리셋
-    if (res.ok) {
-      resetApiRetryCount('getHealth');
-    }
-    
+    if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
-  } catch (error) {
-    incrementApiRetryCount('getHealth');
-    throw error;
-  }
+  } catch (e) { incrementApiRetryCount(key); throw e; }
 };
