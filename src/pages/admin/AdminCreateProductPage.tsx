@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -15,6 +16,7 @@ type ProductForm = {
 
 export default function ProductCreatePage() {
   const { show } = useSnackbar();
+  const nav = useNavigate();
   
   // 오늘 날짜를 기본값으로 설정
   const today = new Date().toISOString().split('T')[0];
@@ -95,6 +97,7 @@ export default function ProductCreatePage() {
         
         show('상품이 등록되었습니다!', { variant: 'success' });
         setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
+        nav('/admin/products', { replace: true });
       } else {
         // 1) presigned URL 요청
         try {
@@ -160,6 +163,7 @@ export default function ProductCreatePage() {
           
           show('상품이 등록되었습니다!', { variant: 'success' });
           setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
+          nav('/admin/products', { replace: true });
         } catch (uploadError) {
           throw uploadError;
         }
