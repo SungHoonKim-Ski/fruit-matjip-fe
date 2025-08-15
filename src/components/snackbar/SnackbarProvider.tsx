@@ -78,6 +78,8 @@ export const SnackbarProvider: React.FC<{
   return (
     <SnackbarContext.Provider value={value}>
       {children}
+      {/* 서버 에러(alert) 구독: 401/403 제외 공통 처리 */}
+      <ErrorEventListener onShow={show} />
       {/* Snackbar (상단 고정, 토스트와 달리 FAB 가리지 않음) */}
       <div
         aria-live="polite"
@@ -109,4 +111,22 @@ export const SnackbarProvider: React.FC<{
       </div>
     </SnackbarContext.Provider>
   );
+};
+
+// api.ts에서 dispatch하는 'api-error' 이벤트를 수신해 스낵바로 노출
+const ErrorEventListener: React.FC<{ onShow: (message: string, opts?: { variant?: Variant; duration?: number }) => void }>= ({ onShow }) => {
+  React.useEffect(() => {
+    const handler = () => {
+      const msg = localStorage.getItem('api-error-message');
+      const type = (localStorage.getItem('api-error-type') as Variant) || 'error';
+      if (msg) {
+        onShow(msg, { variant: type });
+        localStorage.removeItem('api-error-message');
+        localStorage.removeItem('api-error-type');
+      }
+    };
+    window.addEventListener('api-error', handler as EventListener);
+    return () => window.removeEventListener('api-error', handler as EventListener);
+  }, [onShow]);
+  return null;
 };

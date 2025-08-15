@@ -178,8 +178,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
     return response;
   }
   
-  // 400번대 에러 응답을 서버 메시지로 처리
-  if (response.status >= 400 && response.status < 500) {
+  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
+  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
     try {
       const errorData = await response.clone().json();
       const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
@@ -187,11 +187,15 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
       // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
       localStorage.setItem('api-error-message', serverMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     } catch (parseError) {
       // JSON 파싱 실패 시 기본 메시지
       const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
       localStorage.setItem('api-error-message', defaultMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     }
   }
   
@@ -228,8 +232,8 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
     return response;
   }
   
-  // 400번대 에러 응답을 서버 메시지로 처리
-  if (response.status >= 400 && response.status < 500) {
+  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
+  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
     try {
       const errorData = await response.clone().json();
       const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
@@ -237,11 +241,15 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
       // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
       localStorage.setItem('api-error-message', serverMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     } catch (parseError) {
       // JSON 파싱 실패 시 기본 메시지
       const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
       localStorage.setItem('api-error-message', defaultMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     }
   }
   
@@ -357,8 +365,8 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
     return response;
   }
   
-  // 400번대 에러 응답을 서버 메시지로 처리
-  if (response.status >= 400 && response.status < 500) {
+  // 400번대 에러 응답을 서버 메시지로 처리 (401, 403 제외)
+  if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
     try {
       const errorData = await response.clone().json();
       const serverMessage = errorData.message || errorData.error || `요청 처리 중 오류가 발생했습니다. (${response.status})`;
@@ -366,11 +374,15 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
       // 에러 메시지를 localStorage에 저장하여 컴포넌트에서 표시할 수 있도록 함
       localStorage.setItem('api-error-message', serverMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     } catch (parseError) {
       // JSON 파싱 실패 시 기본 메시지
       const defaultMessage = `요청 처리 중 오류가 발생했습니다. (${response.status})`;
       localStorage.setItem('api-error-message', defaultMessage);
       localStorage.setItem('api-error-type', 'error');
+      // 즉시 표시를 위해 커스텀 이벤트 발행
+      window.dispatchEvent(new CustomEvent('api-error'));
     }
   }
   
@@ -674,7 +686,8 @@ export const getAdminProducts = async () => {
       resetApiRetryCount('getAdminProducts');
     }
     
-    return validateJsonResponse(res);
+    // 응답이 성공이 아닌 경우에도 Response 객체를 반환하여 컴포넌트에서 처리할 수 있도록 함
+    return res;
   } catch (error) {
     incrementApiRetryCount('getAdminProducts');
     throw error;
