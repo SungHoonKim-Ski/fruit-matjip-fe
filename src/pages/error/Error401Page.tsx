@@ -2,36 +2,44 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 
+type ErrCtx = {
+  message?: string | null;
+  type: 'admin' | 'user';
+  redirectUrl: string;
+};
+
 export default function Error401Page() {
   const nav = useNavigate();
   const { show } = useSnackbar();
   const [countdown, setCountdown] = useState(2);
+  const [ctx, setCtx] = useState<ErrCtx>({
+    type: 'user',
+    redirectUrl: '/login',
+  });
 
   useEffect(() => {
-    // 페이지 로드 시 저장된 에러 정보 확인
-    const errorMessage = localStorage.getItem('error-message');
-    const errorType = localStorage.getItem('error-type');
-    const errorRedirect = localStorage.getItem('error-redirect');
-    
-    if (errorMessage) {
-      show(errorMessage, { variant: 'error' });
-      // 에러 정보 표시 후 삭제
-      localStorage.removeItem('error-message');
-      localStorage.removeItem('error-type');
-      localStorage.removeItem('error-redirect');
-    }
-    
-    // 리다이렉트 URL 결정
-    const redirectUrl = errorRedirect || (errorType === 'admin' ? '/admin/login' : '/login');
-    
+    // 1) localStorage에서 ‘한 번만’ 읽고
+    const message = localStorage.getItem('error-message');
+    const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
+    const redirectStored = localStorage.getItem('error-redirect');
+    const fallback = type === 'admin' ? '/admin/login' : '/login';
+    const redirectUrl = redirectStored || fallback;
+
+    setCtx({ message, type, redirectUrl });
+
+    if (message) show(message, { variant: 'error' });
+
+    // 2) 바로 지워도 OK (이후에는 state만 사용)
+    localStorage.removeItem('error-message');
+    localStorage.removeItem('error-type');
+    localStorage.removeItem('error-redirect');
+
+    // 3) 자동 이동
     const t = setTimeout(() => nav(redirectUrl, { replace: true }), 2000);
-    
-    // 카운트다운 업데이트
+
+    // 4) 카운트다운
     const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
 
     return () => {
@@ -56,12 +64,7 @@ export default function Error401Page() {
         <p className="mt-2 text-sm text-gray-500">{getCountdownText()}</p>
         <button
           className="mt-6 h-10 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white"
-          onClick={() => {
-            const errorType = localStorage.getItem('error-type');
-            const errorRedirect = localStorage.getItem('error-redirect');
-            const redirectUrl = errorRedirect || (errorType === 'admin' ? '/admin/login' : '/login');
-            nav(redirectUrl, { replace: true });
-          }}
+          onClick={() => nav(ctx.redirectUrl, { replace: true })} // localStorage 다시 읽지 않음
         >
           바로 이동
         </button>

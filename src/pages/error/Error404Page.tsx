@@ -1,32 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from '../../components/snackbar';
+
+type ErrCtx = {
+  message?: string | null;
+  type: 'admin' | 'user';
+  redirectUrl: string;
+};
 
 export default function Error404Page() {
   const nav = useNavigate();
+  const { show } = useSnackbar();
   const [countdown, setCountdown] = useState(2);
+  const [ctx, setCtx] = useState<ErrCtx>({
+    type: 'user',
+    redirectUrl: '/login',
+  });
 
   useEffect(() => {
-    const t = setTimeout(() => nav('/login', { replace: true }), 2000);
-    
-    // 카운트다운 업데이트
+    // 1) localStorage에서 ‘한 번만’ 읽고
+    const message = localStorage.getItem('error-message');
+    const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
+    const redirectStored = localStorage.getItem('error-redirect');
+    const fallback = type === 'admin' ? '/admin/login' : '/login';
+    const redirectUrl = redirectStored || fallback;
+
+    setCtx({ message, type, redirectUrl });
+
+    if (message) show(message, { variant: 'error' });
+
+    // 2) 바로 지워도 OK (이후에는 state만 사용)
+    localStorage.removeItem('error-message');
+    localStorage.removeItem('error-type');
+    localStorage.removeItem('error-redirect');
+
+    // 3) 자동 이동
+    const t = setTimeout(() => nav(redirectUrl, { replace: true }), 2000);
+
+    // 4) 카운트다운
     const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
 
     return () => {
       clearTimeout(t);
       clearInterval(interval);
     };
-  }, [nav]);
+  }, [nav, show]);
 
   const getCountdownText = () => {
-    if (countdown === 0) return '로그인 페이지로 이동합니다.';
-    return `${countdown}초 후 로그인 페이지로 이동합니다.`;
+    const errorType = localStorage.getItem('error-type');
+    const isAdmin = errorType === 'admin';
+    const pageName = isAdmin ? '관리자 로그인' : '로그인';
+    
+    if (countdown === 0) return `${pageName} 페이지로 이동합니다.`;
+    return `${countdown}초 후 ${pageName} 페이지로 이동합니다.`;
   };
-
+  
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6 text-center">
