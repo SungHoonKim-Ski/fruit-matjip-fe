@@ -583,7 +583,7 @@ export const getUploadUrl = async (filename: string, contentType: string): Promi
 
     const body = { file_name: filename, content_type: cleanContentType };
     // 공통 presigned-url (메인 상품 이미지 업로드에 사용)
-    const res = await adminFetch('/api/admin/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+    const res = await adminFetch('/api/admin/products/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
 
     if (res.status === 403) {
       try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
