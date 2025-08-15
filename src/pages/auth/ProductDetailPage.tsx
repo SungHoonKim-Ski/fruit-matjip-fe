@@ -13,7 +13,7 @@ type Product = {
   imageUrl: string;
   sellDate?: string;
   description?: string;
-  images?: string[];
+  detail_images?: string[];
 };
 
 const KRW = (n: number) => n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
@@ -92,25 +92,30 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
           if (alive) {
             setProduct(data as Product);
-            setActiveImage((data as Product).images?.[0] || (data as Product).imageUrl);
+            setActiveImage((data as Product).detail_images?.[0] || (data as Product).imageUrl);
           }
         } else {
           const res = await getProduct(productId);
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const rawData = await res.json();
           
-          // API 응답에서 image_url을 imageUrl로 매핑하고 절대 경로로 변환
+          // API 응답 매핑: 메인 이미지 + 상세 이미지(detail_images 우선)
+          const imgBase = process.env.REACT_APP_IMG_URL || '';
+          const toAbs = (u: string) => (u?.startsWith('http') ? u : (imgBase ? `${imgBase}/${u}` : u));
+
+          const detailList: string[] = Array.isArray(rawData.detail_images)
+            ? rawData.detail_images
+            : (Array.isArray(rawData.images) ? rawData.images : []);
+
           const data: Product = {
             ...rawData,
-            imageUrl: rawData.image_url ? `${process.env.REACT_APP_IMG_URL}/${rawData.image_url}` : rawData.imageUrl,
-            images: rawData.images?.map((img: string) => 
-              img.startsWith('http') ? img : `${process.env.REACT_APP_IMG_URL}/${img}`
-            ) || rawData.images
-          };
+            imageUrl: rawData.image_url ? toAbs(rawData.image_url) : (rawData.imageUrl || ''),
+            detail_images: detailList.map(toAbs),
+          } as Product;
           
           if (alive) {
             setProduct(data);
-            setActiveImage(data.images?.[0] || data.imageUrl);
+            setActiveImage((data.detail_images && data.detail_images[0]) || data.imageUrl);
           }
         }
       } catch (e: any) {
@@ -173,11 +178,11 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
                 )}
 
                 {/* 추가 이미지 */}
-                {product.images && product.images.length > 0 && (
+                {product.detail_images && product.detail_images.length > 0 && (
                   <div className="mt-6">
                     <h3 className="text-base font-semibold text-gray-800 mb-2">상세 이미지</h3>
                     <div className="flex flex-col gap-3">
-                      {product.images.map((src) => (
+                      {product.detail_images.map((src) => (
                         <img key={src} src={src} alt="sub" className="w-full object-cover rounded border" />
                       ))}
                     </div>
