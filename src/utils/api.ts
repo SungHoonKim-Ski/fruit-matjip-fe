@@ -608,7 +608,7 @@ export const getDetailUpdateUrl = async (id: number, filenames: string[], conten
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const body = { product_id: id, file_names: filenames, content_type: contentType };
-    const res = await adminFetch(`/api/admin/products/${id}/detail/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
+    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -625,7 +625,7 @@ export const getDetailPresignedUrlsBatch = async (
   try {
     // 서버 스펙: snake_case (file_names, content_type)
     const body = { file_names: fileNames, content_type: contentType } as any;
-    const res = await adminFetch(`/api/admin/products/${productId}/detail/presigned-url`, {
+    const res = await adminFetch(`/api/admin/products/${productId}/presigned-url`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }, true);

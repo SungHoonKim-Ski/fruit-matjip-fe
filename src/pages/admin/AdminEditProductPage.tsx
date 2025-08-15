@@ -8,6 +8,8 @@ import { updateAdminProduct, getUpdateUrl, deleteAdminProduct, getAdminProduct, 
 
 // 상품 설명 글자 수 제한
 const DESCRIPTION_LIMIT = 300;
+// 가격 상한
+const PRICE_MAX = 1000000;
 
 type ProductEdit = {
   id: number;
@@ -24,6 +26,23 @@ const addPrefix = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   return `${process.env.REACT_APP_IMG_URL}/${url}`;
+};
+
+// 서버에는 S3 key만 전송해야 하므로, 절대 URL을 key로 변환
+const toS3Key = (url: string) => {
+  if (!url) return '';
+  try {
+    const base = process.env.REACT_APP_IMG_URL || '';
+    if (base && url.startsWith(base)) {
+      const rest = url.slice(base.length);
+      return rest.replace(/^\//, '');
+    }
+    if (!url.startsWith('http')) return url.replace(/^\//, '');
+    const u = new URL(url);
+    return u.pathname.replace(/^\//, '');
+  } catch {
+    return url.replace(/^\//, '');
+  }
 };
 
 export default function AdminEditProductPage() {
@@ -44,6 +63,8 @@ export default function AdminEditProductPage() {
   const shouldApplyEditorHtmlRef = useRef<boolean>(false);
   const [descLength, setDescLength] = useState<number>(0);
   const [selectedAdditionalNames, setSelectedAdditionalNames] = useState<string[]>([]);
+  const [pendingDetailFiles, setPendingDetailFiles] = useState<File[]>([]);
+  const [pendingDetailPreviews, setPendingDetailPreviews] = useState<string[]>([]);
   const [additionalStock, setAdditionalStock] = useState<number>(0);
 
   const initialStorageKey = useMemo(() => `adminEditInitial:${id ?? ''}`,[id]);
@@ -82,7 +103,10 @@ export default function AdminEditProductPage() {
           const res = await getAdminProduct(Number(id));
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const rawData = await res.json();
-          
+
+          // detail 이미지는 detail_urls만 사용
+          const detailList: string[] = Array.isArray(rawData.detail_urls) ? rawData.detail_urls : [];
+
           // API 응답에서 image_url을 imageUrl로 매핑하고 절대 경로로 변환
           const data: ProductEdit = {
             id: rawData.id,
@@ -90,9 +114,7 @@ export default function AdminEditProductPage() {
             price: Number(rawData.price),
             stock: Number(rawData.stock),
             imageUrl: addPrefix(rawData.product_url),
-            images: Array.isArray(rawData.detail_url)
-              ? rawData.detail_url.map((u: string) => addPrefix(u))
-              : (rawData.images || []),
+            images: detailList.map((u: string) => addPrefix(u)),
             sellDate: rawData.sell_date,
             description: rawData.description || ''
           };
@@ -141,6 +163,12 @@ export default function AdminEditProductPage() {
         URL.revokeObjectURL(localPreviewUrlRef.current);
         localPreviewUrlRef.current = null;
       }
+      // 상세 이미지 미리보기 URL 정리
+      try {
+        for (const u of pendingDetailPreviews) {
+          URL.revokeObjectURL(u);
+        }
+      } catch {}
     };
   }, [initialStorageKey]);
 
@@ -148,6 +176,16 @@ export default function AdminEditProductPage() {
     if (!form) return;
     const { name, value } = e.target as HTMLInputElement;
     if (name === 'price' || name === 'stock') {
+      if (name === 'price') {
+        const raw = String(value ?? '');
+        if (raw === '') return;
+        const withHundreds = raw.endsWith('00') ? raw : raw + '00';
+        let n = Number(withHundreds);
+        if (!Number.isFinite(n) || n < 0) return;
+        if (n > PRICE_MAX) n = PRICE_MAX;
+        setForm({ ...form, price: n });
+        return;
+      }
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) return;
       setForm({ ...form, [name]: n });
@@ -253,6 +291,32 @@ export default function AdminEditProductPage() {
       setSaving(true);
       const newImageUrl = await uploadIfNeeded();
 
+      // 상세 이미지 신규 파일 업로드(저장 직전에 일괄 수행)
+      if (pendingDetailFiles.length > 0) {
+        const byType = new Map<string, { names: string[]; files: File[] }>();
+        for (const f of pendingDetailFiles) {
+          const key = f.type || 'image/jpeg';
+          if (!byType.has(key)) byType.set(key, { names: [], files: [] });
+          byType.get(key)!.names.push(f.name);
+          byType.get(key)!.files.push(f);
+        }
+        const uploadedUrls: string[] = [];
+        for (const [contentType, pack] of byType.entries()) {
+          const presigned = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
+          if (!presigned || presigned.length !== pack.files.length) throw new Error('상세 이미지 URL 발급 수 불일치');
+          for (let i = 0; i < pack.files.length; i++) {
+            const putUrl = presigned[i];
+            const file = pack.files[i];
+            const putRes = await fetch(putUrl, { method: 'PUT', body: file, mode: 'cors' });
+            if (!putRes.ok) throw new Error('상세 이미지 업로드 실패');
+            uploadedUrls.push(putUrl.split('?')[0]);
+          }
+        }
+        if (uploadedUrls.length) {
+          setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...uploadedUrls] } : prev);
+        }
+      }
+
       // 초기 스냅샷 불러오기 (세션 우선)
       const initialRaw = sessionStorage.getItem(initialStorageKey);
       const initial: ProductEdit | null = initialRaw
@@ -272,7 +336,9 @@ export default function AdminEditProductPage() {
 
       const currentMainUrl = (newImageUrl ?? form.imageUrl) || '';
       const initialMainUrl = initial?.imageUrl || '';
-      const productUrlChanged = currentMainUrl !== initialMainUrl;
+      const currentMainKey = toS3Key(currentMainUrl);
+      const initialMainKey = toS3Key(initialMainUrl);
+      const productUrlChanged = currentMainKey !== initialMainKey;
 
       const currentSellDate = (form.sellDate || '').trim();
       const initialSellDate = (initial?.sellDate || '').trim();
@@ -294,7 +360,9 @@ export default function AdminEditProductPage() {
       };
       const currentDetail = form.images || [];
       const initialDetail = initial?.images || [];
-      const detailChanged = !arraysEqual(currentDetail, initialDetail);
+      const currentDetailKeys = currentDetail.map(u => toS3Key(u));
+      const initialDetailKeys = initialDetail.map(u => toS3Key(u));
+      const detailChanged = !arraysEqual(currentDetailKeys, initialDetailKeys);
 
       const hasAnyChange = nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || descriptionChanged || detailChanged;
       if (!hasAnyChange) {
@@ -310,10 +378,10 @@ export default function AdminEditProductPage() {
         name: nameChanged ? currentName : null,
         price: priceChanged ? currentPrice : null,
         stock_change: stockChanged ? additionalStock : null,
-        product_url: productUrlChanged ? currentMainUrl : null,
+        product_url: productUrlChanged ? currentMainKey : null,
         sell_date: sellDateChanged ? currentSellDate : null, // ''은 값 초기화를 의미
         description: descriptionChanged ? (form.description || '') : null,
-        detail_urls: detailChanged ? currentDetail : null,
+        detail_urls: detailChanged ? currentDetailKeys : null,
       };
 
       if (USE_MOCKS) {
@@ -331,6 +399,7 @@ export default function AdminEditProductPage() {
 
       show('저장되었습니다.');
       try { sessionStorage.removeItem(initialStorageKey); } catch {}
+      setPendingDetailFiles([]);
       nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - save');
@@ -657,46 +726,13 @@ export default function AdminEditProductPage() {
                         const input = e.currentTarget as HTMLInputElement;
                         const files = input.files ? Array.from(input.files) : [];
                         if (!files.length) return;
-                        setSelectedAdditionalNames(files.map(f => f.name));
-                        try {
-                          if (USE_MOCKS) {
-                            const uploadedUrls: string[] = [];
-                            for (const file of files) {
-                              const url = await mockUploadImage(file);
-                              uploadedUrls.push(url);
-                            }
-                            setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...uploadedUrls] } : prev);
-                          } else {
-                            // 파일들을 contentType 별로 그룹핑하여 presigned URL 배치 요청
-                            const byType = new Map<string, { names: string[]; files: File[] }>();
-                            for (const f of files) {
-                              const key = f.type || 'application/octet-stream';
-                              if (!byType.has(key)) byType.set(key, { names: [], files: [] });
-                              byType.get(key)!.names.push(f.name);
-                              byType.get(key)!.files.push(f);
-                            }
-                            const finalUrls: string[] = [];
-                            for (const [contentType, pack] of byType.entries()) {
-                              const uploadUrls = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
-                              if (!uploadUrls || uploadUrls.length !== pack.files.length) {
-                                throw new Error('업로드 URL 발급 수가 선택 파일 수와 일치하지 않습니다.');
-                              }
-                              // 업로드 실행 (순서 보장)
-                              for (let i = 0; i < pack.files.length; i++) {
-                                const putUrl = uploadUrls[i];
-                                const f = pack.files[i];
-                                const putRes = await fetch(putUrl, { method: 'PUT', body: f, mode: 'cors' });
-                                if (!putRes.ok) throw new Error('상세 이미지 업로드에 실패했습니다.');
-                                finalUrls.push(putUrl.split('?')[0]);
-                              }
-                            }
-                            if (finalUrls.length) {
-                              setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...finalUrls] } : prev);
-                            }
-                          }
-                        } finally {
-                          input.value = '';
-                        }
+                        const names = files.map(f => f.name);
+                        const urls = files.map(f => URL.createObjectURL(f));
+                        setSelectedAdditionalNames(prev => [...prev, ...names]);
+                        // 업로드는 저장 직전에 한 번에 수행 → 여기서는 파일과 미리보기만 보관
+                        setPendingDetailFiles(prev => [...prev, ...files]);
+                        setPendingDetailPreviews(prev => [...prev, ...urls]);
+                        input.value = '';
                       }}
                     />
                     <label htmlFor="additional-files" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
@@ -708,6 +744,33 @@ export default function AdminEditProductPage() {
                       </span>
                     )}
                   </div>
+                  {/* 추가 예정 이미지 미리보기 */}
+                  {pendingDetailPreviews.length > 0 && (
+                    <div className="mt-3">
+                      <div className="text-xs text-gray-500 mb-2">추가 예정</div>
+                      <div className="flex gap-3 flex-wrap">
+                        {pendingDetailPreviews.map((src, i) => (
+                          <div key={src + i} className="relative w-28">
+                            <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // 미리보기 URL 정리 후 목록에서 제거
+                                try { URL.revokeObjectURL(pendingDetailPreviews[i]); } catch {}
+                                setPendingDetailPreviews(prev => prev.filter((_, idx) => idx !== i));
+                                setPendingDetailFiles(prev => prev.filter((_, idx) => idx !== i));
+                                setSelectedAdditionalNames(prev => prev.filter((_, idx) => idx !== i));
+                              }}
+                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
+                              aria-label="추가 예정 이미지 제거"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -724,6 +787,10 @@ export default function AdminEditProductPage() {
                       URL.revokeObjectURL(localPreviewUrlRef.current);
                       localPreviewUrlRef.current = null;
                     }
+                    // 추가 예정 미리보기 정리
+                    try {
+                      for (const u of pendingDetailPreviews) URL.revokeObjectURL(u);
+                    } catch {}
                     // deep clone 후 복원
                     const cloned: ProductEdit = JSON.parse(JSON.stringify(initial));
                     initialFormRef.current = cloned;
@@ -732,6 +799,8 @@ export default function AdminEditProductPage() {
                     setForm(cloned);
                     setAdditionalStock(0);
                     setSelectedAdditionalNames([]);
+                    setPendingDetailFiles([]);
+                    setPendingDetailPreviews([]);
                   } catch {
                     if (initialFormRef.current) {
                       const cloned: ProductEdit = JSON.parse(JSON.stringify(initialFormRef.current));
@@ -740,6 +809,8 @@ export default function AdminEditProductPage() {
                       setForm(cloned);
                       setAdditionalStock(0);
                       setSelectedAdditionalNames([]);
+                      setPendingDetailFiles([]);
+                      setPendingDetailPreviews([]);
                     }
                   }
                 }}
