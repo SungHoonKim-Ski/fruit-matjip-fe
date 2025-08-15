@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
-import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct, mockUploadImage } from '../../mocks/products';
+import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { updateAdminProduct, getUploadUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
 
@@ -49,7 +49,6 @@ export default function AdminEditProductPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { show } = useSnackbar();
-  const API_BASE = process.env.REACT_APP_API_BASE ;
 
   const [form, setForm] = useState<ProductEdit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +90,6 @@ export default function AdminEditProductPage() {
           const data = getProductById(Number(id!));
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
           if (alive) {
-            // 초기 상태 보관 (deep clone)
             const cloned: ProductEdit = JSON.parse(JSON.stringify(data));
             initialFormRef.current = cloned;
             setForm(cloned);
@@ -104,10 +102,8 @@ export default function AdminEditProductPage() {
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const rawData = await res.json();
 
-          // detail 이미지는 detail_urls만 사용
           const detailList: string[] = Array.isArray(rawData.detail_urls) ? rawData.detail_urls : [];
 
-          // API 응답에서 image_url을 imageUrl로 매핑하고 절대 경로로 변환
           const data: ProductEdit = {
             id: rawData.id,
             name: rawData.name,
@@ -123,7 +119,6 @@ export default function AdminEditProductPage() {
             initialFormRef.current = data;
             setForm(data);
             try { sessionStorage.setItem(initialStorageKey, JSON.stringify(data)); } catch {}
-            // editor HTML은 프로그램적으로 주입하도록 플래그 설정
             shouldApplyEditorHtmlRef.current = true;
           }
         }
@@ -137,7 +132,7 @@ export default function AdminEditProductPage() {
     return () => { alive = false; };
   }, [id, show, initialStorageKey]);
 
-  // 에디터 HTML 주입(프로그램적 변경시에만): 포커스 점프 방지
+  // 에디터 HTML 주입(프로그램적 변경시에만)
   useEffect(() => {
     if (!editorRef.current) return;
     if (!shouldApplyEditorHtmlRef.current) return;
@@ -163,14 +158,13 @@ export default function AdminEditProductPage() {
         URL.revokeObjectURL(localPreviewUrlRef.current);
         localPreviewUrlRef.current = null;
       }
-      // 상세 이미지 미리보기 URL 정리
       try {
         for (const u of pendingDetailPreviews) {
           URL.revokeObjectURL(u);
         }
       } catch {}
     };
-  }, [initialStorageKey]);
+  }, [initialStorageKey, pendingDetailPreviews]);
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!form) return;
@@ -194,17 +188,16 @@ export default function AdminEditProductPage() {
     }
   };
 
+  // 메인 이미지 업로드 (성공 시 key 반환)
   const uploadIfNeeded = async (): Promise<string | null> => {
     if (!fileRef.current?.files?.[0]) return null;
     const file = fileRef.current.files[0];
     
     if (USE_MOCKS) {
-      // Mock 업로드 - 실제 파일 URL 반환
       await new Promise(resolve => setTimeout(resolve, 1000));
       return URL.createObjectURL(file);
     } else {
       try {
-        // 메인 상품 이미지는 공통 presigned-url 사용
         const res = await getUploadUrl(file.name, file.type);
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
@@ -218,12 +211,15 @@ export default function AdminEditProductPage() {
         const method: string = (data.method || 'PUT').toUpperCase();
         if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
 
-        // 파일 업로드 (Content-Type은 presigned URL에 포함됨)
-        const uploadRes = await fetch(url, { method, body: file, mode: 'cors' });
+        const uploadRes = await fetch(url, {
+          method,
+          headers: { 'Content-Type': file.type }, // ✅ presigned 서명과 동일
+          body: file,
+          mode: 'cors',
+        });
         if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
 
-        // 화면에서는 prefix 붙여 보여주고, 저장 시에는 key로 전송(toS3Key에서 처리)
-        return key;
+        return key; // 서버에 보낼 key
       } catch (e: any) {
         safeErrorLog(e, 'AdminEditProductPage - uploadIfNeeded');
         show(getSafeErrorMessage(e, '파일 업로드 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -235,34 +231,26 @@ export default function AdminEditProductPage() {
   const validateForm = () => {
     if (!form) return false;
     
-    // 필수 필드 검증
     if (!form.name?.trim()) {
       show('상품명을 입력해주세요.', { variant: 'error' });
       return false;
     }
-    
     if (form.price <= 0) {
       show('가격은 0보다 큰 값을 입력해주세요.', { variant: 'error' });
       return false;
     }
-    
     if (form.stock < 0) {
       show('재고는 0 이상의 값을 입력해주세요.', { variant: 'error' });
       return false;
     }
-    
     if (!form.imageUrl && !fileRef.current?.files?.[0]) {
       show('상품 이미지를 업로드해주세요.', { variant: 'error' });
       return false;
     }
-    
-    // 상품명 길이 검증
     if (form.name.trim().length > 100) {
       show('상품명은 100자 이하로 입력해주세요.', { variant: 'error' });
       return false;
     }
-    
-    // 설명 길이 검증 (HTML 태그 제외한 텍스트 길이)
     if (form.description) {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = form.description;
@@ -272,22 +260,22 @@ export default function AdminEditProductPage() {
         return false;
       }
     }
-    
     return true;
   };
 
   const save = async () => {
     if (!form) return;
-    
-    // 유효성 검증
     if (!validateForm()) return;
     
     try {
       setSaving(true);
-      const newImageUrl = await uploadIfNeeded();
 
-      // 상세 이미지 신규 파일 업로드(저장 직전에 일괄 수행)
-      if (pendingDetailFiles.length > 0) {
+      // 메인 이미지 업로드 (있으면)
+      const newMainKey = await uploadIfNeeded(); // key | null
+
+      // 상세 이미지 신규 파일 업로드 (컨텐츠타입 그룹화 후 presigned→PUT)
+      const uploadedDetailKeys: string[] = [];
+      if (pendingDetailFiles.length > 0 && !USE_MOCKS) {
         const byType = new Map<string, { names: string[]; files: File[] }>();
         for (const f of pendingDetailFiles) {
           const key = f.type || 'image/jpeg';
@@ -295,35 +283,45 @@ export default function AdminEditProductPage() {
           byType.get(key)!.names.push(f.name);
           byType.get(key)!.files.push(f);
         }
-        const uploadedUrls: string[] = [];
+
         for (const [contentType, pack] of byType.entries()) {
           const presignedList = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
-          if (!presignedList || presignedList.length !== pack.files.length) throw new Error('상세 이미지 URL 발급 수 불일치');
+          if (!presignedList || presignedList.length !== pack.files.length) {
+            throw new Error('상세 이미지 URL 발급 수 불일치');
+          }
           for (let i = 0; i < pack.files.length; i++) {
-            const item = presignedList[i];
+            const item = presignedList[i]; // { url, key, method? }
             const file = pack.files[i];
             const method = (item.method || 'PUT').toUpperCase();
+
             const putRes = await fetch(item.url, {
               method,
+              headers: { 'Content-Type': contentType }, // ✅ presigned와 동일
               body: file,
               mode: 'cors',
-              // Content-Type은 presigned URL의 쿼리에 포함되어 있으므로 지정하지 않음
             });
             if (!putRes.ok) throw new Error('상세 이미지 업로드 실패');
-            uploadedUrls.push(item.key || item.url.split('?')[0]);
+
+            const key = item.key || new URL(item.url).pathname.replace(/^\//, '');
+            uploadedDetailKeys.push(key);
           }
         }
-        if (uploadedUrls.length) {
-          setForm(prev => prev ? { ...prev, images: [...(prev.images || []), ...uploadedUrls] } : prev);
+
+        // 화면 미리보기 갱신(절대 URL)
+        if (uploadedDetailKeys.length) {
+          setForm(prev =>
+            prev ? { ...prev, images: [...(prev.images || []), ...uploadedDetailKeys.map(addPrefix)] } : prev
+          );
         }
       }
 
-      // 초기 스냅샷 불러오기 (세션 우선)
+      // 초기 스냅샷 (세션 → 메모리)
       const initialRaw = sessionStorage.getItem(initialStorageKey);
       const initial: ProductEdit | null = initialRaw
         ? JSON.parse(initialRaw)
         : (initialFormRef.current ? JSON.parse(JSON.stringify(initialFormRef.current)) : null);
 
+      // 필드별 변경 비교
       const currentName = (form.name || '').trim();
       const initialName = (initial?.name || '').trim();
       const nameChanged = currentName !== initialName;
@@ -332,13 +330,12 @@ export default function AdminEditProductPage() {
       const initialPrice = initial?.price ?? 0;
       const priceChanged = currentPrice !== initialPrice;
 
-      // 재고는 합산값이 아니라 변경값(∆)만 전송. 음수 가능
       const stockChanged = additionalStock !== 0;
 
-      const currentMainUrl = (newImageUrl ?? form.imageUrl) || '';
-      const initialMainUrl = initial?.imageUrl || '';
-      const currentMainKey = toS3Key(currentMainUrl);
-      const initialMainKey = toS3Key(initialMainUrl);
+      // 메인 이미지: key로 비교
+      const currentMainUrlForCompare = newMainKey ?? form.imageUrl; // newMainKey가 있으면 key(상대), 없으면 절대 URL
+      const currentMainKey = toS3Key(currentMainUrlForCompare);
+      const initialMainKey = toS3Key(initial?.imageUrl || '');
       const productUrlChanged = currentMainKey !== initialMainKey;
 
       const currentSellDate = (form.sellDate || '').trim();
@@ -350,22 +347,26 @@ export default function AdminEditProductPage() {
       const initialDesc = normalizeHtml(initial?.description || '');
       const descriptionChanged = currentDesc !== initialDesc;
 
-      const arraysEqual = (a?: string[], b?: string[]) => {
-        const aa = a || [];
-        const bb = b || [];
-        if (aa.length !== bb.length) return false;
-        for (let i = 0; i < aa.length; i++) {
-          if (aa[i] !== bb[i]) return false;
-        }
-        return true;
-      };
-      const currentDetail = form.images || [];
-      const initialDetail = initial?.images || [];
-      const currentDetailKeys = currentDetail.map(u => toS3Key(u));
-      const initialDetailKeys = initialDetail.map(u => toS3Key(u));
+      // 상세 이미지: 현재 상태(화면 이미지들) + 방금 업로드한 키를 키 배열로 일관 변환
+      const arraysEqual = (a: string[], b: string[]) =>
+        a.length === b.length && a.every((v, i) => v === b[i]);
+
+      const initialDetailKeys = (initial?.images || []).map(u => toS3Key(u));
+      let currentDetailKeys = (form.images || []).map(u => toS3Key(u));
+      if (uploadedDetailKeys.length) {
+        currentDetailKeys = [...currentDetailKeys, ...uploadedDetailKeys];
+      }
       const detailChanged = !arraysEqual(currentDetailKeys, initialDetailKeys);
 
-      const hasAnyChange = nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || descriptionChanged || detailChanged;
+      const hasAnyChange =
+        nameChanged ||
+        priceChanged ||
+        stockChanged ||
+        productUrlChanged ||
+        sellDateChanged ||
+        descriptionChanged ||
+        detailChanged;
+
       if (!hasAnyChange) {
         show('변경 사항이 없습니다.', { variant: 'info' });
         setSaving(false);
@@ -374,15 +375,14 @@ export default function AdminEditProductPage() {
         return;
       }
 
-      // 변경 사항만 값, 미변경은 null. (sellDate를 비우고자 할 때는 빈 문자열로 전송해 구분)
       const payload: any = {
         name: nameChanged ? currentName : null,
         price: priceChanged ? currentPrice : null,
         stock_change: stockChanged ? additionalStock : null,
-        product_url: productUrlChanged ? currentMainKey : null,
-        sell_date: sellDateChanged ? currentSellDate : null, // ''은 값 초기화를 의미
+        product_url: productUrlChanged ? currentMainKey : null,   // ✅ key만
+        sell_date: sellDateChanged ? currentSellDate : null,      // ''은 초기화를 의미
         description: descriptionChanged ? (form.description || '') : null,
-        detail_urls: detailChanged ? currentDetailKeys : null,
+        detail_urls: detailChanged ? currentDetailKeys : null,    // ✅ 최종 키 배열
       };
 
       if (USE_MOCKS) {
@@ -390,9 +390,8 @@ export default function AdminEditProductPage() {
       } else {
         const res = await updateAdminProduct(Number(id), payload);
         if (!res.ok) {
-          // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
-            return; // adminFetch에서 이미 처리됨
+            return; // adminFetch에서 이미 처리
           }
           throw new Error('저장에 실패했습니다.');
         }
@@ -419,9 +418,8 @@ export default function AdminEditProductPage() {
       } else {
         const res = await deleteAdminProduct(form.id);
         if (!res.ok) {
-          // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
-            return; // adminFetch에서 이미 처리됨
+            return; // adminFetch에서 이미 처리
           }
           throw new Error('삭제에 실패했습니다.');
         }
@@ -478,7 +476,7 @@ export default function AdminEditProductPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div>
               <label className="text-sm font-medium">가격 <span className="text-red-500">*</span></label>
               <div className="mt-1 relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">₩</span>
@@ -490,69 +488,70 @@ export default function AdminEditProductPage() {
                 />
               </div>
             </div>
-              <div>
-                <label className="text-sm font-medium">현재 재고</label>
-                <div className="mt-1 relative">
-                  <input
-                    name="stock" type="number" min={0}
-                    value={form.stock + additionalStock}
-                    readOnly
-                    aria-readonly="true"
-                    className={`w-full h-10 border rounded pl-3 pr-12 text-center cursor-not-allowed select-none caret-transparent ${
-                      form.stock + additionalStock > form.stock 
-                        ? 'bg-green-100 text-green-700 border-green-300' 
-                        : form.stock + additionalStock < form.stock 
-                        ? 'bg-red-100 text-red-700 border-red-300' 
-                        : 'bg-gray-100 text-gray-700'
-                    }`}
-                  />
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-gray-500">개</span>
-                </div>
+            <div>
+              <label className="text-sm font-medium">현재 재고</label>
+              <div className="mt-1 relative">
+                <input
+                  name="stock" type="number" min={0}
+                  value={form.stock + additionalStock}
+                  readOnly
+                  aria-readonly="true"
+                  className={`w-full h-10 border rounded pl-3 pr-12 text-center cursor-not-allowed select-none caret-transparent ${
+                    form.stock + additionalStock > form.stock 
+                      ? 'bg-green-100 text-green-700 border-green-300' 
+                      : form.stock + additionalStock < form.stock 
+                      ? 'bg-red-100 text-red-700 border-red-300' 
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-gray-500">개</span>
               </div>
-          </div>          
-        {/* 추가 재고 - 한 줄 전체 UI: "추가 재고"  - 0 + */}
-        <div>
-          <span className="text-sm font-medium text-gray-800">재고 변경</span>
-            <div className="mt-1 h-10 grid grid-cols-[1fr_4fr_1fr] items-center border rounded overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))}
-                  disabled={form.stock + additionalStock < 10}
-                  className={`h-full w-full text-base leading-none border-r ${form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'}`}
-                  aria-label="추가 재고 감소"
-                >
-                  −
-                </button>
-                <div className="h-full w-full flex items-center justify-center text-base">
-                  <input
-                    type="number"
-                    min={-form.stock}
-                    max={9999}
-                    step={1}
-                    value={additionalStock}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (!Number.isFinite(v)) return;
-                      const clamped = Math.max(-form.stock, Math.min(9999, Math.trunc(v)));
-                      setAdditionalStock(clamped);
-                    }}
-                    onBlur={(e) => {
-                      if (e.target.value === '') setAdditionalStock(0);
-                    }}
-                    className="w-full h-full border-0 text-center focus:ring-0 outline-none no-spinner"
-                    aria-label="재고 변경 수량 직접 입력"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAdditionalStock(n => Math.min(9999, n + 10))}
-                  className="h-full w-full text-base leading-none border-l hover:bg-gray-50"
-                  aria-label="추가 재고 증가"
-                >
-                  +
-                </button>
-              </div>
+            </div>
           </div>
+
+          <div>
+            <span className="text-sm font-medium text-gray-800">재고 변경</span>
+            <div className="mt-1 h-10 grid grid-cols-[1fr_4fr_1fr] items-center border rounded overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))}
+                disabled={form.stock + additionalStock < 10}
+                className={`h-full w-full text-base leading-none border-r ${form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'}`}
+                aria-label="추가 재고 감소"
+              >
+                −
+              </button>
+              <div className="h-full w-full flex items-center justify-center text-base">
+                <input
+                  type="number"
+                  min={-form.stock}
+                  max={9999}
+                  step={1}
+                  value={additionalStock}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (!Number.isFinite(v)) return;
+                    const clamped = Math.max(-form.stock, Math.min(9999, Math.trunc(v)));
+                    setAdditionalStock(clamped);
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value === '') setAdditionalStock(0);
+                  }}
+                  className="w-full h-full border-0 text-center focus:ring-0 outline-none no-spinner"
+                  aria-label="재고 변경 수량 직접 입력"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdditionalStock(n => Math.min(9999, n + 10))}
+                className="h-full w-full text-base leading-none border-l hover:bg-gray-50"
+                aria-label="추가 재고 증가"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="text-sm font-medium">판매일</label>
             <input
@@ -580,13 +579,11 @@ export default function AdminEditProductPage() {
                           span.style.fontSize = e.target.value;
                           try {
                             range.surroundContents(span);
-                          } catch (err) {
-                            // 복잡한 선택 영역의 경우 내용을 추출해서 감싸기
+                          } catch {
                             const contents = range.extractContents();
                             span.appendChild(contents);
                             range.insertNode(span);
                           }
-                          // HTML을 form에 저장
                           setForm({ ...form, description: editor.innerHTML });
                         }
                       }
@@ -610,7 +607,6 @@ export default function AdminEditProductPage() {
                     if (editor) {
                       document.execCommand('bold', false);
                       editor.focus();
-                      // HTML을 form에 저장
                       setForm({ ...form, description: editor.innerHTML });
                     }
                   }}
@@ -620,6 +616,7 @@ export default function AdminEditProductPage() {
                   굵게
                 </button>
               </div>
+
               {/* 텍스트 에디터 입력 영역 */}
               <div className="relative">
                 <div
@@ -627,16 +624,13 @@ export default function AdminEditProductPage() {
                   ref={editorRef}
                   contentEditable
                   suppressContentEditableWarning
-                  // 초기 내용은 마운트 후 주입해 포커스 점프 방지
                   dangerouslySetInnerHTML={undefined}
                   onInput={(e) => {
                     const target = e.target as HTMLDivElement;
                     const textContent = target.innerText || target.textContent || '';
-                    // 글자 수 제한
                     if (textContent.length > DESCRIPTION_LIMIT) {
                       const truncatedText = textContent.substring(0, DESCRIPTION_LIMIT);
                       target.innerText = truncatedText;
-                      // 커서를 끝으로 이동
                       const range = document.createRange();
                       const sel = window.getSelection();
                       range.selectNodeContents(target);
@@ -644,18 +638,13 @@ export default function AdminEditProductPage() {
                       sel?.removeAllRanges();
                       sel?.addRange(range);
                     }
-                    // 사용자가 입력할 때만 상태 갱신 (프로그램적 주입은 useEffect에서 처리)
                     editorHtmlRef.current = target.innerHTML;
                     setDescLength(textContent.length);
                     setForm(prev => prev ? { ...prev, description: target.innerHTML } : prev);
                   }}
                   className="w-full min-h-[144px] border-0 rounded-none px-3 py-2 focus:outline-none focus:ring-0 leading-relaxed"
-                  style={{ 
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
-                  }}
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                 />
-                {/* 글자 수 카운터 - 에디터 우측 하단 고정 */}
                 <div className="pointer-events-none absolute bottom-1 right-2 text-[11px] text-gray-500 bg-white/80 px-1 rounded">
                   {`${descLength} / ${DESCRIPTION_LIMIT}자`}
                 </div>
@@ -668,11 +657,8 @@ export default function AdminEditProductPage() {
                   </div>
                 )}
               </div>
-              {/* 글자 수 카운터 (에디터 내부 고정으로 대체) */}
             </div>
           </div>
-
-          {/* 텍스트 스타일 기능은 요청에 따라 제거됨 */}
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:items-end">
             <div>
@@ -695,7 +681,6 @@ export default function AdminEditProductPage() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
-                    // 로컬 미리보기 생성
                     if (localPreviewUrlRef.current) {
                       URL.revokeObjectURL(localPreviewUrlRef.current);
                     }
@@ -712,85 +697,80 @@ export default function AdminEditProductPage() {
                   </span>
                 )}
               </div>
-              {/* 추가 이미지 목록 (mock 전용) */}
-              {(
-                <div className="mt-4">
-                  <label className="text-sm font-medium">추가 이미지</label>
-                  <div className="mt-2 flex gap-3 flex-wrap">
-                    {(form.images || []).map((src, i) => (
-                      <div key={src + i} className="relative w-28">
-                        <img src={src} alt="thumb" className="w-28 h-28 rounded object-cover border" />
-                       
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, images: (form.images || []).filter((_, idx) => idx !== i) })}
-                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                          aria-label="추가 이미지 삭제"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <input
-                      id="additional-files"
-                      ref={additionalFileRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={async (e) => {
-                        const input = e.currentTarget as HTMLInputElement;
-                        const files = input.files ? Array.from(input.files) : [];
-                        if (!files.length) return;
-                        const names = files.map(f => f.name);
-                        const urls = files.map(f => URL.createObjectURL(f));
-                        setSelectedAdditionalNames(prev => [...prev, ...names]);
-                        // 업로드는 저장 직전에 한 번에 수행 → 여기서는 파일과 미리보기만 보관
-                        setPendingDetailFiles(prev => [...prev, ...files]);
-                        setPendingDetailPreviews(prev => [...prev, ...urls]);
-                        input.value = '';
-                      }}
-                    />
-                    <label htmlFor="additional-files" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
-                      파일 선택
-                    </label>
-                    {selectedAdditionalNames.length > 0 && (
-                      <span className="text-sm text-gray-700 truncate max-w-full">
-                        {selectedAdditionalNames.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  {/* 추가 예정 이미지 미리보기 */}
-                  {pendingDetailPreviews.length > 0 && (
-                    <div className="mt-3">
-                      <div className="text-xs text-gray-500 mb-2">추가 예정</div>
-                      <div className="flex gap-3 flex-wrap">
-                        {pendingDetailPreviews.map((src, i) => (
-                          <div key={src + i} className="relative w-28">
-                            <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                // 미리보기 URL 정리 후 목록에서 제거
-                                try { URL.revokeObjectURL(pendingDetailPreviews[i]); } catch {}
-                                setPendingDetailPreviews(prev => prev.filter((_, idx) => idx !== i));
-                                setPendingDetailFiles(prev => prev.filter((_, idx) => idx !== i));
-                                setSelectedAdditionalNames(prev => prev.filter((_, idx) => idx !== i));
-                              }}
-                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                              aria-label="추가 예정 이미지 제거"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+
+              <div className="mt-4">
+                <label className="text-sm font-medium">추가 이미지</label>
+                <div className="mt-2 flex gap-3 flex-wrap">
+                  {(form.images || []).map((src, i) => (
+                    <div key={src + i} className="relative w-28">
+                      <img src={src} alt="thumb" className="w-28 h-28 rounded object-cover border" />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, images: (form.images || []).filter((_, idx) => idx !== i) })}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
+                        aria-label="추가 이미지 삭제"
+                      >
+                        ✕
+                      </button>
                     </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <input
+                    id="additional-files"
+                    ref={additionalFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const input = e.currentTarget as HTMLInputElement;
+                      const files = input.files ? Array.from(input.files) : [];
+                      if (!files.length) return;
+                      const names = files.map(f => f.name);
+                      const urls = files.map(f => URL.createObjectURL(f));
+                      setSelectedAdditionalNames(prev => [...prev, ...names]);
+                      setPendingDetailFiles(prev => [...prev, ...files]);   // 업로드는 save 직전에
+                      setPendingDetailPreviews(prev => [...prev, ...urls]); // 미리보기
+                      input.value = '';
+                    }}
+                  />
+                  <label htmlFor="additional-files" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
+                    파일 선택
+                  </label>
+                  {selectedAdditionalNames.length > 0 && (
+                    <span className="text-sm text-gray-700 truncate max-w-full">
+                      {selectedAdditionalNames.join(', ')}
+                    </span>
                   )}
                 </div>
-              )}
+
+                {pendingDetailPreviews.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500 mb-2">추가 예정</div>
+                    <div className="flex gap-3 flex-wrap">
+                      {pendingDetailPreviews.map((src, i) => (
+                        <div key={src + i} className="relative w-28">
+                          <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              try { URL.revokeObjectURL(pendingDetailPreviews[i]); } catch {}
+                              setPendingDetailPreviews(prev => prev.filter((_, idx) => idx !== i));
+                              setPendingDetailFiles(prev => prev.filter((_, idx) => idx !== i));
+                              setSelectedAdditionalNames(prev => prev.filter((_, idx) => idx !== i));
+                            }}
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
+                            aria-label="추가 예정 이미지 제거"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 justify-end">
@@ -805,14 +785,11 @@ export default function AdminEditProductPage() {
                       URL.revokeObjectURL(localPreviewUrlRef.current);
                       localPreviewUrlRef.current = null;
                     }
-                    // 추가 예정 미리보기 정리
                     try {
                       for (const u of pendingDetailPreviews) URL.revokeObjectURL(u);
                     } catch {}
-                    // deep clone 후 복원
                     const cloned: ProductEdit = JSON.parse(JSON.stringify(initial));
                     initialFormRef.current = cloned;
-                    // 에디터에 프로그램적 주입을 트리거
                     shouldApplyEditorHtmlRef.current = true;
                     setForm(cloned);
                     setAdditionalStock(0);
@@ -822,7 +799,6 @@ export default function AdminEditProductPage() {
                   } catch {
                     if (initialFormRef.current) {
                       const cloned: ProductEdit = JSON.parse(JSON.stringify(initialFormRef.current));
-                      // 에디터에 프로그램적 주입을 트리거ㅋ
                       shouldApplyEditorHtmlRef.current = true;
                       setForm(cloned);
                       setAdditionalStock(0);
