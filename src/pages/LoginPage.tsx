@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../components/snackbar';
-// 로그인은 항상 실제 API를 사용합니다 (USE_MOCKS 무시)
 import { safeErrorLog, getSafeErrorMessage } from '../utils/environment';
 
 declare global { interface Window { Kakao: any } }
@@ -12,14 +11,13 @@ const KAKAO_SDK_SRC =
 const KAKAO_SDK_INTEGRITY =
   'sha384-WAtVcQYcmTO/N+C1N+1m6Gp8qxh+3NlnP7X1U7qP6P5dQY/MsRBNTh+e1ahJrkEm';
 
-
-const JS_KAKAO_KEY = process.env.REACT_APP_JS_KAKAO_KEY;
-const REDIRECT_URI = process.env.REACT_APP_REDIRECT_URI;
-const API_BASE = process.env.REACT_APP_API_BASE;
+const JS_KAKAO_KEY = process.env.REACT_APP_JS_KAKAO_KEY!;
+const REDIRECT_URI = process.env.REACT_APP_REDIRECT_URI!;
+const API_BASE = process.env.REACT_APP_API_BASE || '';
 
 const OAUTH_STATE_KEY = 'kakao_oauth_state_v1';
-// 중복 요청 방지용 (StrictMode 재마운트/이펙트 재실행 대비)
 const AUTH_LOCK_KEY = 'kakao_oauth_lock_v1';
+const SILENT_REFRESH_LOCK_KEY = 'oauth_silent_refresh_lock_v1';
 const AUTH_START_DELAY_MS = 300;
 
 function genState() {
@@ -28,10 +26,8 @@ function genState() {
   return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
 }
 
- type LoginSuccess = {
-   name: string;
-   access: string;
- };
+type LoginSuccess = { name: string; access: string };
+
 async function ensureKakaoSDK(jsKey: string) {
   if (window.Kakao?.isInitialized?.()) return;
 
@@ -54,9 +50,9 @@ async function ensureKakaoSDK(jsKey: string) {
 export default function LoginPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
-  // show의 참조가 바뀌어도 콜백 이펙트가 재실행되지 않도록 ref로 고정 사용
   const showRef = React.useRef(show);
   useEffect(() => { showRef.current = show; }, [show]);
+
   const location = useLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
@@ -67,17 +63,63 @@ export default function LoginPage() {
     if (!JS_KAKAO_KEY) return;
     ensureKakaoSDK(JS_KAKAO_KEY).catch(() => {});
   }, []);
-  
-  // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
+
+  // 에러 메시지 표시(있으면)
   useEffect(() => {
     const errorMessage = localStorage.getItem('user-error-message');
     if (errorMessage) {
       show(errorMessage, { variant: 'error' });
-      localStorage.removeItem('user-error-message'); // 메시지 표시 후 삭제
+      localStorage.removeItem('user-error-message');
     }
   }, [show]);
 
-  // 콜백 처리 (?code=...)
+  /**
+   * ① 페이지 진입 시 조용한 재발급 시도
+   * - /login?code=... 콜백 중이 아닐 때만
+   * - REFRESH_TOKEN은 httpOnly 쿠키라 JS에서 확인 불가 → 그냥 /api/refresh 호출
+   * - Authorization 헤더는 기존 access가 있으면 포함
+   * - 성공 시 access 갱신 후 /products 이동
+   */
+  useEffect(() => {
+    const code = params.get('code');
+    if (code) return; // 콜백 처리 루틴이 담당
+
+    // StrictMode 재실행/중복 방지 락
+    if (sessionStorage.getItem(SILENT_REFRESH_LOCK_KEY) === '1') return;
+    sessionStorage.setItem(SILENT_REFRESH_LOCK_KEY, '1');
+
+    (async () => {
+      try {
+        setBusy(true);
+        const access = localStorage.getItem('access') || '';
+        const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+        if (access) headers.Authorization = `Bearer ${access}`;
+
+        const res = await fetch(`${API_BASE}/api/refresh`, {
+          method: 'POST',
+          headers,
+          credentials: 'include', // REFRESH_TOKEN 쿠키 전송
+        });
+
+        if (res.ok) {
+          const newAccess = await res.text();
+          localStorage.setItem('access', newAccess);
+          nav('/products', { replace: true });
+          return;
+        }
+        // 실패하면 조용히 넘어가서 카카오 로그인 진행 가능
+      } catch (e) {
+        // 조용히 무시(로그인 버튼으로 진행)
+        safeErrorLog(e, 'LoginPage - silent refresh');
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [params, nav]);
+
+  /**
+   * ② 카카오 콜백 처리 (?code=...)
+   */
   useEffect(() => {
     const code = params.get('code');
     const stateFromUrl = params.get('state');
@@ -85,7 +127,6 @@ export default function LoginPage() {
 
     (async () => {
       try {
-        // 중복 호출 방지: 세션 락 체크
         const locked = sessionStorage.getItem(AUTH_LOCK_KEY);
         if (locked === code) return;
         sessionStorage.setItem(AUTH_LOCK_KEY, code);
@@ -96,41 +137,35 @@ export default function LoginPage() {
         if (expected && stateFromUrl && expected !== stateFromUrl) {
           throw new Error('잘못된 요청입니다. (state mismatch)');
         }
-        // 너무 빠른 연속 트리거 방지용 소량의 지연
         if (AUTH_START_DELAY_MS > 0) {
           await new Promise(res => setTimeout(res, AUTH_START_DELAY_MS));
         }
 
-        {
-          // 절대/상대 URL 대응: API_BASE가 비어있으면 동일 출처로 요청
-          const loginUrl = `${API_BASE}/api/login`;
-          const res = await fetch(loginUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ code, redirectUri: REDIRECT_URI, state: stateFromUrl }),
-          });
+        const loginUrl = `${API_BASE}/api/login`;
+        const res = await fetch(loginUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // 서버에서 refresh 쿠키 심을 수 있음
+          body: JSON.stringify({ code, redirectUri: REDIRECT_URI, state: stateFromUrl }),
+        });
 
-          // 상태/본문 로깅 강화
-          const text = await res.text();
-          if (!res.ok) {
-            safeErrorLog({
-              message: 'login failed',
-              status: res.status,
-              statusText: res.statusText,
-              body: text,
-              url: loginUrl,
-            }, 'LoginPage - login response');
-            throw new Error('로그인 처리에 실패했습니다.');
-          }
-          const data: LoginSuccess = JSON.parse(text);
-          showRef.current(`${data.name}님 환영합니다!`);
-          localStorage.setItem('nickname', data.name);
-          localStorage.setItem('access', data.access);
-          window.history.replaceState({}, '', '/login');
-
-          nav('/products', { replace: true });
+        const text = await res.text();
+        if (!res.ok) {
+          safeErrorLog(
+            { message: 'login failed', status: res.status, statusText: res.statusText, body: text, url: loginUrl },
+            'LoginPage - login response'
+          );
+          throw new Error('로그인 처리에 실패했습니다.');
         }
+
+        const data: LoginSuccess = JSON.parse(text);
+        showRef.current(`${data.name}님 환영합니다!`);
+        localStorage.setItem('nickname', data.name);
+        localStorage.setItem('access', data.access);
+
+        // 주소줄 정리 후 이동
+        window.history.replaceState({}, '', '/login');
+        nav('/products', { replace: true });
       } catch (e: any) {
         safeErrorLog(e, 'LoginPage - login');
         showRef.current(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -143,58 +178,33 @@ export default function LoginPage() {
     })();
   }, [params, nav]);
 
+  /**
+   * ③ 카카오 로그인 버튼
+   * - (선택) access 토큰이 로컬 exp 기준으로 충분히 남아 있으면 바로 /products
+   * - 아니면 카카오 OAuth 시작
+   */
   const startKakao = useCallback(async () => {
     try {
       setBusy(true);
-      
-      // 먼저 기존 access token이 있는지 확인
-      const accessToken = localStorage.getItem('access');
-      if (accessToken) {
-        console.log('🔐 기존 access token 발견, 토큰 유효성 검증 중...');
-        
+
+      // (선택) 보호 API 호출 없이, 로컬 exp만 빠르게 확인
+      const access = localStorage.getItem('access');
+      if (access) {
         try {
-          // 상품 목록 API로 토큰 유효성 확인
-          const API_BASE = process.env.REACT_APP_API_BASE || '';
-          const response = await fetch(`${API_BASE}/api/auth/products`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`
-            },
-            credentials: 'include'
-          });
-          
-          console.log('📦 토큰 검증 응답:', {
-            ok: response.ok,
-            status: response.status,
-            statusText: response.statusText
-          });
-          
-          if (response.ok) {
-            console.log('✅ 기존 토큰 유효, 자동 로그인 성공');
+          const payload = JSON.parse(atob(access.split('.')[1] || ''));
+          const expMs = (payload?.exp ?? 0) * 1000;
+          if (expMs - Date.now() > 30_000) {
             nav('/products', { replace: true });
             return;
-          } else {
-            console.log('❌ 기존 토큰 무효, 새로운 카카오 로그인 진행');
-            // 무효한 토큰 정리
-            localStorage.removeItem('access');
-            localStorage.removeItem('refresh');
-            localStorage.removeItem('nickname');
           }
-        } catch (error) {
-          console.error('❌ 토큰 검증 실패:', error);
-          // 에러 발생 시 토큰 정리
-          localStorage.removeItem('access');
-          localStorage.removeItem('refresh');
-          localStorage.removeItem('nickname');
+        } catch {
+          // 파싱 실패 시 그냥 카카오 진행
         }
       }
-      
-      // 토큰이 없거나 무효한 경우 카카오 로그인 진행
-      console.log('🔄 카카오 로그인 시작...');
-      
+
+      // 카카오 OAuth 시작
       if (!JS_KAKAO_KEY) {
-        show('카카오 JS 키가 설정되지 않았습니다. (REACT_APP_KAKAO_JAVASCRIPT_KEY)', { variant: 'error' });
+        show('카카오 JS 키가 설정되지 않았습니다. (REACT_APP_JS_KAKAO_KEY)', { variant: 'error' });
         return;
       }
       await ensureKakaoSDK(JS_KAKAO_KEY);
@@ -202,9 +212,9 @@ export default function LoginPage() {
       sessionStorage.setItem(OAUTH_STATE_KEY, state);
 
       window.Kakao.Auth.authorize({
-        redirectUri: REDIRECT_URI, // 콘솔 등록값과 완전히 동일
+        redirectUri: REDIRECT_URI,
         state,
-        scope: 'profile_nickname', // 필요한 스코프
+        scope: 'profile_nickname',
       });
     } catch (e: any) {
       safeErrorLog(e, 'LoginPage - startKakao');
@@ -217,7 +227,6 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-        {/* 상단 브랜딩 */}
         <div className="text-center">
           <img src="/onuljang.png" alt="과일맛집 로고" className="mx-auto w-16 h-16" />
           <h1 className="mt-3 text-xl font-bold">🎁과일맛집1995 현장예약🎁</h1>
@@ -231,7 +240,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* 카카오 로그인 이미지 버튼 (모바일: small / 데스크톱: large) */}
         <button
           type="button"
           onClick={startKakao}
