@@ -1,36 +1,113 @@
 // src/pages/admin/AdminSalesPage.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { mockSales } from '../../mocks/sales';
+import { USE_MOCKS } from '../../config';
+import { useSnackbar } from '../../components/snackbar';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import { getReservationReports } from '../../utils/api';
 
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 export default function AdminSalesPage() {
-  const [from, setFrom] = useState('2025-08-01');
-  const [to, setTo]     = useState('2025-08-31');
+  const { show } = useSnackbar();
+  // 이번 달의 시작/끝(로컬 타임존 기준)
+  const toLocalYMD = (d: Date) => {
+    const dd = new Date(d);
+    dd.setMinutes(dd.getMinutes() - dd.getTimezoneOffset());
+    return dd.toISOString().split('T')[0];
+  };
+  const now = new Date();
+  const monthStart = toLocalYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+  const monthEnd   = toLocalYMD(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const [from, setFrom] = useState<string>(monthStart);
+  const [to, setTo]     = useState<string>(monthEnd);
 
   // 🔎 필수 필드: 기본값 = 이름(buyerName)
-  const [field, setField] = useState<'buyerName' | 'productName'>('buyerName');
+  const [field, setField] = useState<'buyerName' | 'productName'>('productName');
   const [term, setTerm]   = useState('');
 
-  // 데모용 클라이언트 필터(실서비스는 서버에 field,term 전달)
+  type SalesRow = {
+    id: number;
+    date: string; // YYYY-MM-DD
+    productName: string;
+    buyerName: string;
+    price: number;
+    quantity: number;
+    revenue: number;
+  };
+
+  const [rows, setRows] = useState<SalesRow[]>([]);
+
+  // 데이터 로드(실데이터 사용)
+  const load = async (rangeFrom: string, rangeTo: string) => {
+    if (USE_MOCKS) {
+      setRows(
+        mockSales.map((r, idx) => ({
+          id: r.id ?? idx,
+          date: r.date,
+          productName: r.productName,
+          buyerName: r.buyerName,
+          price: r.price,
+          quantity: r.quantity,
+          revenue: r.revenue,
+        }))
+      );
+      return;
+    }
+    try {
+      const res = await getReservationReports(rangeFrom, rangeTo);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) return; // 공통 처리 위임
+        const err = await res.clone().json().catch(() => ({}));
+        throw new Error(err.message || '판매 리포트를 불러오지 못했습니다.');
+      }
+      const body = await res.json();
+      const list = Array.isArray(body) ? body : (body?.response || []);
+      if (!Array.isArray(list)) throw new Error('리포트 데이터가 배열이 아닙니다.');
+
+      const mapped: SalesRow[] = list.map((r: any, idx: number) => {
+        const qty = Number(r.quantity ?? 0);
+        const amt = Number(r.amount ?? 0);
+        const unit = qty > 0 ? Math.floor(amt / qty) : Number(r.price ?? 0);
+        return {
+          id: r.id ?? idx,
+          date: r.order_date ?? r.orderDate ?? '',
+          productName: r.product_name ?? r.productName ?? '',
+          buyerName: r.user_name ?? r.userName ?? '',
+          price: unit,
+          quantity: qty,
+          revenue: amt,
+        };
+      });
+      setRows(mapped);
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminSalesPage - load');
+      show(getSafeErrorMessage(e, '판매 데이터를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    load(from, to);
+  }, [from, to, show]);
+
+  // 날짜/검색 필터는 클라이언트에서 적용
   const filtered = useMemo(() => {
     const f = new Date(from);
     const t = new Date(to);
-    return mockSales.filter(r => {
+    return rows.filter(r => {
       const d = new Date(r.date);
       const inRange = (isNaN(+f) || d >= f) && (isNaN(+t) || d <= t);
-
       const v = term.trim();
-      if (!v) return inRange; // 값이 없으면 날짜만 적용(필드는 선택되어 있음)
+      if (!v) return inRange;
       if (field === 'buyerName')   return inRange && r.buyerName.includes(v);
       if (field === 'productName') return inRange && r.productName.includes(v);
       return inRange;
     });
-  }, [from, to, field, term]);
+  }, [from, to, field, term, rows]);
 
-  const totalQty = useMemo(() => filtered.reduce((s, r) => s + r.quantity, 0), [filtered]);
-  const totalRev = useMemo(() => filtered.reduce((s, r) => s + r.revenue, 0), [filtered]);
+  const totalQty = useMemo(() => filtered.reduce((s, r) => s + Number(r.quantity || 0), 0), [filtered]);
+  const totalRev = useMemo(() => filtered.reduce((s, r) => s + Number(r.revenue || 0), 0), [filtered]);
 
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
@@ -42,12 +119,12 @@ export default function AdminSalesPage() {
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div>
-            <label className="text-xs text-gray-500">시작일</label>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
+            <label className="text-xs text-gray-500">시작일 <span className="text-red-500">*</span></label>
+            <input type="date" required value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
           </div>
           <div>
-            <label className="text-xs text-gray-500">종료일</label>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
+            <label className="text-xs text-gray-500">종료일 <span className="text-red-500">*</span></label>
+            <input type="date" required value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
           </div>
 
           {/* 필수 필드 */}

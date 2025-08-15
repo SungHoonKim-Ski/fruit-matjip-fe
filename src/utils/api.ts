@@ -477,12 +477,12 @@ export const getAdminProducts = async () => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getAdminReservations = async (from?: string, to?: string) => {
+export const getAdminReservations = async (today?: string) => {
   const key = 'getAdminReservations';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     let url = '/api/admin/reservations';
-    if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    if (today) url += `?date=${encodeURIComponent(today)}`;
     const res = await adminFetch(url, {}, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -559,11 +559,15 @@ export const togglePicked = async (id: number, picked: boolean) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getReservationReports = async () => {
+export const getReservationReports = async (from?: string, to?: string) => {
   const key = 'getReservationReports';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/reservations/reports', {}, true);
+    let url = '/api/admin/reservations/sails';
+    if (from && to) {
+      url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    }
+    const res = await adminFetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
