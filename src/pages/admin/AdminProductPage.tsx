@@ -19,6 +19,8 @@ export default function AdminProductPage() {
   const { show } = useSnackbar();
   const [products, setProducts] = useState<Product[]>([]);
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // --- Dialog 상태들 ---
   const [deleteStockDialog, setDeleteStockDialog] = useState<{
@@ -130,6 +132,21 @@ export default function AdminProductPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [toggleStatusDialog.isOpen, deleteProductDialog.isOpen, deleteStockDialog.isOpen]);
 
+  // --- 모바일 햄버거: 바깥 클릭/ESC 닫기 ---
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, []);
+
   // --- API 실행 핸들러들 (Confirm에서 즉시 호출) ---
   const handleDeleteStock = async (id: number) => {
     try {
@@ -222,13 +239,51 @@ export default function AdminProductPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
 
-          {/* 데스크탑: 버튼 3개 */}
-          <div className="relative">
+          {/* 데스크탑: 버튼 3개 / 모바일: 햄버거 */}
+          <div className="relative" ref={menuRef}>
             <div className="hidden md:grid grid-cols-3 gap-2 items-center">
               <button type="button" onClick={goNewProduct} className="h-10 w-full px-4 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm font-medium">상품 등록</button>
               <button type="button" onClick={goSales} className="h-10 w-full px-4 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-sm font-medium">판매량 확인</button>
               <button type="button" onClick={goBuyers} className="h-10 w-full px-4 rounded bg-sky-500 text-white hover:bg-sky-600 text-sm font-medium">구매자 확인</button>
             </div>
+            <button
+              type="button"
+              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="관리 메뉴"
+              onClick={() => setMenuOpen(v => !v)}
+            >
+              ☰
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50"
+              >
+                <button
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                  onClick={() => { setMenuOpen(false); goNewProduct(); }}
+                >
+                  ➕ 상품 등록
+                </button>
+                <button
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                  onClick={() => { setMenuOpen(false); goSales(); }}
+                >
+                  📈 판매량 확인
+                </button>
+                <button
+                  role="menuitem"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                  onClick={() => { setMenuOpen(false); goBuyers(); }}
+                >
+                  🧾 예약 확인
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
