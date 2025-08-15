@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct, mockUploadImage } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateAdminProduct, getUpdateUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
+import { updateAdminProduct, getUploadUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
 
 // 상품 설명 글자 수 제한
 const DESCRIPTION_LIMIT = 300;
@@ -204,31 +204,26 @@ export default function AdminEditProductPage() {
       return URL.createObjectURL(file);
     } else {
       try {
-
-        
-        const res = await getUpdateUrl(Number(id), file.name, file.type);
+        // 메인 상품 이미지는 공통 presigned-url 사용
+        const res = await getUploadUrl(file.name, file.type);
         if (!res.ok) {
-          // 401, 403 에러는 통합 에러 처리로 위임
           if (res.status === 401 || res.status === 403) {
             return null; // adminFetch에서 이미 처리됨
           }
           throw new Error('업로드 URL을 가져오지 못했습니다.');
         }
-        
-        const { uploadUrl } = await res.json();
-        
-        // 파일 업로드
-        const uploadRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          body: file,
-          mode: 'cors',
-          // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
-        });
-        
+        const data = await res.json();
+        const url: string = data.url || data.uploadUrl;
+        const key: string = data.key;
+        const method: string = (data.method || 'PUT').toUpperCase();
+        if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
+
+        // 파일 업로드 (Content-Type은 presigned URL에 포함됨)
+        const uploadRes = await fetch(url, { method, body: file, mode: 'cors' });
         if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
-        
-        // 업로드된 파일 URL 반환 (실제로는 presigned URL에서 파일 URL을 추출해야 함)
-        return uploadUrl.split('?')[0];
+
+        // 화면에서는 prefix 붙여 보여주고, 저장 시에는 key로 전송(toS3Key에서 처리)
+        return key;
       } catch (e: any) {
         safeErrorLog(e, 'AdminEditProductPage - uploadIfNeeded');
         show(getSafeErrorMessage(e, '파일 업로드 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -302,14 +297,20 @@ export default function AdminEditProductPage() {
         }
         const uploadedUrls: string[] = [];
         for (const [contentType, pack] of byType.entries()) {
-          const presigned = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
-          if (!presigned || presigned.length !== pack.files.length) throw new Error('상세 이미지 URL 발급 수 불일치');
+          const presignedList = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
+          if (!presignedList || presignedList.length !== pack.files.length) throw new Error('상세 이미지 URL 발급 수 불일치');
           for (let i = 0; i < pack.files.length; i++) {
-            const putUrl = presigned[i];
+            const item = presignedList[i];
             const file = pack.files[i];
-            const putRes = await fetch(putUrl, { method: 'PUT', body: file, mode: 'cors' });
+            const method = (item.method || 'PUT').toUpperCase();
+            const putRes = await fetch(item.url, {
+              method,
+              body: file,
+              mode: 'cors',
+              // Content-Type은 presigned URL의 쿼리에 포함되어 있으므로 지정하지 않음
+            });
             if (!putRes.ok) throw new Error('상세 이미지 업로드 실패');
-            uploadedUrls.push(putUrl.split('?')[0]);
+            uploadedUrls.push(item.key || item.url.split('?')[0]);
           }
         }
         if (uploadedUrls.length) {

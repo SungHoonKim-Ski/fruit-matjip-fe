@@ -582,7 +582,8 @@ export const getUploadUrl = async (filename: string, contentType: string): Promi
     if (!cleanContentType) throw new Error('contentType cannot be empty after trimming');
 
     const body = { file_name: filename, content_type: cleanContentType };
-    const res = await adminFetch('/api/admin/products/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+    // 공통 presigned-url (메인 상품 이미지 업로드에 사용)
+    const res = await adminFetch('/api/admin/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
 
     if (res.status === 403) {
       try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
@@ -615,11 +616,19 @@ export const getDetailUpdateUrl = async (id: number, filenames: string[], conten
 };
 
 // New: Detail images batch presigned URL (server expects camelCase keys)
+export type PresignedDetailItem = {
+  url: string;
+  key: string;
+  method?: string;
+  content_type?: string;
+  expires_in?: number;
+};
+
 export const getDetailPresignedUrlsBatch = async (
   productId: number,
   fileNames: string[],
   contentType: string
-): Promise<string[]> => {
+): Promise<PresignedDetailItem[]> => {
   const key = 'getDetailPresignedUrlsBatch';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
@@ -634,9 +643,15 @@ export const getDetailPresignedUrlsBatch = async (
       throw new Error('상세 이미지 업로드 URL 발급에 실패했습니다.');
     }
     const list = await res.json();
-    // 기대 형식: [{ uploadUrl: string }, ...]
     if (!Array.isArray(list)) return [];
-    return list.map((it: any) => String(it.uploadUrl || ''));
+    // 기대 형식: [{ url, key, method, content_type, expires_in }]
+    return list.map((it: any) => ({
+      url: String(it.url || it.uploadUrl || ''),
+      key: String(it.key || ''),
+      method: it.method ? String(it.method) : 'PUT',
+      content_type: it.content_type ? String(it.content_type) : undefined,
+      expires_in: typeof it.expires_in === 'number' ? it.expires_in : undefined,
+    }));
   } catch (e) {
     incrementApiRetryCount(key);
     throw e;
