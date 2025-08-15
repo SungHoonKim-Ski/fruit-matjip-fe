@@ -22,14 +22,24 @@ type Product = {
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-// 오늘 포함 5일간의 날짜 생성
+// KST 기준 현재 시각 반환
+function getKstNow(): Date {
+  const now = new Date();
+  return new Date(now.getTime() + (9 * 60 * 60 * 1000));
+}
+
+// 오후 9시 이후에는 다음날을 기준으로, 포함 3일간 날짜 생성
 function getNext3Days(): string[] {
   const arr: string[] = [];
-  const today = new Date();
+  const kstNow = getKstNow();
+  const start = new Date(kstNow);
+  if (kstNow.getHours() >= 21) {
+    start.setDate(start.getDate() + 1);
+  }
   for (let i = 0; i < 3; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    arr.push(d.toISOString().slice(0, 10));
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    arr.push(d.toISOString().split('T')[0]);
   }
   return arr;
 }
@@ -108,16 +118,15 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          // 한국 시간 기준으로 오늘 날짜 계산
-          const now = new Date();
-          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-          
-          // 오늘 날짜 (YYYY-MM-DD)
-          const fromStr = koreaTime.toISOString().split('T')[0];
-          
-          // 2일 후 날짜 (YYYY-MM-DD)
-          const toDate = new Date(koreaTime);
-          toDate.setDate(koreaTime.getDate() + 2);
+          // 한국 시간 기준 오후 9시 이후면 다음날을 시작일로, 포함 3일 범위 요청
+          const kstNow = getKstNow();
+          const start = new Date(kstNow);
+          if (kstNow.getHours() >= 21) {
+            start.setDate(start.getDate() + 1);
+          }
+          const fromStr = start.toISOString().split('T')[0];
+          const toDate = new Date(start);
+          toDate.setDate(start.getDate() + 2);
           const toStr = toDate.toISOString().split('T')[0];
           
           const res = await getProducts(fromStr, toStr);

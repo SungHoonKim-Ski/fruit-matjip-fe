@@ -54,7 +54,7 @@ export default function OrdersPage() {
     productName: ''
   });
 
-  // 초기 로드
+  // 초기 로드 및 날짜 변경 시 재호출
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -70,20 +70,8 @@ export default function OrdersPage() {
           }
         } else {
           try {
-            // 한국 시간 기준으로 오늘 날짜 계산
-            const now = new Date();
-            const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-            
-            // 오늘 날짜 (YYYY-MM-DD)
-            const fromStr = koreaTime.toISOString().split('T')[0];
-            
-            // 2일 후 날짜 (YYYY-MM-DD)
-            const toDate = new Date(koreaTime);
-            toDate.setDate(koreaTime.getDate() + 2);
-            const toStr = toDate.toISOString().split('T')[0];
-            
-            
-            const res = await getReservations(fromStr, toStr);
+            // 선택된 필터 날짜 범위로 요청
+            const res = await getReservations(from, to);
             if (!res.ok) {
               // 401, 403 에러는 통합 에러 처리로 위임
               if (res.status === 401 || res.status === 403) {
@@ -152,7 +140,7 @@ export default function OrdersPage() {
       }
     })();
     return () => { alive = false; };
-  }, [page, show]);
+  }, [page, show, from, to]);
 
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
