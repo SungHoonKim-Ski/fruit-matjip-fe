@@ -29,8 +29,8 @@ export default function AdminRegisterPage() {
     }
 
     // Password min 8 chars with letters + numbers
-    if (password.length < 8) {
-      show('비밀번호는 8자 이상 입력해주세요.', { variant: 'error' });
+    if (password.length < 8 || password.length > 20) {
+      show('비밀번호는 8~20자로 입력해주세요.', { variant: 'error' });
       return;
     }
 
@@ -73,7 +73,7 @@ export default function AdminRegisterPage() {
       <input
         name="email"
         type="text"
-        placeholder="아이디"
+        placeholder="아이디 (최소 5자, 최대 15자)"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         autoComplete="username"
