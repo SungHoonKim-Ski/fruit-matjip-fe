@@ -5,6 +5,7 @@ import { USE_MOCKS } from '../../config';
 import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { updateAdminProduct, getUploadUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
+import { compressImage } from '../../utils/image-compress';
 
 // 상품 설명 글자 수 제한
 const DESCRIPTION_LIMIT = 300;
@@ -188,17 +189,21 @@ export default function AdminEditProductPage() {
     }
   };
 
-  // 메인 이미지 업로드 (성공 시 key 반환)
+  // 메인 이미지 업로드 (성공 시 key 반환) — 압축 적용
   const uploadIfNeeded = async (): Promise<string | null> => {
     if (!fileRef.current?.files?.[0]) return null;
-    const file = fileRef.current.files[0];
+    const original = fileRef.current.files[0];
     
     if (USE_MOCKS) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return URL.createObjectURL(file);
+      return URL.createObjectURL(original);
     } else {
       try {
-        const res = await getUploadUrl(file.name, file.type);
+        // 1) 로컬에서 이미지 압축 (5MB/1600px 기준)
+        const compressed = await compressImage(original);
+
+        // 2) presigned URL 발급 (압축된 파일의 name/type 사용)
+        const res = await getUploadUrl(compressed.name, compressed.type);
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
             return null; // adminFetch에서 이미 처리됨
@@ -211,10 +216,11 @@ export default function AdminEditProductPage() {
         const method: string = (data.method || 'PUT').toUpperCase();
         if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
 
+        // 3) S3 업로드 (Content-Type은 presigned와 동일하게 전송)
         const uploadRes = await fetch(url, {
           method,
-          headers: { 'Content-Type': file.type }, // ✅ presigned 서명과 동일
-          body: file,
+          headers: { 'Content-Type': compressed.type },
+          body: compressed,
           mode: 'cors',
         });
         if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
@@ -247,8 +253,8 @@ export default function AdminEditProductPage() {
       show('상품 이미지를 업로드해주세요.', { variant: 'error' });
       return false;
     }
-    if (form.name.trim().length > 100) {
-      show('상품명은 100자 이하로 입력해주세요.', { variant: 'error' });
+    if (form.name.trim().length > 20) {
+      show('상품명은 20자 이하로 입력해주세요.', { variant: 'error' });
       return false;
     }
     if (form.description) {
@@ -273,17 +279,31 @@ export default function AdminEditProductPage() {
       // 메인 이미지 업로드 (있으면)
       const newMainKey = await uploadIfNeeded(); // key | null
 
-      // 상세 이미지 신규 파일 업로드 (컨텐츠타입 그룹화 후 presigned→PUT)
+      // 상세 이미지 신규 파일 업로드 — 저장 직전에 압축 → type별로 묶어서 presigned 발급 후 PUT
       const uploadedDetailKeys: string[] = [];
       if (pendingDetailFiles.length > 0 && !USE_MOCKS) {
-        const byType = new Map<string, { names: string[]; files: File[] }>();
+        // 1) 먼저 전부 압축 (동시에 너무 많이 하지 않도록 순차 또는 소량 병렬 권장)
+        const compressedFiles: File[] = [];
         for (const f of pendingDetailFiles) {
+          try {
+            const cf = await compressImage(f);
+            compressedFiles.push(cf);
+          } catch (err) {
+            // 압축 실패 시 원본 사용 (필요 시 에러 처리)
+            compressedFiles.push(f);
+          }
+        }
+
+        // 2) content-type 별로 그룹화
+        const byType = new Map<string, { names: string[]; files: File[] }>();
+        for (const f of compressedFiles) {
           const key = f.type || 'image/jpeg';
           if (!byType.has(key)) byType.set(key, { names: [], files: [] });
           byType.get(key)!.names.push(f.name);
           byType.get(key)!.files.push(f);
         }
 
+        // 3) 각 타입 그룹별 presigned 발급 → 업로드
         for (const [contentType, pack] of byType.entries()) {
           const presignedList = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
           if (!presignedList || presignedList.length !== pack.files.length) {
@@ -296,7 +316,7 @@ export default function AdminEditProductPage() {
 
             const putRes = await fetch(item.url, {
               method,
-              headers: { 'Content-Type': contentType }, // ✅ presigned와 동일
+              headers: { 'Content-Type': contentType },
               body: file,
               mode: 'cors',
             });
@@ -332,7 +352,7 @@ export default function AdminEditProductPage() {
 
       const stockChanged = additionalStock !== 0;
 
-      // 메인 이미지: key로 비교
+      // 메인 이미지: key로 비교 (newMainKey가 있으면 그걸 사용)
       const currentMainUrlForCompare = newMainKey ?? form.imageUrl; // newMainKey가 있으면 key(상대), 없으면 절대 URL
       const currentMainKey = toS3Key(currentMainUrlForCompare);
       const initialMainKey = toS3Key(initial?.imageUrl || '');
@@ -379,10 +399,10 @@ export default function AdminEditProductPage() {
         name: nameChanged ? currentName : null,
         price: priceChanged ? currentPrice : null,
         stock_change: stockChanged ? additionalStock : null,
-        product_url: productUrlChanged ? currentMainKey : null,   // ✅ key만
+        product_url: productUrlChanged ? currentMainKey : null,   // key만
         sell_date: sellDateChanged ? currentSellDate : null,      // ''은 초기화를 의미
         description: descriptionChanged ? (form.description || '') : null,
-        detail_urls: detailChanged ? currentDetailKeys : null,    // ✅ 최종 키 배열
+        detail_urls: detailChanged ? currentDetailKeys : null,    // 최종 키 배열
       };
 
       if (USE_MOCKS) {
@@ -730,7 +750,7 @@ export default function AdminEditProductPage() {
                       const names = files.map(f => f.name);
                       const urls = files.map(f => URL.createObjectURL(f));
                       setSelectedAdditionalNames(prev => [...prev, ...names]);
-                      setPendingDetailFiles(prev => [...prev, ...files]);   // 업로드는 save 직전에
+                      setPendingDetailFiles(prev => [...prev, ...files]);   // 업로드는 save 직전에 (압축 포함)
                       setPendingDetailPreviews(prev => [...prev, ...urls]); // 미리보기
                       input.value = '';
                     }}

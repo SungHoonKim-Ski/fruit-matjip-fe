@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { createAdminProduct, getUploadUrl } from '../../utils/api';
+import { compressImage } from '../../utils/image-compress';
 
 type ProductForm = {
   name: string;      // NotBlank, Size max=20
@@ -23,25 +24,30 @@ export default function ProductCreatePage() {
   
   const [form, setForm] = useState<ProductForm>({
     name: '',
-    price: 1, // 최소값 1로 변경
-    stock: 1, // 최소값 1로 변경
+    price: 1000, // step 1000 사용 시 자연스럽도록 기본 1000
+    stock: 10,   // step 10 사용 시 자연스럽도록 기본 10
     image_url: null,
-    sell_date: today, // 오늘 날짜를 기본값으로
-    visible: true, // 기본값은 활성
+    sell_date: today,
+    visible: true,
   });
   const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isCompressed, setIsCompressed] = useState(false);
+
+  // 미리보기 URL 정리
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
     const value = input.value;
-    
-    // 0으로 시작하는 경우 (0 하나만 있는 경우 제외) 마지막 문자 제거
     if (value.length > 1 && value.startsWith('0')) {
       input.value = value.slice(1);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, files } = e.target as HTMLInputElement;
 
     if (name === 'image_url') {
@@ -53,32 +59,48 @@ export default function ProductCreatePage() {
           e.target.value = '';
           return;
         }
-        setForm({ ...form, image_url: file });
-        e.target.value = '';
+        try {
+          // 선택 즉시 클라이언트 압축 (5MB 목표, utils 기본값 사용)
+          const compressed = await compressImage(file);
+          setForm(prev => ({ ...prev, image_url: compressed }));
+          setIsCompressed(true);
+          // 미리보기 교체
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(URL.createObjectURL(compressed));
+        } catch (err) {
+          safeErrorLog(err, 'ProductCreatePage - compress (on change)');
+          show(getSafeErrorMessage(err, '이미지 처리 중 오류가 발생했습니다.'), { variant: 'error' });
+        } finally {
+          // 파일 입력값 초기화(같은 파일 다시 선택 가능)
+          e.target.value = '';
+        }
       }
-      // 파일을 선택하지 않은 경우 아무 동작도 하지 않음 (기존 이미지 유지)
-    } else if (name === 'price' || name === 'stock') {
-      // 빈 문자열이거나 앞에 0이 오는 경우(0123, 0421 등) 처리
+      return;
+    }
+
+    if (name === 'price' || name === 'stock') {
       if (value === '') {
-        setForm({ ...form, [name]: 1 }); // 빈 값이면 최소값 1로 설정
+        setForm({ ...form, [name]: name === 'price' ? 1000 : 10 } as any);
         return;
       }
-      
-      // 앞에 0이 오는 경우 제거 (단, '0'만 입력한 경우는 허용하지 않음)
-      if (value.length > 1 && value.startsWith('0')) {
-        return; // 0123, 0421 같은 입력 무시
-      }
-      
+      if (value.length > 1 && value.startsWith('0')) return;
       const num = Number(value);
-      if (!Number.isInteger(num) || num < 1) return; // 최소값 1로 변경
-      setForm({ ...form, [name]: num });
-    } else if (name === 'sell_date') {
-      setForm({ ...form, sell_date: value });
-    } else if (name === 'visible') {
-      setForm({ ...form, visible: value === 'true' });
-    } else {
-      setForm({ ...form, [name]: value });
+      if (!Number.isInteger(num) || num < 1) return;
+      setForm({ ...form, [name]: num } as any);
+      return;
     }
+
+    if (name === 'sell_date') {
+      setForm({ ...form, sell_date: value });
+      return;
+    }
+
+    if (name === 'visible') {
+      setForm({ ...form, visible: value === 'true' });
+      return;
+    }
+
+    setForm({ ...form, [name]: value } as any);
   };
 
   const handleSubmit = async () => {
@@ -90,84 +112,75 @@ export default function ProductCreatePage() {
     try {
       setUploading(true);
 
-      // Mock implementation - 실제 API 호출 대신 mock 처리
       if (USE_MOCKS) {
-        // Mock 상품 등록 성공
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연
-        
+        await new Promise(resolve => setTimeout(resolve, 1000));
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
+        setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true });
+        if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
         nav('/admin/products', { replace: true });
-      } else {
-        // 1) presigned URL 요청
+        return;
+      }
+
+      // 1) 업로드할 파일 준비(필요 시 안전 재압축)
+      let fileToUpload = form.image_url as File;
+      if (!isCompressed) {
         try {
-          const presignedUrlRes = await getUploadUrl(form.image_url!.name, form.image_url!.type);
-          
-          if (!presignedUrlRes.ok) {
-            // 401, 403 에러는 통합 에러 처리로 위임
-            if (presignedUrlRes.status === 401 || presignedUrlRes.status === 403) {
-              return; // adminFetch에서 이미 처리됨
-            }
-            
-            const errorText = await presignedUrlRes.text();
-            throw new Error(`이미지 업로드 URL 발급 실패: ${presignedUrlRes.status} ${presignedUrlRes.statusText} - ${errorText}`);
-          }
-          
-          const presignedData: {
-            url: string;
-            key: string;
-            method: string;
-            contentType: string;
-            expiresIn: number;
-          } = await presignedUrlRes.json();
-          
-          const { url, key, method, contentType, expiresIn } = presignedData;
-          
-          if (!url) {
-            throw new Error('Presigned URL이 응답에 포함되지 않았습니다.');
-          }
-
-          // 2) 이미지 업로드
-          const uploadResponse = await fetch(url, {
-            method: method || 'PUT', // 서버에서 받은 method 사용, 기본값은 PUT
-            body: form.image_url,
-            // S3 presigned URL에서는 Content-Type을 헤더로 설정하지 않음 (URL에 포함됨)
-          });
-          
-          if (!uploadResponse.ok) {
-            throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
-          }
-
-          const imageUrl = key;
-          
-          const productPayload = {
-            name: form.name,
-            price: form.price,
-            stock: form.stock,
-            image_url: imageUrl,
-            sell_date: form.sell_date,
-            visible: form.visible,
-          };
-      
-          const res = await createAdminProduct(productPayload);
-          
-          if (!res.ok) {
-            // 401, 403 에러는 통합 에러 처리로 위임
-            if (res.status === 401 || res.status === 403) {
-              return; // adminFetch에서 이미 처리됨
-            }
-            
-            const errorText = await res.text();
-            throw new Error(`상품 등록 실패: ${res.status} ${res.statusText}`);
-          }
-          
-          show('상품이 등록되었습니다!', { variant: 'success' });
-          setForm({ name: '', price: 1, stock: 1, image_url: null, sell_date: today, visible: true });
-          nav('/admin/products', { replace: true });
-        } catch (uploadError) {
-          throw uploadError;
+          fileToUpload = await compressImage(fileToUpload);
+        } catch (err) {
+          safeErrorLog(err, 'ProductCreatePage - compress (on submit)');
         }
       }
+
+      // 2) presigned URL 요청 (압축된 파일의 이름/타입으로 요청)
+      const presignedUrlRes = await getUploadUrl(fileToUpload.name, fileToUpload.type);
+      if (!presignedUrlRes.ok) {
+        if (presignedUrlRes.status === 401 || presignedUrlRes.status === 403) return; // adminFetch에서 처리됨
+        const errorText = await presignedUrlRes.text();
+        throw new Error(`이미지 업로드 URL 발급 실패: ${presignedUrlRes.status} ${presignedUrlRes.statusText} - ${errorText}`);
+      }
+
+      const presignedData: {
+        url: string;
+        key: string;
+        method?: string;
+        contentType?: string;
+        expiresIn?: number;
+      } = await presignedUrlRes.json();
+
+      const { url, key, method } = presignedData;
+      if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
+
+      // 3) S3 업로드 (Content-Type은 URL에 서명으로 포함되어 있으므로 보통 헤더 설정 불필요)
+      const uploadResponse = await fetch(url, {
+        method: (method || 'PUT').toUpperCase(),
+        body: fileToUpload,
+        mode: 'cors',
+      });
+      if (!uploadResponse.ok) {
+        throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      // 4) 상품 생성 API 호출 (키만 전달)
+      const productPayload = {
+        name: form.name,
+        price: form.price,
+        stock: form.stock,
+        image_url: key, // 서버는 S3 key 저장
+        sell_date: form.sell_date,
+        visible: form.visible,
+      };
+
+      const res = await createAdminProduct(productPayload);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) return; // adminFetch에서 처리됨
+        throw new Error(`상품 등록 실패: ${res.status} ${res.statusText}`);
+      }
+
+      show('상품이 등록되었습니다!', { variant: 'success' });
+      setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true });
+      if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
+      setIsCompressed(false);
+      nav('/admin/products', { replace: true });
     } catch (err: any) {
       safeErrorLog(err, 'ProductCreatePage - handleSubmit');
       show(getSafeErrorMessage(err, '상품 등록 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -205,8 +218,9 @@ export default function ProductCreatePage() {
               onChange={handleChange}
               onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              placeholder="1"
-              min="1"
+              step={1000}
+              placeholder="1000"
+              min={1}
               required
             />
           </div>
@@ -220,8 +234,9 @@ export default function ProductCreatePage() {
               onChange={handleChange}
               onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              placeholder="1"
-              min="1"
+              placeholder="10"
+              step={10}
+              min={1}
               required
             />
           </div>
@@ -256,9 +271,9 @@ export default function ProductCreatePage() {
         <div className="space-y-2">
           <label className="block text-sm font-medium">상품 이미지<span className="text-red-500">*</span></label>
           <div className="mt-2">
-            {form.image_url && (
+            {(previewUrl || form.image_url) && (
               <img
-                src={URL.createObjectURL(form.image_url)}
+                src={previewUrl || URL.createObjectURL(form.image_url as File)}
                 alt="상품 이미지 미리보기"
                 className="w-28 h-28 rounded object-cover border"
               />
@@ -279,12 +294,11 @@ export default function ProductCreatePage() {
             </label>
             {form.image_url && (
               <span className="text-sm text-gray-700 truncate max-w-full">
-                {form.image_url.name}
+                {(form.image_url as File).name}
               </span>
             )}
           </div>
         </div>
-
 
         <button
           onClick={handleSubmit}
