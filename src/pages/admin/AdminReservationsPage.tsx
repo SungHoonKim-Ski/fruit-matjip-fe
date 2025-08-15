@@ -13,7 +13,7 @@ type ReservationRow = {
   buyerName: string;
   quantity: number;
   amount: number;
-  pickupStatus: 'pending' | 'picked'; // 수령 전 / 수령 완료
+  status: 'pending' | 'picked' | 'canceled'; // 대기 / 완료 / 취소됨
 };
 
 const formatKRW = (n: number) =>
@@ -23,14 +23,18 @@ export default function AdminReservationsPage() {
 
   const { show } = useSnackbar();
   
-  // 오늘 날짜를 기본값으로 설정
-  const today = new Date().toISOString().split('T')[0];
+  // 오늘 날짜를 기본값으로 설정 (로컬 타임존 기준 YYYY-MM-DD)
+  const today = (() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+  })();
   
   // 필터 (기본값)
   const [selectedDate, setSelectedDate] = useState(today);
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked'>('all'); // 기본값을 전체로 변경
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all'); // 기본값을 전체로 변경
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
@@ -40,27 +44,15 @@ export default function AdminReservationsPage() {
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
 
-  // 예약 데이터 로드
+  // 예약 데이터 로드: 캘린더 값 변경 시 API 호출
   useEffect(() => {
     const loadReservations = async () => {
       if (USE_MOCKS) {
-        const data = await listReservations(today);
-        setRows(data);
+        const data = await listReservations(selectedDate);
+        setRows(data.map(r => ({ ...r, status: 'pending' })));
       } else {
         try {
-          // 한국 시간 기준으로 오늘 날짜 계산
-          const now = new Date();
-          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-          
-          // 오늘 날짜 (YYYY-MM-DD)
-          const fromStr = koreaTime.toISOString().split('T')[0];
-          
-          // 2일 후 날짜 (YYYY-MM-DD)
-          const toDate = new Date(koreaTime);
-          toDate.setDate(koreaTime.getDate() + 2);
-          const toStr = toDate.toISOString().split('T')[0];
-          
-          const response = await getAdminReservations(fromStr, toStr);
+          const response = await getAdminReservations(selectedDate);
           if (!response.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
             if (response.status === 401 || response.status === 403) {
@@ -83,31 +75,22 @@ export default function AdminReservationsPage() {
             throw new Error('예약 데이터가 배열 형태가 아닙니다.');
           }
           
-          // ReservationResponse를 ReservationRow로 변환
-          const reservationRows = reservationsArray.map((r: any) => {
-            // ReservationStatus를 pickupStatus로 매핑
-            let pickupStatus: 'pending' | 'picked';
-            switch (r.status?.toLowerCase()) {
-              case 'pending':
-                pickupStatus = 'pending';
-                break;
-              case 'picked':
-              case 'completed':
-                pickupStatus = 'picked';
-                break;
-              default:
-                pickupStatus = 'pending';
-            }
-            
+          // ReservationResponse를 ReservationRow로 변환 (snake_case 응답 대응)
+          const reservationRows = reservationsArray.map((r: any, idx: number) => {
+            const qty = Number(r.quantity ?? 0);
+            const unit = Number(r.price ?? 0);
+            const amt = Number(r.amount ?? (unit * qty));
+            const rawStatus = String(r.status ?? '').toUpperCase();
+            const mapped: 'pending' | 'picked' | 'canceled' = rawStatus === 'PICKED' ? 'picked' : rawStatus === 'CANCELED' ? 'canceled' : 'pending';
             return {
-              id: r.id,
-              date: r.orderDate,
-              productName: r.productName,
-              buyerName: '사용자', // 서버에서 제공하지 않는 경우
-              quantity: 1, // 서버에서 제공하지 않는 경우
-              amount: r.amount,
-              pickupStatus: pickupStatus
-            };
+              id: r.id ?? idx,
+              date: r.order_date ?? r.orderDate ?? '',
+              productName: r.product_name ?? r.productName ?? '',
+              buyerName: r.user_name ?? r.userName ?? '',
+              quantity: qty || 0,
+              amount: amt || 0,
+              status: mapped,
+            } as ReservationRow;
           });
           
           setRows(reservationRows);
@@ -118,7 +101,7 @@ export default function AdminReservationsPage() {
       }
     };
     loadReservations();
-  }, [today, show]);
+  }, [selectedDate, show]);
 
   const filtered = useMemo(() => {
     const v = term.trim();
@@ -128,7 +111,7 @@ export default function AdminReservationsPage() {
       const fieldHit = !v || 
         row.productName.toLowerCase().includes(v.toLowerCase()) ||
         row.buyerName.toLowerCase().includes(v.toLowerCase());
-      const pickupHit = pickupFilter === 'all' || row.pickupStatus === pickupFilter;
+      const pickupHit = pickupFilter === 'all' || row.status === pickupFilter;
 
       return dateMatch && fieldHit && pickupHit;
     });
@@ -255,7 +238,7 @@ export default function AdminReservationsPage() {
                 <tr
                   key={r.id}
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
-                  onClick={() => openConfirmChange(r.id, r.pickupStatus)}
+                  onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
                 >
                   <td className="px-4 py-3">{r.date}</td>
                   <td className="px-4 py-3">{r.productName}</td>
@@ -265,29 +248,33 @@ export default function AdminReservationsPage() {
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => openConfirmChange(r.id, r.pickupStatus)}
+                      onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
                       className={
                         'inline-flex items-center h-9 px-3 rounded-full border text-xs font-medium transition ' +
-                        (r.pickupStatus === 'picked'
+                        (r.status === 'picked'
                           ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
+                          : r.status === 'canceled'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
-                      aria-pressed={r.pickupStatus === 'picked'}
+                      aria-pressed={r.status === 'picked'}
+                      disabled={r.status === 'canceled'}
                     >
-                      {r.pickupStatus === 'picked' ? '수령 완료' : '수령 대기'}
+                      {r.status === 'picked' ? '수령 완료' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
                     <label className="sr-only" htmlFor={`pickup-${r.id}`}>수령 여부<span className="text-red-500">*</span></label>
                     <select
                       id={`pickup-${r.id}`}
-                      value={r.pickupStatus}
+                      value={r.status}
                       onChange={(e) => updateRowStatus(r.id, e.target.value as 'pending'|'picked')}
                       className="sr-only"
                       aria-hidden="true"
                       tabIndex={-1}
                     >
                       <option value="pending">수령 대기</option>
+                      <option value="canceled">예약 취소</option>
                       <option value="picked">수령 완료</option>
                     </select>
                   </td>
@@ -303,7 +290,7 @@ export default function AdminReservationsPage() {
               <div
                 key={r.id}
                 className="p-4 active:bg-orange-50"
-                onClick={() => openConfirmChange(r.id, r.pickupStatus)}
+                onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
               >
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{r.date}</span>
@@ -315,15 +302,18 @@ export default function AdminReservationsPage() {
               <div className="mt-2 flex justify-end">
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); openConfirmChange(r.id, r.pickupStatus); }}
+                  onClick={(e) => { e.stopPropagation(); if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
                   className={
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
-                    (r.pickupStatus === 'picked'
+                    (r.status === 'picked'
                       ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-gray-50 text-gray-700 border-gray-200')
+                      : r.status === 'canceled'
+                        ? 'bg-red-50 text-red-700 border-red-200'
+                        : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
+                  disabled={r.status === 'canceled'}
                 >
-                  {r.pickupStatus === 'picked' ? '수령 완료' : '수령 대기'}
+                  {r.status === 'picked' ? '수령 완료' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                 </button>
               </div>
             </div>
