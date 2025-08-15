@@ -20,3 +20,14 @@
   /* 상태 */
   .btn-disabled  { @apply bg-gray-400 text-white cursor-not-allowed hover:bg-gray-400; }
 }
+
+/* 숫자 입력의 위/아래 스핀 버튼 제거 (필요한 곳에만 .no-spinner 클래스를 부여해 사용) */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+.no-spinner[type=number] {
+	-moz-appearance: textfield;
+	appearance: textfield;
+}

@@ -482,7 +482,7 @@ export default function AdminEditProductPage() {
               <div className="mt-1 relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">₩</span>
                 <input
-                  name="price" type="number" min={0}
+                  name="price" type="number" min={0} step={1000} max={PRICE_MAX}
                   value={form.price}
                   onChange={onChange}
                   className="w-full h-10 border rounded pl-7 pr-3 text-center"
@@ -515,19 +515,36 @@ export default function AdminEditProductPage() {
             <div className="mt-1 h-10 grid grid-cols-[1fr_4fr_1fr] items-center border rounded overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setAdditionalStock(n => (form.stock + n - 1 >= 0 ? n - 1 : n))}
-                  disabled={form.stock + additionalStock <= 0}
-                  className={`h-full w-full text-base leading-none border-r ${form.stock + additionalStock <= 0 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'}`}
+                  onClick={() => setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))}
+                  disabled={form.stock + additionalStock < 10}
+                  className={`h-full w-full text-base leading-none border-r ${form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'}`}
                   aria-label="추가 재고 감소"
                 >
                   −
                 </button>
                 <div className="h-full w-full flex items-center justify-center text-base">
-                  {additionalStock}
+                  <input
+                    type="number"
+                    min={-form.stock}
+                    max={9999}
+                    step={1}
+                    value={additionalStock}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isFinite(v)) return;
+                      const clamped = Math.max(-form.stock, Math.min(9999, Math.trunc(v)));
+                      setAdditionalStock(clamped);
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value === '') setAdditionalStock(0);
+                    }}
+                    className="w-full h-full border-0 text-center focus:ring-0 outline-none no-spinner"
+                    aria-label="재고 변경 수량 직접 입력"
+                  />
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAdditionalStock(n => Math.min(9999, n + 1))}
+                  onClick={() => setAdditionalStock(n => Math.min(9999, n + 10))}
                   className="h-full w-full text-base leading-none border-l hover:bg-gray-50"
                   aria-label="추가 재고 증가"
                 >
