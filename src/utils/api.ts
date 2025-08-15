@@ -619,7 +619,8 @@ export const getDetailPresignedUrlsBatch = async (
   const key = 'getDetailPresignedUrlsBatch';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const body = { fileNames, contentType } as any;
+    // 서버 스펙: snake_case (file_names, content_type)
+    const body = { file_names: fileNames, content_type: contentType } as any;
     const res = await adminFetch(`/api/admin/products/${productId}/detail/presigned-url`, {
       method: 'PATCH',
       body: JSON.stringify(body),
