@@ -55,8 +55,10 @@ export default function AdminProductPage() {
     filtered.sort((a, b) => {
       if (!a.sellDate || !b.sellDate) return 0;
 
-      const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      // 한국 시간(KST) 기준 오늘 날짜 계산
+      const nowUtc = new Date();
+      const kstNow = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
+      const todayStr = kstNow.toISOString().split('T')[0];
 
       const aDate = new Date(a.sellDate + 'T00:00:00');
       const bDate = new Date(b.sellDate + 'T00:00:00');
