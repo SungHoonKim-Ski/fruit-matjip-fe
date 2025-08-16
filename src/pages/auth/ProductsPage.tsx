@@ -585,7 +585,7 @@ export default function ReservePage() {
                   role="button"
                 >
                   <span className="truncate hover:underline">{item.name}</span>
-                  <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
+                  <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{item.stock === 0 ? formatPrice(item.price) : formatPrice(item.price * item.quantity)}</span>
                 </h2>
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
                   <span>누적 판매 : {item.totalSold ?? 0}개</span>
