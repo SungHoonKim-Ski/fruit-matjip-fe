@@ -106,7 +106,7 @@ export default function AdminReservationsPage() {
   const filtered = useMemo(() => {
     const v = term.trim();
 
-    return rows.filter(row => {
+    const list = rows.filter(row => {
       const dateMatch = selectedDate === 'all' || row.date === selectedDate;
       const fieldHit = !v || 
         row.productName.toLowerCase().includes(v.toLowerCase()) ||
@@ -115,12 +115,20 @@ export default function AdminReservationsPage() {
 
       return dateMatch && fieldHit && pickupHit;
     });
+
+    // 취소 예약은 목록 하단으로 정렬
+    return list.sort((a, b) => {
+      const aCanceled = a.status === 'canceled';
+      const bCanceled = b.status === 'canceled';
+      if (aCanceled && !bCanceled) return 1;
+      if (!aCanceled && bCanceled) return -1;
+      return 0;
+    });
   }, [rows, selectedDate, term, field, pickupFilter]);
 
   // 드롭다운으로 상태 변경
   const updateRowStatus = (id: number, next: 'pending' | 'picked') => {
-    setRows(prev => prev.map(r => (r.id === id ? { ...r, pickupStatus: next } : r)));
-    // dirty 관련 코드 제거
+    setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
   // 변경 확인 다이얼로그
@@ -145,6 +153,17 @@ export default function AdminReservationsPage() {
       const target = rows.find(r => r.id === confirmId);
       const productName = target ? target.productName : '';
       const buyerName = target ? target.buyerName : '';
+      // 서버 반영
+      if (!USE_MOCKS) {
+        try {
+          await togglePicked(confirmId, confirmNext === 'picked');
+        } catch (e) {
+          safeErrorLog(e, 'AdminReservationsPage - togglePicked');
+          show(getSafeErrorMessage(e, '상태 변경에 실패했습니다.'), { variant: 'error' });
+          return;
+        }
+      }
+      // 로컬 갱신
       updateRowStatus(confirmId, confirmNext);
       if (confirmNext === 'picked') {
         show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);

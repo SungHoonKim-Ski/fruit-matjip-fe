@@ -153,7 +153,7 @@ export default function OrdersPage() {
       return inFrom && inTo && s;
     });
     
-    // 복합 정렬: 주문일 (오늘/미래/과거 순) + 상태 (수령대기/예약완료/예약취소 순)
+    // 정렬: 주문일 (오늘/미래/과거 순)
     filtered.sort((a, b) => {
       // 날짜 비교를 위해 YYYY-MM-DD 형식으로 변환
       const aDate = a.date; // 이미 YYYY-MM-DD 형식
@@ -180,12 +180,6 @@ export default function OrdersPage() {
         if (aDate < today && bDate < today) {
           return bDate.localeCompare(aDate);
         }
-      }
-      
-      // 2. 같은 날짜인 경우 상태별 정렬: pending > picked > canceled 순
-      if (aDate === bDate) {
-        const statusOrder = { pending: 0, picked: 1, canceled: 2 };
-        return statusOrder[a.status] - statusOrder[b.status];
       }
       
       return 0;
