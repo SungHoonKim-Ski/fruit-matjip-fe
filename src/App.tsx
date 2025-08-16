@@ -24,8 +24,8 @@ export default function App() {
 
       <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/register" element={<AdminRegisterPage />} />
       <Route element={<RequireAdmin />}>
-        <Route path="/admin/register" element={<AdminRegisterPage />} />
         <Route path="/admin/products" element={<AdminProductPage />} />
         <Route path="/admin/products/new" element={<AdminCreateProductPage />} />
         <Route path="/admin/sales" element={<AdminSalesPage />} />
