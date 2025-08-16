@@ -553,7 +553,8 @@ export const togglePicked = async (id: number, picked: boolean) => {
   const key = 'togglePicked';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/reservations/${id}?picked=${picked}`, { method: 'POST' }, true);
+    const status = (picked ? 'PICKED' : 'PENDING');
+    const res = await adminFetch(`/api/admin/reservations/${id}/${status}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
