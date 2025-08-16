@@ -112,16 +112,19 @@ export default function OrdersPage() {
                   orderStatus = 'pending';
               }
               
+              const qty = Math.max(1, Number(r.quantity ?? 1));
+              const amt = Number(r.amount ?? 0);
+              const unit = qty > 0 ? amt / qty : amt;
               return {
                 id: r.id,
                 date: r.order_date, // orderDate -> order_date로 수정
                 status: orderStatus,
                 items: [{
                   id: r.id,
-                  name: r.product_name, // productName -> product_name으로 수정
-                  quantity: 1,
-                  price: r.amount,
-                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '' // productImage 제거
+                  name: r.product_name, 
+                  quantity: qty,
+                  price: unit,
+                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : ''
                 }]
               };
             });
@@ -367,7 +370,7 @@ export default function OrdersPage() {
                       <div className="text-sm">{it.name}</div>
                       <div className="text-xs text-gray-500">× {it.quantity}</div>
                     </div>
-                    <div className="text-sm font-medium">{KRW(it.price * it.quantity)}</div>
+                    <div className="text-sm font-medium">{KRW(it.price)}</div>
                   </div>
                 ))}
               </div>
