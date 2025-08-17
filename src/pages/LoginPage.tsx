@@ -1,5 +1,6 @@
 // src/pages/auth/LoginPage.tsx
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { getCurrentEnvironment } from '../utils/environment';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../utils/environment';
@@ -58,8 +59,10 @@ export default function LoginPage() {
 
   const [busy, setBusy] = useState(false);
 
-  // SDK preload
+  // SDK preload (PROD에서만 로드)
   useEffect(() => {
+    const env = getCurrentEnvironment();
+    if (env !== 'production') return; // dev/local에서는 로드하지 않음
     if (!JS_KAKAO_KEY) return;
     ensureKakaoSDK(JS_KAKAO_KEY).catch(() => {});
   }, []);
@@ -202,7 +205,39 @@ export default function LoginPage() {
         }
       }
 
-      // 카카오 OAuth 시작
+      // 비-PROD 환경: 서버 /api/login 바로 호출 (SDK 미사용)
+      if (getCurrentEnvironment() !== 'production') {
+        try {
+          const loginUrl = `${API_BASE}/api/login`;
+          const res = await fetch(loginUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              code: 'DUMMY_CODE_FOR_DEV',
+              redirectUri: REDIRECT_URI,
+              state: 'DUMMY_STATE_FOR_DEV'
+            }),
+          });
+          const text = await res.text();
+          if (!res.ok) {
+            safeErrorLog(
+              { message: 'dev login failed', status: res.status, statusText: res.statusText, body: text, url: loginUrl },
+              'LoginPage - dev login response'
+            );
+            throw new Error('로그인 처리에 실패했습니다.');
+          }
+          const data: LoginSuccess = JSON.parse(text || '{}');
+          if (!data?.access) throw new Error('토큰이 없습니다.');
+          showRef.current(`${data.name || '사용자'}님 환영합니다!`);
+          if (data.name) localStorage.setItem('nickname', data.name);
+          localStorage.setItem('access', data.access);
+          nav('/products', { replace: true });
+          return;
+        } finally {
+          setBusy(false);
+        }
+      }
       if (!JS_KAKAO_KEY) {
         show('카카오 JS 키가 설정되지 않았습니다. (REACT_APP_JS_KAKAO_KEY)', { variant: 'error' });
         return;

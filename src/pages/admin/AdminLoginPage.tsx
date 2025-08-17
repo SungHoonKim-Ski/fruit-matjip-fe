@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
+import { getCurrentEnvironment } from '../../utils/environment';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { adminLogin } from '../../utils/api';
 
 export default function AdminLoginPage() {
-  const [id, setId] = useState('');
-  const [password, setPassword] = useState('');
+  const isDev = getCurrentEnvironment() !== 'production';
+  const [id, setId] = useState(isDev ? 'admin' : '');
+  const [password, setPassword] = useState(isDev ? 'admin1234' : '');
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { show } = useSnackbar();
