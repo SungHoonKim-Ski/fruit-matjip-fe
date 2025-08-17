@@ -289,6 +289,10 @@ export default function OrdersPage() {
             </button>
           </div>
         </div>
+        {/* 안내 문구 */}
+        <div className="mt-2 text-xs text-gray-500">
+          수령 대기 상태인 상품을 클릭하면 예약을 취소할 수 있어요.
+        </div>
       </section>
 
       {/* 데스크톱 테이블 */}
@@ -309,7 +313,17 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {filtered.map(o => (
-                <tr key={o.id} className="border-t text-sm">
+                <tr
+                  key={o.id}
+                  className={`border-t text-sm ${o.status === 'pending' ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (o.status === 'pending') {
+                      openCancelDialog(o.id, o.items.map(item => item.name).join(', '));
+                    }
+                  }}
+                  role={o.status === 'pending' ? 'button' : undefined}
+                  aria-label={o.status === 'pending' ? '예약 취소' : undefined}
+                >
                   <td className="px-4 py-3">{o.date}</td>
                   <td className="px-4 py-3">
                     <div className="space-y-1">
@@ -326,13 +340,12 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => openCancelDialog(o.id, o.items.map(item => item.name).join(', '))}
+                    <span
                       className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                      disabled={o.status !== 'pending'}
+                      title={o.status === 'pending' ? '누르면 예약이 취소됩니다.' : undefined}
                     >
-                      {o.status === 'pending' ? '수령 대기' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
-                    </button>
+                      {o.status === 'pending' ? '수령 대기(클릭 시 취소)' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -349,15 +362,26 @@ export default function OrdersPage() {
         )}
         <div className="space-y-3 mt-4">
           {filtered.map(o => (
-            <div key={o.id} className="bg-white rounded-lg shadow p-4">
+            <div
+              key={o.id}
+              className={`bg-white rounded-lg shadow p-4 ${o.status === 'pending' ? 'active:bg-orange-50 cursor-pointer' : ''}`}
+              onClick={() => {
+                if (o.status === 'pending') {
+                  openCancelDialog(o.id, o.items.map(item => item.name).join(', '));
+                }
+              }}
+              role={o.status === 'pending' ? 'button' : undefined}
+              aria-label={o.status === 'pending' ? '예약 취소' : undefined}
+            >
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">{o.date}</div>
                 <button
                   onClick={() => openCancelDialog(o.id, o.items.map(item => item.name).join(', '))}
                   className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                  title={o.status === 'pending' ? '누르면 예약이 취소됩니다.' : undefined}
                   disabled={o.status !== 'pending'}
                 >
-                  {o.status === 'pending' ? '수령 대기' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                  {o.status === 'pending' ? '수령 대기(클릭 시 취소)' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
                 </button>
               </div>
               <div className="mt-2 space-y-2">
