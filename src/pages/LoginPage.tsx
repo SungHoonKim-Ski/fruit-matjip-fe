@@ -235,10 +235,16 @@ export default function LoginPage() {
           }
           const data: LoginSuccess = JSON.parse(text || '{}');
           if (!data?.access) throw new Error('토큰이 없습니다.');
-          showRef.current(`${data.name || '사용자'}님 환영합니다!`);
-          if (data.name) localStorage.setItem('nickname', data.name);
+          const forceNicknameChange = data && data.change_name === false;
+          if (forceNicknameChange) {
+            showRef.current('닉네임 변경이 필요합니다.');
+            localStorage.setItem('nickname', '신규 고객');
+          } else {
+            showRef.current(`${data.name || '사용자'}님 환영합니다!`);
+            if (data.name) localStorage.setItem('nickname', data.name);
+          }
           localStorage.setItem('access', data.access);
-          nav('/products', { replace: true });
+          nav('/products', { replace: true, state: forceNicknameChange ? { forceNicknameChange: true } : {} });
           return;
         } finally {
           setBusy(false);
