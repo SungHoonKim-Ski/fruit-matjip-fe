@@ -435,7 +435,7 @@ export default function ReservePage() {
   };
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16">
+    <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-10">
       {/* 상단 바: 3등분 레이아웃로 균등 분배 */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
         <div className="mx-auto w-full max-w-md h-14 flex items-center px-4">

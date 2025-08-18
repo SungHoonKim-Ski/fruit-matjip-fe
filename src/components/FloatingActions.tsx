@@ -43,12 +43,14 @@ export default function FloatingActionsReversed({
         type="button"
         aria-label="맨 위로"
         onClick={goTop}
-        className={`fixed left-4 bottom-4 z-50 rounded-full bg-white text-gray-800
-                    border border-gray-200 shadow-xl h-12 w-12 grid place-items-center
-                    hover:shadow-2xl active:scale-[0.98] transition
+        className={`fixed left-4 bottom-4 z-50 rounded-full
+                    bg-gradient-to-br from-white to-gray-50 text-gray-900
+                    border-2 border-gray-300 shadow-2xl h-12 w-12 grid place-items-center
+                    hover:from-white hover:to-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
+                    active:scale-[0.98] transition
                     ${showTop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
       >
-        ↑
+        <span className="text-lg font-bold">↑</span>
       </button>
     </>
   );
