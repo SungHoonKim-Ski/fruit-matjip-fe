@@ -1,70 +1,53 @@
-# Getting Started with Create React App
+# 🍎 과일맛집 - 프론트엔드
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+공동구매 예약 **과일맛집**의 프론트엔드 레포지토리입니다.  
+사용자/관리자 웹 화면을 React + TypeScript + TailwindCSS 기반으로 구현했습니다.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🌐 배포 링크
 
-### `npm start`
+| 환경 | 유저용 | 관리자용                              |
+|------|--------|-----------------------------------|
+| 운영 | https://onuljang.store | https://onuljang.store/admin      |
+| 테스트 | https://dev.onuljang.store | https://dev.onuljang.store/admin |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
++ 백엔드 레포: [onuljang-be](https://github.com/SungHoonKim-Ski/onuljang-be)
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🖼️ 주요 화면
 
-### `npm test`
+| 구분 | 설명 |이미지 - PC|이미지 - 모바일|
+|--------|--------|--------|--------|
+|사용자| ![로그인](https://github.com/user-attachments/assets/8d67b176-fafe-4d1a-801d-089e5bc1cc87) |-|-|-|
+|사용자| ![상품 목록](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|사용자| ![마이페이지](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|관리자| ![로그인](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|관리자| ![상품 관리](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|관리자| ![상품 상세 정보 수정](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|관리자| ![예약 관리](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
+|관리자| ![판매량 조회](https://github.com/user-attachments/assets/fe9ee9c8-6f4c-4b8a-a2e3-fc44dfb43270) |-|-|
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## ⚙️ 기술 스택
 
-### `npm run build`
+- React 18 (TypeScript)
+- React Router
+- TailwindCSS
+- Axios (API 호출)
+- React Query (데이터 캐싱)
+- ESLint + Prettier
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🛠️ 주요 기능
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- 사용자
+  - 상품 예약/취소, 마이페이지 내역 조회
+  - 닉네임 중복 체크 및 저장
+- 관리자
+  - 상품 CRUD + 이미지 업로드 (S3 Presigned URL)
+  - 예약 현황 확인
+  - 판매량 집계 그래프 조회
+- UI
+  - 반응형 디자인 (모바일/PC 지원)
+  - 공통 Toast 알림 (성공/에러)
