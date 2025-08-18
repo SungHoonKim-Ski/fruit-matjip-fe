@@ -19,6 +19,8 @@ type ReservationRow = {
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
+type SortField = 'date' | 'productName' | 'buyerName' | 'quantity' | 'amount' | 'status';
+
 export default function AdminReservationsPage() {
 
   const { show } = useSnackbar();
@@ -35,6 +37,8 @@ export default function AdminReservationsPage() {
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
   const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all'); // 기본값을 전체로 변경
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
@@ -116,15 +120,37 @@ export default function AdminReservationsPage() {
       return dateMatch && fieldHit && pickupHit;
     });
 
-    // 취소 예약은 목록 하단으로 정렬
+    // 초기 상태: 정렬 적용 없이 서버 순서 유지
+    if (!sortField) return list;
+
+    // 정렬
+    // 상태 정렬: 오름차순 ⇒ 대기(0) < 취소(1) < 완료(2)
+    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, canceled: 1, picked: 2 };
+    const cmpCore = (a: ReservationRow, b: ReservationRow) => {
+      switch (sortField) {
+        case 'date':
+          return a.date.localeCompare(b.date);
+        case 'productName':
+          return a.productName.localeCompare(b.productName, 'ko');
+        case 'buyerName':
+          return a.buyerName.localeCompare(b.buyerName, 'ko');
+        case 'quantity':
+          return a.quantity - b.quantity;
+        case 'amount':
+          return a.amount - b.amount;
+        case 'status':
+          return statusOrder[a.status] - statusOrder[b.status];
+        default:
+          return 0;
+      }
+    };
+
     return list.sort((a, b) => {
-      const aCanceled = a.status === 'canceled';
-      const bCanceled = b.status === 'canceled';
-      if (aCanceled && !bCanceled) return 1;
-      if (!aCanceled && bCanceled) return -1;
-      return 0;
+      let cmp = cmpCore(a, b);
+      if (sortOrder === 'desc') cmp = -cmp; // 내림차순 시 반전 → 완료가 상단
+      return cmp;
     });
-  }, [rows, selectedDate, term, field, pickupFilter]);
+  }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
 
   // 드롭다운으로 상태 변경
   const updateRowStatus = (id: number, next: 'pending' | 'picked') => {
@@ -230,6 +256,7 @@ export default function AdminReservationsPage() {
               <option value="picked">수령 완료</option>
             </select>
           </div>
+
         </div>
         
         {/* 선택된 날짜 정보 표시 */}
@@ -244,12 +271,78 @@ export default function AdminReservationsPage() {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr className="text-left text-sm text-gray-500">
-                <th className="px-4 py-3">일자</th>
-                <th className="px-4 py-3">상품명</th>
-                <th className="px-4 py-3">이름</th>
-                <th className="px-4 py-3">수량</th>
-                <th className="px-4 py-3">금액</th>
-                <th className="px-4 py-3">수령 여부</th>
+                {([
+                  { key: 'date', label: '일자' },
+                  { key: 'productName', label: '상품명' },
+                  { key: 'buyerName', label: '이름' },
+                  { key: 'quantity', label: '수량' },
+                  { key: 'amount', label: '금액' },
+                  { key: 'status', label: '수령 여부' },
+                ] as { key: SortField; label: string }[]).map(col => (
+                  <th key={col.key} className="px-4 py-2 align-middle">
+                    <div className="h-9 flex items-center">
+                      {col.key === 'date' ? (
+                        <span className="text-gray-700">{col.label}</span>
+                      ) : (
+                        <span
+                          className={`inline-flex h-8 items-center gap-1 rounded-full border px-2 ${
+                            sortField === col.key
+                              ? (sortOrder === 'desc'
+                                  ? 'border-blue-300 bg-blue-50 text-blue-700'
+                                  : 'border-orange-300 bg-orange-50 text-orange-700')
+                              : 'border-gray-200 bg-white text-gray-700'
+                          }`}
+                        onClick={() => {
+                          if (sortField !== col.key) {
+                            setSortField(col.key);
+                            setSortOrder('asc');
+                          } else if (sortOrder === 'asc') {
+                            setSortOrder('desc');
+                          } else {
+                            setSortField(null);
+                          }
+                        }}
+                        >
+                          <span>{col.label}</span>
+                          <button
+                            type="button"
+                            className={`leading-none text-[11px] px-0.5 ${sortField === col.key && sortOrder === 'asc' ? 'text-orange-600' : 'text-gray-400'} hover:text-gray-700`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (sortField === col.key && sortOrder === 'asc') {
+                                setSortField(null);
+                              } else {
+                                setSortField(col.key);
+                                setSortOrder('asc');
+                              }
+                            }}
+                            aria-label={`${col.label} 오름차순`}
+                            title={`${col.label} 오름차순`}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            className={`leading-none text-[11px] px-0.5 ${sortField === col.key && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'} hover:text-gray-700`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (sortField === col.key && sortOrder === 'desc') {
+                                setSortField(null);
+                              } else {
+                                setSortField(col.key);
+                                setSortOrder('desc');
+                              }
+                            }}
+                            aria-label={`${col.label} 내림차순`}
+                            title={`${col.label} 내림차순`}
+                          >
+                            ▼
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -259,12 +352,12 @@ export default function AdminReservationsPage() {
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
                   onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
                 >
-                  <td className="px-4 py-3">{r.date}</td>
-                  <td className="px-4 py-3">{r.productName}</td>
-                  <td className="px-4 py-3">{r.buyerName}</td>
-                  <td className="px-4 py-3">{r.quantity.toLocaleString()}개</td>
-                  <td className="px-4 py-3 font-medium">{formatKRW(r.amount)}</td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-3 align-middle">{r.date}</td>
+                  <td className="px-4 py-3 align-middle">{r.productName}</td>
+                  <td className="px-4 py-3 align-middle">{r.buyerName}</td>
+                  <td className="px-4 py-3 align-middle">{r.quantity.toLocaleString()}개</td>
+                  <td className="px-4 py-3 font-medium align-middle">{formatKRW(r.amount)}</td>
+                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
@@ -305,20 +398,89 @@ export default function AdminReservationsPage() {
 
         {/* 모바일 카드 */}
         <div className="sm:hidden divide-y">
+          {/* 모바일: 가로 스크롤 정렬 칩 (일자 제외) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-3 py-2 text-xs text-gray-600">
+            {([
+              { key: 'productName', label: '상품명' },
+              { key: 'buyerName', label: '이름' },
+              { key: 'quantity', label: '수량' },
+              { key: 'amount', label: '금액' },
+              { key: 'status', label: '수령여부' },
+            ] as { key: SortField; label: string }[]).map(col => (
+              <div
+                key={col.key}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 shadow-sm whitespace-nowrap ${
+                  sortField === col.key
+                    ? (sortOrder === 'desc'
+                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        : 'border-orange-400 bg-orange-50 text-orange-700')
+                    : 'border-gray-200 bg-white'
+                } cursor-pointer select-none`}
+                onClick={() => {
+                  if (sortField !== col.key) {
+                    setSortField(col.key);
+                    setSortOrder('asc');
+                  } else if (sortOrder === 'asc') {
+                    setSortOrder('desc');
+                  } else {
+                    setSortField(null);
+                  }
+                }}
+              >
+                <span>{col.label}</span>
+                <div className="flex ml-1 items-center gap-1">
+                  <button
+                    type="button"
+                    className={`leading-none ${sortField === col.key && sortOrder === 'asc' ? 'text-orange-600' : 'text-gray-400'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (sortField === col.key && sortOrder === 'asc') {
+                        setSortField(null);
+                      } else {
+                        setSortField(col.key);
+                        setSortOrder('asc');
+                      }
+                    }}
+                    aria-label={`${col.label} 오름차순`}
+                  >▲</button>
+                  <button
+                    type="button"
+                    className={`leading-none ${sortField === col.key && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (sortField === col.key && sortOrder === 'desc') {
+                        setSortField(null);
+                      } else {
+                        setSortField(col.key);
+                        setSortOrder('desc');
+                      }
+                    }}
+                    aria-label={`${col.label} 내림차순`}
+                  >▼</button>
+                </div>
+              </div>
+            ))}
+          </div>
           {filtered.map(r => (
               <div
                 key={r.id}
                 className="p-4 active:bg-orange-50"
                 onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
               >
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">{r.date}</span>
-                <span className="font-medium">{formatKRW(r.amount)}</span>
+              {/* 상단: 상품명 / 금액 */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="font-medium text-[15px] text-gray-900 break-words flex-1 min-w-0">
+                  <span className="line-clamp-2 break-words">{r.productName}</span>
+                </div>
+                <div className="text-right flex-shrink-0 text-[15px] font-semibold text-orange-600">{formatKRW(r.amount)}</div>
               </div>
-              <div className="mt-1 text-sm">{r.productName}</div>
-              <div className="mt-1 text-xs text-gray-500">{r.buyerName} · {r.quantity}개</div>
-
-              <div className="mt-2 flex justify-end">
+              {/* 하단 메타: 날짜 · 닉네임 · 수량 + 상태 */}
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="text-xs text-gray-500 flex items-center gap-2 min-w-0">
+                  <span className="whitespace-nowrap">{r.date}</span>
+                  <span className="truncate">{r.buyerName}</span>
+                  <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] text-gray-700 bg-gray-50">{r.quantity}개</span>
+                </div>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
