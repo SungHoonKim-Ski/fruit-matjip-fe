@@ -149,7 +149,7 @@ export default function LoginPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // 서버에서 refresh 쿠키 심을 수 있음
-          body: JSON.stringify({ code, redirectUri: REDIRECT_URI, state: stateFromUrl }),
+          body: JSON.stringify({ code, redirect_uri: REDIRECT_URI, state: stateFromUrl }),
         });
 
         const text = await res.text();
