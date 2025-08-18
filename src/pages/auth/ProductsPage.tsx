@@ -82,7 +82,7 @@ export default function ReservePage() {
     return saved && saved.trim() ? saved : '신규 고객';
   });
   const [nickModalOpen, setNickModalOpen] = useState(false);
-  const [draftNick, setDraftNick] = useState(nickname);
+  const [draftNick, setDraftNick] = useState(() => (nickname === '신규 고객' ? '' : nickname));
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
   
@@ -301,7 +301,7 @@ export default function ReservePage() {
 
   // 닉네임 모달
   const openNickModal = () => {
-    setDraftNick(nickname);
+    setDraftNick(nickname === '신규 고객' ? '' : nickname);
     setNickModalOpen(true);
     window.history.pushState({ modal: 'nickname' }, '');
   };
