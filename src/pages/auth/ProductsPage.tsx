@@ -88,6 +88,17 @@ export default function ReservePage() {
   
 
 
+  // 모달(상세/닉네임/개인정보) 오픈 시 백그라운드 스크롤 잠금
+  useEffect(() => {
+    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen;
+    if (anyOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev || '';
+      };
+    }
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen]);
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
     const onPopState = () => {
