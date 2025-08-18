@@ -221,7 +221,7 @@ export default function LoginPage() {
             credentials: 'include',
             body: JSON.stringify({
               code: 'DUMMY_CODE_FOR_DEV',
-              redirectUri: REDIRECT_URI,
+              redirect_uri: REDIRECT_URI,
               state: 'DUMMY_STATE_FOR_DEV'
             }),
           });

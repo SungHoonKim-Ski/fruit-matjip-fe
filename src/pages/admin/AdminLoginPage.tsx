@@ -6,8 +6,8 @@ import { adminLogin } from '../../utils/api';
 
 export default function AdminLoginPage() {
   const isDev = getCurrentEnvironment() !== 'production';
-  const [id, setId] = useState(isDev ? 'admin' : '');
-  const [password, setPassword] = useState(isDev ? 'admin1234' : '');
+  const [id, setId] = useState(isDev ? 'admin1234' : '');
+  const [password, setPassword] = useState(isDev ? 'pass1234' : '');
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { show } = useSnackbar();
