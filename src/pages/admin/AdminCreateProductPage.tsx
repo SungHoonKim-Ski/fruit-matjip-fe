@@ -14,6 +14,7 @@ type ProductForm = {
   sell_date: string;  // NotBlank, Pattern: YYYY-MM-DD
   visible: boolean;  // NotNull
 };
+const PRICE_MAX = 1_000_000;
 
 export default function ProductCreatePage() {
   const { show } = useSnackbar();
@@ -78,15 +79,28 @@ export default function ProductCreatePage() {
       return;
     }
 
-    if (name === 'price' || name === 'stock') {
+    if (name === 'price') {
       if (value === '') {
-        setForm({ ...form, [name]: name === 'price' ? 1000 : 10 } as any);
+        setForm({ ...form, price: 1000 });
         return;
       }
       if (value.length > 1 && value.startsWith('0')) return;
       const num = Number(value);
       if (!Number.isInteger(num) || num < 1) return;
-      setForm({ ...form, [name]: num } as any);
+      const capped = Math.min(num, PRICE_MAX);
+      setForm({ ...form, price: capped });
+      return;
+    }
+
+    if (name === 'stock') {
+      if (value === '') {
+        setForm({ ...form, stock: 10 });
+        return;
+      }
+      if (value.length > 1 && value.startsWith('0')) return;
+      const num = Number(value);
+      if (!Number.isInteger(num) || num < 1) return;
+      setForm({ ...form, stock: num });
       return;
     }
 
@@ -219,8 +233,9 @@ export default function ProductCreatePage() {
               onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
               step={100}
-              placeholder="1000"
-              min={1}
+              max={PRICE_MAX}
+              placeholder="100"
+              min={100}
               required
             />
           </div>
