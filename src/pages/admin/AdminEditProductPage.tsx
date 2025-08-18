@@ -1,16 +1,26 @@
+// src/pages/admin/AdminEditProductPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
-import { getProductById, deleteProduct as mockDelete, updateProduct as mockUpdateProduct } from '../../mocks/products';
-import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateAdminProduct, getUploadUrl, deleteAdminProduct, getAdminProduct, getDetailPresignedUrlsBatch } from '../../utils/api';
+import {
+  getProductById as mockGetById,
+  deleteProduct as mockDelete,
+  updateProduct as mockUpdateProduct,
+} from '../../mocks/products';
+import {
+  updateAdminProduct,
+  getUploadUrl,
+  deleteAdminProduct,
+  getAdminProduct,
+  getDetailPresignedUrlsBatch,
+} from '../../utils/api';
 import { compressImage } from '../../utils/image-compress';
+import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
-// 상품 설명 글자 수 제한
+// 글자수/가격 제한
 const DESCRIPTION_LIMIT = 300;
-// 가격 상한
-const PRICE_MAX = 1000000;
+const PRICE_MAX = 1_000_000;
 
 type ProductEdit = {
   id: number;
@@ -18,18 +28,19 @@ type ProductEdit = {
   price: number;
   stock: number;
   imageUrl: string;
-  sellDate?: string;       // YYYY-MM-DD
+  sellDate?: string; // YYYY-MM-DD
   description?: string;
   images?: string[];
 };
 
+// 절대 URL prefix 부여
 const addPrefix = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   return `${process.env.REACT_APP_IMG_URL}/${url}`;
 };
 
-// 서버에는 S3 key만 전송해야 하므로, 절대 URL을 key로 변환
+// 절대 URL → S3 key 로 환원
 const toS3Key = (url: string) => {
   if (!url) return '';
   try {
@@ -54,20 +65,34 @@ export default function AdminEditProductPage() {
   const [form, setForm] = useState<ProductEdit | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [descLength, setDescLength] = useState(0);
+
+  // 파일/미리보기 refs
   const fileRef = useRef<HTMLInputElement>(null);
   const additionalFileRef = useRef<HTMLInputElement>(null);
   const localPreviewUrlRef = useRef<string | null>(null);
-  const initialFormRef = useRef<ProductEdit | null>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const editorHtmlRef = useRef<string>('');
-  const shouldApplyEditorHtmlRef = useRef<boolean>(false);
-  const [descLength, setDescLength] = useState<number>(0);
+
+  // 상세 이미지 업로드 대기
   const [selectedAdditionalNames, setSelectedAdditionalNames] = useState<string[]>([]);
   const [pendingDetailFiles, setPendingDetailFiles] = useState<File[]>([]);
   const [pendingDetailPreviews, setPendingDetailPreviews] = useState<string[]>([]);
+
+  // 재고 증감
   const [additionalStock, setAdditionalStock] = useState<number>(0);
 
-  const initialStorageKey = useMemo(() => `adminEditInitial:${id ?? ''}`,[id]);
+  // 에디터 refs
+  const editorRef = useRef<HTMLDivElement>(null);
+  const editorHtmlRef = useRef<string>('');
+  const shouldApplyEditorHtmlRef = useRef<boolean>(false);
+
+  // 초기 상태 백업
+  const initialFormRef = useRef<ProductEdit | null>(null);
+  const initialStorageKey = useMemo(() => `adminEditInitial:${id ?? ''}`, [id]);
+
+  // Undo/Redo
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+  const isApplyingHistoryRef = useRef<boolean>(false);
 
   const formatPrice = (price: number) =>
     price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
@@ -82,58 +107,241 @@ export default function AdminEditProductPage() {
     }
   };
 
+  /** ===== Focus/Selection/Scroll 안전 래퍼 ===== */
+  const withEditorFocus = (mutateDom: () => void) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const sel = window.getSelection();
+    const hadSel = !!(sel && sel.rangeCount > 0);
+    const savedRange = hadSel ? sel!.getRangeAt(0).cloneRange() : null;
+    const savedScrollTop = editor.scrollTop;
+
+    mutateDom();
+
+    requestAnimationFrame(() => {
+      editor.focus();
+      const s = window.getSelection();
+      if (s) {
+        s.removeAllRanges();
+        if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
+          s.addRange(savedRange);
+        } else {
+          const end = document.createRange();
+          end.selectNodeContents(editor);
+          end.collapse(false);
+          s.addRange(end);
+        }
+      }
+      editor.scrollTop = savedScrollTop;
+    });
+  };
+
+  /** ===== 히스토리 기록 ===== */
+  const pushHistory = (html: string) => {
+    if (isApplyingHistoryRef.current) return;
+    const arr = historyRef.current;
+    const idx = historyIndexRef.current;
+    if (idx < arr.length - 1) arr.splice(idx + 1);
+    if (arr.length === 0 || arr[arr.length - 1] !== html) {
+      arr.push(html);
+      historyIndexRef.current = arr.length - 1;
+    }
+  };
+
+  const applyHtmlFromHistory = (html: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+    isApplyingHistoryRef.current = true;
+    withEditorFocus(() => {
+      el.innerHTML = html;
+      editorHtmlRef.current = html;
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      setDescLength(temp.innerText?.length || 0);
+      setForm(prev => (prev ? { ...prev, description: html } : prev));
+    });
+    setTimeout(() => {
+      isApplyingHistoryRef.current = false;
+    }, 0);
+  };
+
+  const undo = () => {
+    const idx = historyIndexRef.current;
+    if (idx > 0) {
+      historyIndexRef.current = idx - 1;
+      applyHtmlFromHistory(historyRef.current[historyIndexRef.current]);
+    }
+  };
+
+  const redo = () => {
+    const arr = historyRef.current;
+    const idx = historyIndexRef.current;
+    if (idx < arr.length - 1) {
+      historyIndexRef.current = idx + 1;
+      applyHtmlFromHistory(historyRef.current[historyIndexRef.current]);
+    }
+  };
+
+  /** ===== HTML/상태 동기화 공통 ===== */
+  const normalizeAfterChange = (editor: HTMLElement) => {
+    const html = editor.innerHTML;
+    editorHtmlRef.current = html;
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    setDescLength(temp.innerText?.length || 0);
+    setForm(prev => (prev ? { ...prev, description: html } : prev));
+    pushHistory(html);
+  };
+
+  /** ===== 폰트 크기 적용 ===== */
+  const applyFontSize = (size: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    withEditorFocus(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) return;
+
+      const fragment = range.extractContents();
+
+      const stripFontSize = (node: Node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.style && (el.style as any).fontSize) {
+            el.style.fontSize = '';
+            if ((el.getAttribute('style') || '').trim() === '') el.removeAttribute('style');
+          }
+          if (el.tagName.toLowerCase() === 'font' && el.hasAttribute('size')) {
+            el.removeAttribute('size');
+          }
+        }
+        node.childNodes.forEach(stripFontSize);
+      };
+      stripFontSize(fragment);
+
+      const wrapper = document.createElement('span');
+      wrapper.style.fontSize = size;
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+
+      const newRange = document.createRange();
+      newRange.setStartAfter(wrapper);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+
+      normalizeAfterChange(editor);
+    });
+  };
+
+  /** ===== 굵게 적용 ===== */
+  const applyBold = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    withEditorFocus(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (range.collapsed) return;
+
+      const fragment = range.extractContents();
+
+      const stripBold = (node: Node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          const tn = el.tagName.toLowerCase();
+          if (tn === 'b' || tn === 'strong') {
+            const parent = el.parentNode;
+            if (parent) {
+              while (el.firstChild) parent.insertBefore(el.firstChild, el);
+              parent.removeChild(el);
+            }
+          } else {
+            const fw = el.style?.fontWeight || '';
+            if (fw) {
+              el.style.fontWeight = '';
+              if ((el.getAttribute('style') || '').trim() === '') el.removeAttribute('style');
+            }
+          }
+        }
+        node.childNodes.forEach(stripBold);
+      };
+      stripBold(fragment);
+
+      const wrapper = document.createElement('span');
+      wrapper.style.fontWeight = '700';
+      wrapper.appendChild(fragment);
+      range.insertNode(wrapper);
+
+      const newRange = document.createRange();
+      newRange.setStartAfter(wrapper);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+
+      normalizeAfterChange(editor);
+    });
+  };
+
+  /** ===== 데이터 로드 ===== */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         if (USE_MOCKS) {
-          const data = getProductById(Number(id!));
+          const data = mockGetById(Number(id!));
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
-          if (alive) {
-            const cloned: ProductEdit = JSON.parse(JSON.stringify(data));
-            initialFormRef.current = cloned;
-            setForm(cloned);
-            try { sessionStorage.setItem(initialStorageKey, JSON.stringify(cloned)); } catch {}
-            setAdditionalStock(0);
-            shouldApplyEditorHtmlRef.current = true;
-          }
+          const cloned: ProductEdit = JSON.parse(JSON.stringify(data));
+          if (!alive) return;
+          initialFormRef.current = cloned;
+          setForm(cloned);
+          try {
+            sessionStorage.setItem(initialStorageKey, JSON.stringify(cloned));
+          } catch {}
+          shouldApplyEditorHtmlRef.current = true;
+          setDescLength((cloned.description || '').replace(/<[^>]+>/g, '').length);
         } else {
           const res = await getAdminProduct(Number(id));
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
-          const rawData = await res.json();
-
-          const detailList: string[] = Array.isArray(rawData.detail_urls) ? rawData.detail_urls : [];
-
+          const raw = await res.json();
+          const detailList: string[] = Array.isArray(raw.detail_urls) ? raw.detail_urls : [];
           const data: ProductEdit = {
-            id: rawData.id,
-            name: rawData.name,
-            price: Number(rawData.price),
-            stock: Number(rawData.stock),
-            imageUrl: addPrefix(rawData.product_url),
+            id: raw.id,
+            name: raw.name,
+            price: Number(raw.price),
+            stock: Number(raw.stock),
+            imageUrl: addPrefix(raw.product_url),
             images: detailList.map((u: string) => addPrefix(u)),
-            sellDate: rawData.sell_date,
-            description: rawData.description || ''
+            sellDate: raw.sell_date,
+            description: raw.description || '',
           };
-          
-          if (alive) {
-            initialFormRef.current = data;
-            setForm(data);
-            try { sessionStorage.setItem(initialStorageKey, JSON.stringify(data)); } catch {}
-            shouldApplyEditorHtmlRef.current = true;
-          }
+          if (!alive) return;
+          initialFormRef.current = data;
+          setForm(data);
+          try {
+            sessionStorage.setItem(initialStorageKey, JSON.stringify(data));
+          } catch {}
+          shouldApplyEditorHtmlRef.current = true;
+          setDescLength((data.description || '').replace(/<[^>]+>/g, '').length);
         }
       } catch (e: any) {
         safeErrorLog(e, 'AdminEditProductPage - loadProduct');
-        show(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+        show(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), {
+          variant: 'error',
+        });
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [id, show, initialStorageKey]);
 
-  // 에디터 HTML 주입(프로그램적 변경시에만)
+  /** 에디터 HTML 주입 (프로그램틱 변경시에만) */
   useEffect(() => {
     if (!editorRef.current) return;
     if (!shouldApplyEditorHtmlRef.current) return;
@@ -145,98 +353,135 @@ export default function AdminEditProductPage() {
       editorHtmlRef.current = html;
       const temp = document.createElement('div');
       temp.innerHTML = html;
-      setDescLength((temp.innerText?.length || 0));
+      setDescLength(temp.innerText?.length || 0);
       shouldApplyEditorHtmlRef.current = false;
+      // 히스토리 초기화
+      historyRef.current = [];
+      historyIndexRef.current = -1;
+      if (html) {
+        historyRef.current.push(html);
+        historyIndexRef.current = 0;
+      }
     });
     return () => window.cancelAnimationFrame(raf);
   }, [form?.description]);
 
-  // 페이지 이탈 시 초기값 저장본 제거 및 로컬 미리보기 URL 정리
+  /** 초기 렌더 타이밍 이슈 보강(비어 보이면 한 번 더 주입) */
+  useEffect(() => {
+    if (loading) return;
+    const el = editorRef.current;
+    if (!el) return;
+    const html = form?.description || '';
+    if (html && el.innerHTML.trim() === '') {
+      el.innerHTML = html;
+      editorHtmlRef.current = html;
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      setDescLength(temp.innerText?.length || 0);
+      if (historyRef.current.length === 0) {
+        historyRef.current.push(html);
+        historyIndexRef.current = 0;
+      }
+    }
+  }, [loading, form?.description]);
+
+  /** 단축키(undo/redo) */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (!isMod) return;
+      const key = (e.key || '').toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown as any);
+    return () => window.removeEventListener('keydown', onKeyDown as any);
+  }, []);
+
+  /** 언마운트 정리 */
   useEffect(() => {
     return () => {
-      try { sessionStorage.removeItem(initialStorageKey); } catch {}
+      try {
+        sessionStorage.removeItem(initialStorageKey);
+      } catch {}
       if (localPreviewUrlRef.current) {
         URL.revokeObjectURL(localPreviewUrlRef.current);
         localPreviewUrlRef.current = null;
       }
       try {
-        for (const u of pendingDetailPreviews) {
-          URL.revokeObjectURL(u);
-        }
+        for (const u of pendingDetailPreviews) URL.revokeObjectURL(u);
       } catch {}
     };
   }, [initialStorageKey, pendingDetailPreviews]);
 
+  /** 공통 onChange */
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!form) return;
     const { name, value } = e.target as HTMLInputElement;
-    if (name === 'price' || name === 'stock') {
-      if (name === 'price') {
-        const raw = String(value ?? '');
-        if (raw === '') return;
-        const withHundreds = raw.endsWith('00') ? raw : raw + '00';
-        let n = Number(withHundreds);
-        if (!Number.isFinite(n) || n < 0) return;
-        if (n > PRICE_MAX) n = PRICE_MAX;
-        setForm({ ...form, price: n });
-        return;
-      }
+    if (name === 'price') {
+      const raw = String(value ?? '');
+      if (raw === '') return;
+      // 1000단위 step 보조(원한다면 제거)
+      const withHundreds = raw.endsWith('00') ? raw : raw + '00';
+      let n = Number(withHundreds);
+      if (!Number.isFinite(n) || n < 0) return;
+      if (n > PRICE_MAX) n = PRICE_MAX;
+      setForm({ ...form, price: n });
+      return;
+    }
+    if (name === 'stock') {
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) return;
-      setForm({ ...form, [name]: n });
-    } else {
-      setForm({ ...form, [name]: value });
+      setForm({ ...form, stock: n });
+      return;
     }
+    setForm({ ...form, [name]: value });
   };
 
-  // 메인 이미지 업로드 (성공 시 key 반환) — 압축 적용
+  /** 메인 이미지 업로드 */
   const uploadIfNeeded = async (): Promise<string | null> => {
     if (!fileRef.current?.files?.[0]) return null;
     const original = fileRef.current.files[0];
-    
     if (USE_MOCKS) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return URL.createObjectURL(original);
-    } else {
-      try {
-        // 1) 로컬에서 이미지 압축 (5MB/1600px 기준)
-        const compressed = await compressImage(original);
+      await new Promise((r) => setTimeout(r, 600));
+      return URL.createObjectURL(original); // mock
+    }
+    try {
+      const compressed = await compressImage(original);
+      const presigned = await getUploadUrl(compressed.name, compressed.type);
+      if (!presigned.ok) throw new Error('업로드 URL을 가져오지 못했습니다.');
+      const data = await presigned.json();
+      const url: string = data.url || data.uploadUrl;
+      const key: string = data.key;
+      const method: string = (data.method || 'PUT').toUpperCase();
+      if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
 
-        // 2) presigned URL 발급 (압축된 파일의 name/type 사용)
-        const res = await getUploadUrl(compressed.name, compressed.type);
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            return null; // adminFetch에서 이미 처리됨
-          }
-          throw new Error('업로드 URL을 가져오지 못했습니다.');
-        }
-        const data = await res.json();
-        const url: string = data.url || data.uploadUrl;
-        const key: string = data.key;
-        const method: string = (data.method || 'PUT').toUpperCase();
-        if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
-
-        // 3) S3 업로드 (Content-Type은 presigned와 동일하게 전송)
-        const uploadRes = await fetch(url, {
-          method,
-          headers: { 'Content-Type': compressed.type },
-          body: compressed,
-          mode: 'cors',
-        });
-        if (!uploadRes.ok) throw new Error('파일 업로드에 실패했습니다.');
-
-        return key; // 서버에 보낼 key
-      } catch (e: any) {
-        safeErrorLog(e, 'AdminEditProductPage - uploadIfNeeded');
-        show(getSafeErrorMessage(e, '파일 업로드 중 오류가 발생했습니다.'), { variant: 'error' });
-        return null;
-      }
+      const put = await fetch(url, {
+        method,
+        headers: { 'Content-Type': compressed.type },
+        body: compressed,
+        mode: 'cors',
+      });
+      if (!put.ok) throw new Error('파일 업로드에 실패했습니다.');
+      return key; // 서버에는 key만 보냄
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminEditProductPage - uploadIfNeeded');
+      show(getSafeErrorMessage(e, '파일 업로드 중 오류가 발생했습니다.'), { variant: 'error' });
+      return null;
     }
   };
 
+  /** 유효성 검사 */
   const validateForm = () => {
     if (!form) return false;
-    
     if (!form.name?.trim()) {
       show('상품명을 입력해주세요.', { variant: 'error' });
       return false;
@@ -246,7 +491,7 @@ export default function AdminEditProductPage() {
       return false;
     }
     if (form.stock < 0) {
-      show('재고는 0 이상의 값을 입력해주세요.', { variant: 'error' });
+      show('재고는 0 이상이어야 합니다.', { variant: 'error' });
       return false;
     }
     if (!form.imageUrl && !fileRef.current?.files?.[0]) {
@@ -269,123 +514,89 @@ export default function AdminEditProductPage() {
     return true;
   };
 
+  /** 저장 */
   const save = async () => {
     if (!form) return;
     if (!validateForm()) return;
-    
+
     try {
       setSaving(true);
+      // 메인 이미지
+      const newMainKey = await uploadIfNeeded();
 
-      // 메인 이미지 업로드 (있으면)
-      const newMainKey = await uploadIfNeeded(); // key | null
-
-      // 상세 이미지 신규 파일 업로드 — 저장 직전에 압축 → type별로 묶어서 presigned 발급 후 PUT
+      // 상세 이미지 신규 업로드
       const uploadedDetailKeys: string[] = [];
       if (pendingDetailFiles.length > 0 && !USE_MOCKS) {
-        // 1) 먼저 전부 압축 (동시에 너무 많이 하지 않도록 순차 또는 소량 병렬 권장)
-        const compressedFiles: File[] = [];
+        // 1) 압축
+        const compressed: File[] = [];
         for (const f of pendingDetailFiles) {
           try {
-            const cf = await compressImage(f);
-            compressedFiles.push(cf);
-          } catch (err) {
-            // 압축 실패 시 원본 사용 (필요 시 에러 처리)
-            compressedFiles.push(f);
+            compressed.push(await compressImage(f));
+          } catch {
+            compressed.push(f);
           }
         }
-
-        // 2) content-type 별로 그룹화
-        const byType = new Map<string, { names: string[]; files: File[] }>();
-        for (const f of compressedFiles) {
-          const key = f.type || 'image/jpeg';
-          if (!byType.has(key)) byType.set(key, { names: [], files: [] });
-          byType.get(key)!.names.push(f.name);
-          byType.get(key)!.files.push(f);
+        // 2) 타입별 그룹
+        const groups = new Map<string, { names: string[]; files: File[] }>();
+        for (const f of compressed) {
+          const t = f.type || 'image/jpeg';
+          if (!groups.has(t)) groups.set(t, { names: [], files: [] });
+          groups.get(t)!.names.push(f.name);
+          groups.get(t)!.files.push(f);
         }
-
-        // 3) 각 타입 그룹별 presigned 발급 → 업로드
-        for (const [contentType, pack] of byType.entries()) {
+        // 3) presigned → 업로드
+        for (const [contentType, pack] of groups.entries()) {
           const presignedList = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
           if (!presignedList || presignedList.length !== pack.files.length) {
             throw new Error('상세 이미지 URL 발급 수 불일치');
           }
           for (let i = 0; i < pack.files.length; i++) {
-            const item = presignedList[i]; // { url, key, method? }
-            const file = pack.files[i];
+            const item = presignedList[i]; // {url,key,method?}
             const method = (item.method || 'PUT').toUpperCase();
-
             const putRes = await fetch(item.url, {
               method,
               headers: { 'Content-Type': contentType },
-              body: file,
+              body: pack.files[i],
               mode: 'cors',
             });
             if (!putRes.ok) throw new Error('상세 이미지 업로드 실패');
-
             const key = item.key || new URL(item.url).pathname.replace(/^\//, '');
             uploadedDetailKeys.push(key);
           }
         }
-
-        // 화면 미리보기 갱신(절대 URL)
+        // 화면 미리보기 갱신
         if (uploadedDetailKeys.length) {
           setForm(prev =>
-            prev ? { ...prev, images: [...(prev.images || []), ...uploadedDetailKeys.map(addPrefix)] } : prev
+            prev ? { ...prev, images: [...(prev.images || []), ...uploadedDetailKeys.map(addPrefix)] } : prev,
           );
         }
       }
 
-      // 초기 스냅샷 (세션 → 메모리)
+      // 변경점 비교
       const initialRaw = sessionStorage.getItem(initialStorageKey);
       const initial: ProductEdit | null = initialRaw
         ? JSON.parse(initialRaw)
-        : (initialFormRef.current ? JSON.parse(JSON.stringify(initialFormRef.current)) : null);
+        : initialFormRef.current
+          ? JSON.parse(JSON.stringify(initialFormRef.current))
+          : null;
 
-      // 필드별 변경 비교
-      const currentName = (form.name || '').trim();
-      const initialName = (initial?.name || '').trim();
-      const nameChanged = currentName !== initialName;
-
-      const currentPrice = form.price;
-      const initialPrice = initial?.price ?? 0;
-      const priceChanged = currentPrice !== initialPrice;
-
+      const nameChanged = (form.name || '').trim() !== (initial?.name || '').trim();
+      const priceChanged = form.price !== (initial?.price ?? 0);
       const stockChanged = additionalStock !== 0;
-
-      // 메인 이미지: key로 비교 (newMainKey가 있으면 그걸 사용)
-      const currentMainUrlForCompare = newMainKey ?? form.imageUrl; // newMainKey가 있으면 key(상대), 없으면 절대 URL
-      const currentMainKey = toS3Key(currentMainUrlForCompare);
-      const initialMainKey = toS3Key(initial?.imageUrl || '');
-      const productUrlChanged = currentMainKey !== initialMainKey;
-
-      const currentSellDate = (form.sellDate || '').trim();
-      const initialSellDate = (initial?.sellDate || '').trim();
-      const sellDateChanged = currentSellDate !== initialSellDate;
+      const productUrlChanged = toS3Key(newMainKey ?? form.imageUrl) !== toS3Key(initial?.imageUrl || '');
+      const sellDateChanged = (form.sellDate || '').trim() !== (initial?.sellDate || '').trim();
 
       const normalizeHtml = (s: string) => s.replace(/\s+/g, ' ').trim();
-      const currentDesc = normalizeHtml(form.description || '');
-      const initialDesc = normalizeHtml(initial?.description || '');
-      const descriptionChanged = currentDesc !== initialDesc;
+      const descriptionChanged = normalizeHtml(form.description || '') !== normalizeHtml(initial?.description || '');
 
-      // 상세 이미지: 현재 상태(화면 이미지들) + 방금 업로드한 키를 키 배열로 일관 변환
-      const arraysEqual = (a: string[], b: string[]) =>
-        a.length === b.length && a.every((v, i) => v === b[i]);
-
+      const arraysEqual = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
       const initialDetailKeys = (initial?.images || []).map(u => toS3Key(u));
       let currentDetailKeys = (form.images || []).map(u => toS3Key(u));
-      if (uploadedDetailKeys.length) {
-        currentDetailKeys = [...currentDetailKeys, ...uploadedDetailKeys];
-      }
+      if (uploadedDetailKeys.length) currentDetailKeys = [...currentDetailKeys, ...uploadedDetailKeys];
       const detailChanged = !arraysEqual(currentDetailKeys, initialDetailKeys);
 
       const hasAnyChange =
-        nameChanged ||
-        priceChanged ||
-        stockChanged ||
-        productUrlChanged ||
-        sellDateChanged ||
-        descriptionChanged ||
-        detailChanged;
+        nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || descriptionChanged || detailChanged;
 
       if (!hasAnyChange) {
         show('변경 사항이 없습니다.', { variant: 'info' });
@@ -396,13 +607,13 @@ export default function AdminEditProductPage() {
       }
 
       const payload: any = {
-        name: nameChanged ? currentName : null,
-        price: priceChanged ? currentPrice : null,
+        name: nameChanged ? (form.name || '').trim() : null,
+        price: priceChanged ? form.price : null,
         stock_change: stockChanged ? additionalStock : null,
-        product_url: productUrlChanged ? currentMainKey : null,   // key만
-        sell_date: sellDateChanged ? currentSellDate : null,      // ''은 초기화를 의미
+        product_url: productUrlChanged ? toS3Key(newMainKey ?? form.imageUrl) : null, // key만
+        sell_date: sellDateChanged ? (form.sellDate || '').trim() : null,
         description: descriptionChanged ? (form.description || '') : null,
-        detail_urls: detailChanged ? currentDetailKeys : null,    // 최종 키 배열
+        detail_urls: detailChanged ? currentDetailKeys : null,
       };
 
       if (USE_MOCKS) {
@@ -410,9 +621,7 @@ export default function AdminEditProductPage() {
       } else {
         const res = await updateAdminProduct(Number(id), payload);
         if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            return; // adminFetch에서 이미 처리
-          }
+          if (res.status === 401 || res.status === 403) return; // adminFetch 내부 처리
           throw new Error('저장에 실패했습니다.');
         }
       }
@@ -420,6 +629,8 @@ export default function AdminEditProductPage() {
       show('저장되었습니다.');
       try { sessionStorage.removeItem(initialStorageKey); } catch {}
       setPendingDetailFiles([]);
+      setPendingDetailPreviews([]);
+      setSelectedAdditionalNames([]);
       nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - save');
@@ -429,6 +640,7 @@ export default function AdminEditProductPage() {
     }
   };
 
+  /** 삭제 */
   const del = async () => {
     if (!form) return;
     if (!window.confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
@@ -438,9 +650,7 @@ export default function AdminEditProductPage() {
       } else {
         const res = await deleteAdminProduct(form.id);
         if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            return; // adminFetch에서 이미 처리
-          }
+          if (res.status === 401 || res.status === 403) return;
           throw new Error('삭제에 실패했습니다.');
         }
       }
@@ -452,6 +662,7 @@ export default function AdminEditProductPage() {
     }
   };
 
+  /** ===== 렌더 ===== */
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 pt-16">
@@ -484,6 +695,7 @@ export default function AdminEditProductPage() {
 
       <section className="max-w-2xl mx-auto bg-white rounded-lg shadow p-5">
         <div className="grid grid-cols-1 gap-4">
+          {/* 이름/가격/재고 */}
           <div>
             <label className="text-sm font-medium">상품명 <span className="text-red-500">*</span></label>
             <input
@@ -501,7 +713,11 @@ export default function AdminEditProductPage() {
               <div className="mt-1 relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">₩</span>
                 <input
-                  name="price" type="number" min={0} step={1000} max={PRICE_MAX}
+                  name="price"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  max={PRICE_MAX}
                   value={form.price}
                   onChange={onChange}
                   className="w-full h-10 border rounded pl-7 pr-3 text-center"
@@ -512,15 +728,17 @@ export default function AdminEditProductPage() {
               <label className="text-sm font-medium">현재 재고</label>
               <div className="mt-1 relative">
                 <input
-                  name="stock" type="number" min={0}
+                  name="stock"
+                  type="number"
+                  min={0}
                   value={form.stock + additionalStock}
                   readOnly
                   aria-readonly="true"
                   className={`w-full h-10 border rounded pl-3 pr-12 text-center cursor-not-allowed select-none caret-transparent ${
-                    form.stock + additionalStock > form.stock 
-                      ? 'bg-green-100 text-green-700 border-green-300' 
-                      : form.stock + additionalStock < form.stock 
-                      ? 'bg-red-100 text-red-700 border-red-300' 
+                    form.stock + additionalStock > form.stock
+                      ? 'bg-green-100 text-green-700 border-green-300'
+                      : form.stock + additionalStock < form.stock
+                      ? 'bg-red-100 text-red-700 border-red-300'
                       : 'bg-gray-100 text-gray-700'
                   }`}
                 />
@@ -534,9 +752,13 @@ export default function AdminEditProductPage() {
             <div className="mt-1 h-10 grid grid-cols-[1fr_4fr_1fr] items-center border rounded overflow-hidden">
               <button
                 type="button"
-                onClick={() => setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))}
+                onClick={() =>
+                  setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))
+                }
                 disabled={form.stock + additionalStock < 10}
-                className={`h-full w-full text-base leading-none border-r ${form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'}`}
+                className={`h-full w-full text-base leading-none border-r ${
+                  form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'
+                }`}
                 aria-label="추가 재고 감소"
               >
                 −
@@ -575,104 +797,91 @@ export default function AdminEditProductPage() {
           <div>
             <label className="text-sm font-medium">판매일</label>
             <input
-              name="sellDate" type="date"
+              name="sellDate"
+              type="date"
               value={form.sellDate || ''}
               onChange={onChange}
               className="mt-1 w-full h-10 border rounded px-3"
             />
           </div>
 
+          {/* 설명 에디터 */}
           <div>
             <label className="text-sm font-medium">설명</label>
             <div className="mt-1 border rounded">
-              {/* 텍스트 에디터 툴바 */}
+              {/* 툴바 */}
               <div className="flex items-center gap-1 p-2 border-b bg-gray-50">
-                <select
-                  onChange={(e) => {
-                    const editor = editorRef.current;
-                    if (editor && e.target.value) {
-                      const selection = window.getSelection();
-                      if (selection && selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        if (!range.collapsed) {
-                          const span = document.createElement('span');
-                          span.style.fontSize = e.target.value;
-                          try {
-                            range.surroundContents(span);
-                          } catch {
-                            const contents = range.extractContents();
-                            span.appendChild(contents);
-                            range.insertNode(span);
-                          }
-                          setForm({ ...form, description: editor.innerHTML });
-                        }
-                      }
-                      editor.focus();
-                    }
-                    e.target.value = '';
-                  }}
-                  className="h-8 px-2 rounded text-sm bg-white border-0"
-                  defaultValue=""
-                >
-                  <option value="" disabled>크기</option>
-                  <option value="14px">보통</option>
-                  <option value="24px">크게</option>
-                  <option value="40px">매우 크게</option>
-                </select>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyFontSize('14px')}
+                    className="h-8 px-2 rounded text-sm border bg-white hover:bg-gray-100 active:scale-[0.98]"
+                    title="글자 크기: 보통"
+                  >
+                    보통
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyFontSize('24px')}
+                    className="h-8 px-2 rounded text-sm border bg-white hover:bg-gray-100 active:scale-[0.98]"
+                    title="글자 크기: 크게"
+                  >
+                    크게
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyFontSize('40px')}
+                    className="h-8 px-2 rounded text-sm border bg-white hover:bg-gray-100 active:scale-[0.98]"
+                    title="글자 크기: 매우 크게"
+                  >
+                    매우 크게
+                  </button>
+                </div>
                 <span className="text-gray-300">|</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    const editor = editorRef.current;
-                    if (editor) {
-                      document.execCommand('bold', false);
-                      editor.focus();
-                      setForm({ ...form, description: editor.innerHTML });
-                    }
-                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={applyBold}
                   className="h-8 px-2 rounded hover:bg-white text-sm font-bold"
                   title="굵게"
                 >
                   굵게
                 </button>
+                <span className="ml-auto text-xs text-gray-500">{`${descLength} / ${DESCRIPTION_LIMIT}자`}</span>
               </div>
 
-              {/* 텍스트 에디터 입력 영역 */}
+              {/* 편집 영역 */}
               <div className="relative">
                 <div
                   id="description-editor"
                   ref={editorRef}
                   contentEditable
                   suppressContentEditableWarning
-                  dangerouslySetInnerHTML={undefined}
                   onInput={(e) => {
-                    const target = e.target as HTMLDivElement;
-                    const textContent = target.innerText || target.textContent || '';
-                    if (textContent.length > DESCRIPTION_LIMIT) {
-                      const truncatedText = textContent.substring(0, DESCRIPTION_LIMIT);
-                      target.innerText = truncatedText;
-                      const range = document.createRange();
-                      const sel = window.getSelection();
-                      range.selectNodeContents(target);
-                      range.collapse(false);
-                      sel?.removeAllRanges();
-                      sel?.addRange(range);
-                    }
-                    editorHtmlRef.current = target.innerHTML;
-                    setDescLength(textContent.length);
-                    setForm(prev => prev ? { ...prev, description: target.innerHTML } : prev);
+                    const editor = e.currentTarget as HTMLDivElement;
+                    withEditorFocus(() => {
+                      const text = editor.innerText || editor.textContent || '';
+                      if (text.length > DESCRIPTION_LIMIT) {
+                        const truncated = text.substring(0, DESCRIPTION_LIMIT);
+                        editor.innerText = truncated;
+                        const r = document.createRange();
+                        r.selectNodeContents(editor);
+                        r.collapse(false);
+                        const s = window.getSelection();
+                        s?.removeAllRanges();
+                        s?.addRange(r);
+                      }
+                      normalizeAfterChange(editor);
+                    });
                   }}
                   className="w-full min-h-[144px] border-0 rounded-none px-3 py-2 focus:outline-none focus:ring-0 leading-relaxed"
                   style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                 />
-                <div className="pointer-events-none absolute bottom-1 right-2 text-[11px] text-gray-500 bg-white/80 px-1 rounded">
-                  {`${descLength} / ${DESCRIPTION_LIMIT}자`}
-                </div>
-                {(!form.description || form.description === '') && (
-                  <div 
-                    className="absolute top-2 left-3 text-gray-400 pointer-events-none"
-                    style={{ fontSize: '14px' }}
-                  >
+                {!(form.description && form.description.replace(/(?:<br\s*\/?>(?:\s|&nbsp;)*|\s|&nbsp;)+/gi, '').length) && (
+                  <div className="absolute top-2 left-3 text-gray-400 pointer-events-none" style={{ fontSize: '14px' }}>
                     상품 소개를 작성하세요. 크기 변경, 굵게 기능을 사용할 수 있습니다.
                   </div>
                 )}
@@ -680,6 +889,7 @@ export default function AdminEditProductPage() {
             </div>
           </div>
 
+          {/* 이미지들 */}
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:items-end">
             <div>
               <label className="text-sm font-medium">이미지 <span className="text-red-500">*</span></label>
@@ -743,15 +953,15 @@ export default function AdminEditProductPage() {
                     accept="image/*"
                     multiple
                     className="hidden"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const input = e.currentTarget as HTMLInputElement;
                       const files = input.files ? Array.from(input.files) : [];
                       if (!files.length) return;
                       const names = files.map(f => f.name);
                       const urls = files.map(f => URL.createObjectURL(f));
                       setSelectedAdditionalNames(prev => [...prev, ...names]);
-                      setPendingDetailFiles(prev => [...prev, ...files]);   // 업로드는 save 직전에 (압축 포함)
-                      setPendingDetailPreviews(prev => [...prev, ...urls]); // 미리보기
+                      setPendingDetailFiles(prev => [...prev, ...files]);
+                      setPendingDetailPreviews(prev => [...prev, ...urls]);
                       input.value = '';
                     }}
                   />
@@ -793,6 +1003,7 @@ export default function AdminEditProductPage() {
               </div>
             </div>
 
+            {/* 우측 버튼 */}
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
@@ -838,6 +1049,12 @@ export default function AdminEditProductPage() {
                 className={`h-10 px-5 rounded text-white ${saving ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
               >
                 {saving ? '저장 중…' : '저장'}
+              </button>
+              <button
+                onClick={del}
+                className="h-10 px-4 rounded border text-red-600 hover:bg-red-50"
+              >
+                삭제
               </button>
             </div>
           </div>
