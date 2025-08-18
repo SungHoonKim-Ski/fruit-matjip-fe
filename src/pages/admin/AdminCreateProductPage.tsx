@@ -218,7 +218,7 @@ export default function ProductCreatePage() {
               onChange={handleChange}
               onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              step={1000}
+              step={100}
               placeholder="1000"
               min={1}
               required

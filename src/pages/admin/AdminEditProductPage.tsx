@@ -430,8 +430,7 @@ export default function AdminEditProductPage() {
       const raw = String(value ?? '');
       if (raw === '') return;
       // 1000단위 step 보조(원한다면 제거)
-      const withHundreds = raw.endsWith('00') ? raw : raw + '00';
-      let n = Number(withHundreds);
+      let n = Number(raw);
       if (!Number.isFinite(n) || n < 0) return;
       if (n > PRICE_MAX) n = PRICE_MAX;
       setForm({ ...form, price: n });
@@ -716,7 +715,7 @@ export default function AdminEditProductPage() {
                   name="price"
                   type="number"
                   min={0}
-                  step={1000}
+                  step={100}
                   max={PRICE_MAX}
                   value={form.price}
                   onChange={onChange}
