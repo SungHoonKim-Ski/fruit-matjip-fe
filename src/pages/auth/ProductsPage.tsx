@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
@@ -22,10 +22,19 @@ type Product = {
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-// KST 기준 현재 시각 반환
+// KST 기준 시각/날짜 유틸
 function getKstNow(): Date {
   const now = new Date();
-  return new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000; // 로컬→UTC
+  return new Date(utcMs + 9 * 60 * 60 * 1000); // UTC→KST(+9h)
+}
+
+function formatKstYmd(kstDate: Date): string {
+  // kstDate는 KST 시각을 나타내는 Date 객체. UTC 게터로 연/월/일을 안전하게 추출
+  const y = kstDate.getUTCFullYear();
+  const m = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(kstDate.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 // 오후 9시 이후에는 다음날을 기준으로, 포함 3일간 날짜 생성
@@ -33,13 +42,14 @@ function getNext3Days(): string[] {
   const arr: string[] = [];
   const kstNow = getKstNow();
   const start = new Date(kstNow);
-  if (kstNow.getHours() >= 21) {
-    start.setDate(start.getDate() + 1);
+  // kstNow는 KST 기준이므로 시간 판정은 getUTCHours 사용
+  if (kstNow.getUTCHours() >= 21) {
+    start.setUTCDate(start.getUTCDate() + 1);
   }
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    arr.push(d.toISOString().split('T')[0]);
+    d.setUTCDate(start.getUTCDate() + i);
+    arr.push(formatKstYmd(d));
   }
   return arr;
 }
@@ -55,6 +65,7 @@ export default function ReservePage() {
   const { show } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
+  const location = useLocation();
 
   // ProductDetailPage dialog 상태
   const [detailDialog, setDetailDialog] = useState<{
@@ -68,7 +79,7 @@ export default function ReservePage() {
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
     const saved = localStorage.getItem('nickname');
-    return saved && saved.trim() ? saved : '홍길동';
+    return saved && saved.trim() ? saved : '신규 고객';
   });
   const [nickModalOpen, setNickModalOpen] = useState(false);
   const [draftNick, setDraftNick] = useState(nickname);
@@ -118,16 +129,16 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          // 한국 시간 기준 오후 9시 이후면 다음날을 시작일로, 포함 3일 범위 요청
+          // 한국 시간 기준 오후 9시 이후면 다음날을 시작일로, 포함 7일 범위 요청 (KST 처리)
           const kstNow = getKstNow();
           const start = new Date(kstNow);
-          if (kstNow.getHours() >= 21) {
-            start.setDate(start.getDate() + 1);
+          if (kstNow.getUTCHours() >= 21) {
+            start.setUTCDate(start.getUTCDate() + 1);
           }
-          const fromStr = start.toISOString().split('T')[0];
+          const fromStr = formatKstYmd(start);
           const toDate = new Date(start);
-          toDate.setDate(start.getDate() + 2);
-          const toStr = toDate.toISOString().split('T')[0];
+          toDate.setUTCDate(start.getUTCDate() + 6);
+          const toStr = formatKstYmd(toDate);
           
           const res = await getProducts(fromStr, toStr);
           if (!res.ok) {
@@ -204,6 +215,17 @@ export default function ReservePage() {
   );
   const countOf = (date: string) => products.filter(p => p.sellDate === date).length;
 
+  // 상품이 있는 날짜만 노출
+  const availableDates = useMemo(() => dates.filter(d => countOf(d) > 0), [dates, products]);
+
+  // 활성 날짜가 사라졌다면 첫 유효 날짜로 이동
+  useEffect(() => {
+    if (availableDates.length === 0) return;
+    if (!availableDates.includes(activeDate)) {
+      setActiveDate(availableDates[0]);
+    }
+  }, [availableDates, activeDate]);
+
   const handleQuantity = (id: number, diff: number) => {
     setProducts(prev =>
       prev.map(p => {
@@ -279,6 +301,25 @@ export default function ReservePage() {
     }
   }, [nickModalOpen]);
 
+  // 로그인 직후 exists=false이면 (nav state 또는 storage) 모달 자동 오픈 + 빈 값으로 초기화
+  useEffect(() => {
+    const navState: any = (location && (location as any).state) || {};
+    const fromNav = !!navState?.forceNicknameChange;
+    const shouldOpen = fromNav || sessionStorage.getItem('force_nickname_change') === '1' || localStorage.getItem('force_nickname_change') === '1';
+    if (shouldOpen) {
+      setNickModalOpen(true);
+      setDraftNick('');
+      setNickname('신규 고객');
+      window.history.pushState({ modal: 'nickname' }, '');
+      try { sessionStorage.removeItem('force_nickname_change'); } catch {}
+      try { localStorage.removeItem('force_nickname_change'); } catch {}
+      // nav state 정리
+      if (fromNav) {
+        try { window.history.replaceState({}, ''); } catch {}
+      }
+    }
+  }, [location]);
+
   // 로그인 후 저장된 닉네임 반영
   useEffect(() => {
     const handle = () => {
@@ -321,6 +362,12 @@ export default function ReservePage() {
     const value = draftNick.trim();
     if (!value) {
       show('닉네임을 입력해주세요.', { variant: 'error' });
+      return;
+    }
+    // 허용 문자: 숫자/영문/한글만 (이모지, 특수문자, 공백 불가)
+    const allowed = /^[A-Za-z0-9가-힣]+$/;
+    if (!allowed.test(value)) {
+      show('닉네임은 숫자와 한글/영문만 사용할 수 있어요.', { variant: 'info' });
       return;
     }
     // Length validation: 3~10
@@ -540,33 +587,43 @@ export default function ReservePage() {
           <h1 className="text-lg font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
         </div>
 
-        {/* 날짜 탭 */}
-        <div className="mt-2 mb-4">
-          <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar">
-            {dates.map(date => {
-              const active = activeDate === date;
-              return (
-                <button
-                  key={date}
-                  onClick={() => setActiveDate(date)}
-                  className={
-                    'px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition ' +
-                    (active
-                      ? 'bg-orange-500 text-white border-orange-500 shadow'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
-                  }
-                >
-                  <div className="font-semibold">{prettyKdate(date)}</div>
-                  <div className="text-[11px] mt-1 text-center text-gray-600">
-                    {countOf(date)}개 상품 예약중
-                  </div>
-                </button>
-              );
-            })}
+        {/* 전체 비어있을 때 안내 */}
+        {availableDates.length === 0 && (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            현재 예약중인 상품이 없습니다.
           </div>
-        </div>
+        )}
+
+        {/* 날짜 탭 (상품 없는 날짜는 비노출) */}
+        {availableDates.length > 0 && (
+          <div className="mt-2 mb-4">
+            <div className="flex items-center justify-start gap-2 overflow-x-auto no-scrollbar pl-3 pr-3">
+              {availableDates.map(date => {
+                const active = activeDate === date;
+                return (
+                  <button
+                    key={date}
+                    onClick={() => setActiveDate(date)}
+                    className={
+                      'px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition ' +
+                      (active
+                        ? 'bg-orange-500 text-white border-orange-500 shadow'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
+                    }
+                  >
+                    <div className="font-semibold">{prettyKdate(date)}</div>
+                    <div className="text-[11px] mt-1 text-center text-gray-600">
+                      {countOf(date)}개 상품 예약중
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 상품 목록(선택 날짜) */}
+        {availableDates.length > 0 && (
         <div className="space-y-4 mb-6">
           {productsOfDay.map((item) => (
             <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -649,13 +706,8 @@ export default function ReservePage() {
               </div>
             </div>
           ))}
-
-          {productsOfDay.length === 0 && (
-            <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-              해당 날짜에는 예약 가능한 상품이 없습니다.
-            </div>
-          )}
         </div>
+        )}
       </section>      
       <FloatingActions
         orderPath="/me/orders"  

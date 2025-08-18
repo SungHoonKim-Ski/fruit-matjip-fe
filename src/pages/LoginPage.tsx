@@ -27,7 +27,7 @@ function genState() {
   return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-type LoginSuccess = { name: string; access: string };
+type LoginSuccess = { name: string; access: string; exists?: boolean; change_name?: boolean };
 
 async function ensureKakaoSDK(jsKey: string) {
   if (window.Kakao?.isInitialized?.()) return;
@@ -162,13 +162,19 @@ export default function LoginPage() {
         }
 
         const data: LoginSuccess = JSON.parse(text);
-        showRef.current(`${data.name}님 환영합니다!`);
-        localStorage.setItem('nickname', data.name);
+        const forceNicknameChange = data && data.change_name === false;
+        if (forceNicknameChange) {
+          showRef.current('닉네임 변경이 필요합니다.');
+          localStorage.setItem('nickname', '신규 고객');
+        } else {
+          showRef.current(`${data.name}님 환영합니다!`);
+          localStorage.setItem('nickname', data.name);
+        }
         localStorage.setItem('access', data.access);
 
         // 주소줄 정리 후 이동
         window.history.replaceState({}, '', '/login');
-        nav('/products', { replace: true });
+        nav('/products', { replace: true, state: forceNicknameChange ? { forceNicknameChange: true } : {} });
       } catch (e: any) {
         safeErrorLog(e, 'LoginPage - login');
         showRef.current(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
