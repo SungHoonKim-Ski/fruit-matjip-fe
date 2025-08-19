@@ -22,6 +22,9 @@ import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 const DESCRIPTION_LIMIT = 300;
 const PRICE_MAX = 1_000_000;
 
+// ✅ 업로드 동시성 상수화 (환경 맞춰 3~6 권장)
+const UPLOAD_CONCURRENCY = 5;
+
 type ProductEdit = {
   id: number;
   name: string;
@@ -56,6 +59,28 @@ const toS3Key = (url: string) => {
     return url.replace(/^\//, '');
   }
 };
+
+// 동시성 제한 유틸
+async function withLimit<T>(limit: number, tasks: Array<() => Promise<T>>) {
+  const results: PromiseSettledResult<T>[] = new Array(tasks.length);
+  let idx = 0;
+
+  async function worker() {
+    while (idx < tasks.length) {
+      const cur = idx++;
+      try {
+        const v = await tasks[cur]();
+        results[cur] = { status: 'fulfilled', value: v } as PromiseFulfilledResult<T>;
+      } catch (e) {
+        results[cur] = { status: 'rejected', reason: e } as PromiseRejectedResult;
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
 
 export default function AdminEditProductPage() {
   const { id } = useParams();
@@ -526,15 +551,14 @@ export default function AdminEditProductPage() {
       // 상세 이미지 신규 업로드
       const uploadedDetailKeys: string[] = [];
       if (pendingDetailFiles.length > 0 && !USE_MOCKS) {
-        // 1) 압축
-        const compressed: File[] = [];
-        for (const f of pendingDetailFiles) {
-          try {
-            compressed.push(await compressImage(f));
-          } catch {
-            compressed.push(f);
-          }
-        }
+        // ✅ 1) 압축 병렬화
+        const compressed: File[] = await Promise.all(
+          pendingDetailFiles.map(async (f) => {
+            try { return await compressImage(f); }
+            catch { return f; }
+          })
+        );
+
         // 2) 타입별 그룹
         const groups = new Map<string, { names: string[]; files: File[] }>();
         for (const f of compressed) {
@@ -543,26 +567,43 @@ export default function AdminEditProductPage() {
           groups.get(t)!.names.push(f.name);
           groups.get(t)!.files.push(f);
         }
-        // 3) presigned → 업로드
+
+        // 3) presigned → 업로드 (task로 쌓고 withLimit로 병렬 실행)
+        const uploadTasks: Array<() => Promise<string>> = [];
         for (const [contentType, pack] of groups.entries()) {
           const presignedList = await getDetailPresignedUrlsBatch(Number(id), pack.names, contentType);
           if (!presignedList || presignedList.length !== pack.files.length) {
             throw new Error('상세 이미지 URL 발급 수 불일치');
           }
-          for (let i = 0; i < pack.files.length; i++) {
-            const item = presignedList[i]; // {url,key,method?}
+
+          presignedList.forEach((item: { url: string; key?: string; method?: string }, i: number) => {
             const method = (item.method || 'PUT').toUpperCase();
-            const putRes = await fetch(item.url, {
-              method,
-              headers: { 'Content-Type': contentType },
-              body: pack.files[i],
-              mode: 'cors',
+            uploadTasks.push(async () => {
+              const res = await fetch(item.url, {
+                method,
+                headers: { 'Content-Type': contentType },
+                body: pack.files[i],
+                mode: 'cors',
+              });
+              if (!res.ok) throw new Error('상세 이미지 업로드 실패');
+              return item.key || new URL(item.url).pathname.replace(/^\//, '');
             });
-            if (!putRes.ok) throw new Error('상세 이미지 업로드 실패');
-            const key = item.key || new URL(item.url).pathname.replace(/^\//, '');
-            uploadedDetailKeys.push(key);
-          }
+          });
         }
+
+        // ✅ 3) 동시성 상수 적용
+        const settled = await withLimit(UPLOAD_CONCURRENCY, uploadTasks);
+        const okKeys = settled
+          .filter((s): s is PromiseFulfilledResult<string> => s.status === 'fulfilled')
+          .map(s => s.value);
+        const failed = settled.filter(s => s.status === 'rejected').length;
+
+        uploadedDetailKeys.push(...okKeys);
+
+        if (failed > 0) {
+          throw new Error(`${failed}개 이미지 업로드 실패`);
+        }
+
         // 화면 미리보기 갱신
         if (uploadedDetailKeys.length) {
           setForm(prev =>
@@ -633,7 +674,7 @@ export default function AdminEditProductPage() {
       nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - save');
-      show(getSafeErrorMessage(e, '저장 중 오류가 발생했습니다.'), { variant: 'error' });
+      show(getSafeErrorMessage(e, e?.message || '저장 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
