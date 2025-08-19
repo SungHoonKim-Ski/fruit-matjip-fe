@@ -56,13 +56,15 @@ export default function AdminProductPage() {
       if (!a.sellDate || !b.sellDate) return 0;
 
       // 한국 시간(KST) 기준 오늘 날짜 계산
-      const nowUtc = new Date();
-      const kstNow = new Date(nowUtc.getTime() + 9 * 60 * 60 * 1000);
-      const todayStr = kstNow.toISOString().split('T')[0];
+      const today = (() => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().split('T')[0];
+      })();
 
       const aDate = new Date(a.sellDate + 'T00:00:00');
       const bDate = new Date(b.sellDate + 'T00:00:00');
-      const todayDate = new Date(todayStr + 'T00:00:00');
+      const todayDate = new Date(today);
 
       const aIsToday = aDate.getTime() === todayDate.getTime();
       const bIsToday = bDate.getTime() === todayDate.getTime();
@@ -364,7 +366,11 @@ export default function AdminProductPage() {
                         className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border "
                         style={{
                           backgroundColor: (() => {
-                            const today = new Date();
+                            const today = (() => {
+                              const d = new Date();
+                              d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+                              return d;
+                            })();
                             const ds = product.sellDate! + 'T00:00:00';
                             const d = new Date(ds);
                             const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
@@ -378,7 +384,11 @@ export default function AdminProductPage() {
                         }}
                       >
                         {(() => {
-                          const today = new Date();
+                          const today = (() => {
+                            const d = new Date();
+                            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+                            return d;
+                          })();
                           const ds = product.sellDate! + 'T00:00:00';
                           const d = new Date(ds);
                           const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();

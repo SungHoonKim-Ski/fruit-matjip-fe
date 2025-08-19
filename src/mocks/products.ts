@@ -23,7 +23,14 @@ function toYmd(d: Date): string {
 }
 
 const base = new Date();
-const todayStr = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate()));
+base.setMinutes(base.getMinutes() - base.getTimezoneOffset());
+
+const todayStr = (() => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
+})();
+
 const tomorrowStr = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1));
 const plus2Str = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + 2));
 const yesterdayStr = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 1));

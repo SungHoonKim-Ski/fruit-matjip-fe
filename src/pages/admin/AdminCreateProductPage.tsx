@@ -21,7 +21,11 @@ export default function ProductCreatePage() {
   const nav = useNavigate();
   
   // 오늘 날짜를 기본값으로 설정
-  const today = new Date().toISOString().split('T')[0];
+  const today = (() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+  })();
   
   const [form, setForm] = useState<ProductForm>({
     name: '',

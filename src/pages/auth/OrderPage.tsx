@@ -27,10 +27,15 @@ export default function OrdersPage() {
     return `${y}-${m}-${day}`;
   }
   
-  // ✅ 오늘 ~ 이틀 뒤 (reservation API 기본값과 동일)
+  // ✅ 오늘 ~ 6틀 뒤 (reservation API 기본값과 동일)
   const now = new Date();
-  const today = formatDateKR(now);
+  const today = (() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+  })();
   const dayAfterTomorrow = formatDateKR(new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000)));
+  // dayAfterTomorrow = today + 6;
 
   // 필터 - 기본값: 오늘 ~ 이틀 뒤
   const [from, setFrom] = useState(today);
