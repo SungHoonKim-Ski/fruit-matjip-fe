@@ -23,28 +23,30 @@ const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 // KST 기준 시각/날짜 유틸
-function getKstNow(): Date {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000; // 로컬→UTC
-  return new Date(utcMs + 9 * 60 * 60 * 1000); // UTC→KST(+9h)
-}
+  function formatDateKR(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
 
+ 
 function formatKstYmd(kstDate: Date): string {
   // kstDate는 KST 시각을 나타내는 Date 객체. UTC 게터로 연/월/일을 안전하게 추출
-  const y = kstDate.getUTCFullYear();
-  const m = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(kstDate.getUTCDate()).padStart(2, '0');
+  const y = kstDate.getFullYear();
+  const m = String(kstDate.getMonth() + 1).padStart(2, '0');
+  const d = String(kstDate.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
-// 오후 9시 이후에는 다음날을 기준으로, 포함 3일간 날짜 생성
+// 오후 9시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
 function getNext3Days(): string[] {
   const arr: string[] = [];
-  const kstNow = getKstNow();
-  const start = new Date(kstNow);
-  // kstNow는 KST 기준이므로 시간 판정은 getUTCHours 사용
-  if (kstNow.getUTCHours() >= 21) {
-    start.setUTCDate(start.getUTCDate() + 1);
+  const now = new Date();
+  const start = new Date(now);
+  // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
+  if (now.getHours() >= 21) {
+    start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
@@ -140,15 +142,15 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          // 한국 시간 기준 오후 9시 이후면 다음날을 시작일로, 포함 7일 범위 요청 (KST 처리)
-          const kstNow = getKstNow();
-          const start = new Date(kstNow);
-          if (kstNow.getUTCHours() >= 21) {
-            start.setUTCDate(start.getUTCDate() + 1);
+          // 한국 시간(KST) 기준 오늘을 시작으로, 오후 9시 이후면 다음날부터 포함 7일 범위 요청
+          
+          const start = new Date();
+          if (start.getHours() >= 21) {
+            start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);
-          const toDate = new Date(start);
-          toDate.setUTCDate(start.getUTCDate() + 6);
+          const toDate = new Date();
+          toDate.setDate(start.getDate() + 6);
           const toStr = formatKstYmd(toDate);
           
           const res = await getProducts(fromStr, toStr);
