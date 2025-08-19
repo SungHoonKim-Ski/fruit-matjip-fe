@@ -86,6 +86,7 @@ export default function AdminEditProductPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { show } = useSnackbar();
+  const DETAIL_IMAGES_MAX = 5;
 
   const [form, setForm] = useState<ProductEdit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -576,15 +577,19 @@ export default function AdminEditProductPage() {
             throw new Error('상세 이미지 URL 발급 수 불일치');
           }
 
-          presignedList.forEach((item: { url: string; key?: string; method?: string }, i: number) => {
+          presignedList.forEach((item: { url: string; key?: string; method?: string; content_type?: string }, i: number) => {
             const method = (item.method || 'PUT').toUpperCase();
+            const ct = item.content_type || contentType || undefined;
             uploadTasks.push(async () => {
-              const res = await fetch(item.url, {
+              const init: RequestInit = {
                 method,
-                headers: { 'Content-Type': contentType },
                 body: pack.files[i],
                 mode: 'cors',
-              });
+              };
+              if (ct) {
+                init.headers = { 'Content-Type': ct } as any;
+              }
+              const res = await fetch(item.url, init);
               if (!res.ok) throw new Error('상세 이미지 업로드 실패');
               return item.key || new URL(item.url).pathname.replace(/^\//, '');
             });
@@ -971,9 +976,10 @@ export default function AdminEditProductPage() {
 
               <div className="mt-4">
                 <label className="text-sm font-medium">추가 이미지</label>
+                <p className="text-xs text-gray-500 mt-1">최대 5장까지 추가할 수 있습니다.</p>
                 <div className="mt-2 flex gap-3 flex-wrap">
                   {(form.images || []).map((src, i) => (
-                    <div key={src + i} className="relative w-28">
+                    <div key={src} className="relative w-28">
                       <img src={src} alt="thumb" className="w-28 h-28 rounded object-cover border" />
                       <button
                         type="button"
@@ -998,10 +1004,22 @@ export default function AdminEditProductPage() {
                       const input = e.currentTarget as HTMLInputElement;
                       const files = input.files ? Array.from(input.files) : [];
                       if (!files.length) return;
-                      const names = files.map(f => f.name);
-                      const urls = files.map(f => URL.createObjectURL(f));
+                      const currentCount = (form.images ? form.images.length : 0) + pendingDetailFiles.length;
+                      const available = DETAIL_IMAGES_MAX - currentCount;
+                      if (available <= 0) {
+                        show(`추가 이미지는 최대 ${DETAIL_IMAGES_MAX}장까지 등록할 수 있어요.`, { variant: 'info' });
+                        input.value = '';
+                        return;
+                      }
+                      const allowedFiles = files.slice(0, Math.max(0, available));
+                      if (allowedFiles.length < files.length) {
+                        const skipped = files.length - allowedFiles.length;
+                        show(`최대 ${DETAIL_IMAGES_MAX}장까지만 추가할 수 있어요. ${skipped}장은 제외됩니다.`, { variant: 'info' });
+                      }
+                      const names = allowedFiles.map(f => f.name);
+                      const urls = allowedFiles.map(f => URL.createObjectURL(f));
                       setSelectedAdditionalNames(prev => [...prev, ...names]);
-                      setPendingDetailFiles(prev => [...prev, ...files]);
+                      setPendingDetailFiles(prev => [...prev, ...allowedFiles]);
                       setPendingDetailPreviews(prev => [...prev, ...urls]);
                       input.value = '';
                     }}
@@ -1021,15 +1039,17 @@ export default function AdminEditProductPage() {
                     <div className="text-xs text-gray-500 mb-2">추가 예정</div>
                     <div className="flex gap-3 flex-wrap">
                       {pendingDetailPreviews.map((src, i) => (
-                        <div key={src + i} className="relative w-28">
+                        <div key={src} className="relative w-28">
                           <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
                           <button
                             type="button"
                             onClick={() => {
-                              try { URL.revokeObjectURL(pendingDetailPreviews[i]); } catch {}
-                              setPendingDetailPreviews(prev => prev.filter((_, idx) => idx !== i));
-                              setPendingDetailFiles(prev => prev.filter((_, idx) => idx !== i));
-                              setSelectedAdditionalNames(prev => prev.filter((_, idx) => idx !== i));
+                              const idx = pendingDetailPreviews.findIndex(u => u === src);
+                              if (idx < 0) return;
+                              try { URL.revokeObjectURL(src); } catch {}
+                              setPendingDetailPreviews(prev => prev.filter((_, j) => j !== idx));
+                              setPendingDetailFiles(prev => prev.filter((_, j) => j !== idx));
+                              setSelectedAdditionalNames(prev => prev.filter((_, j) => j !== idx));
                             }}
                             className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
                             aria-label="추가 예정 이미지 제거"
