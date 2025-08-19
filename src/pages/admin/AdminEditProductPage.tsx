@@ -762,6 +762,7 @@ export default function AdminEditProductPage() {
                   onChange={onChange}
                   className="w-full h-10 border rounded pl-7 pr-3 text-center"
                 />
+                <p className="text-xs text-gray-500 mt-1">최대 1,000,000원</p>
               </div>
             </div>
             <div>

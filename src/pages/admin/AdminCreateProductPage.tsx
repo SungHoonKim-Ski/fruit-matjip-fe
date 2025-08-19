@@ -238,6 +238,7 @@ export default function ProductCreatePage() {
               min={100}
               required
             />
+            <p className="text-xs text-gray-500">최대 1,000,000원</p>
           </div>
 
           <div className="space-y-2">
