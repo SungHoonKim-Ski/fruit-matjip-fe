@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
-import { getReservations, cancelReservation } from '../../utils/api';
+import { getReservations, cancelReservation, selfPickReservation } from '../../utils/api';
 
 // 취소 확인 dialog 타입
 interface CancelDialogProps {
@@ -40,7 +40,7 @@ export default function OrdersPage() {
   // 필터 - 기본값: 오늘 ~ 이틀 뒤
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(dayAfterTomorrow);
-  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all');
+  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'canceled'>('all');
 
   // 데이터
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -48,15 +48,19 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);         // “더 보기” 용
   const [hasMore, setHasMore] = useState(false);
   
-  // 취소 dialog 상태
-  const [cancelDialog, setCancelDialog] = useState<{
+  // 상태 변경 dialog 상태
+  const [statusDialog, setStatusDialog] = useState<{
     isOpen: boolean;
     orderId: number;
     productName: string;
+    currentStatus: 'pending' | 'self_pick';
+    newStatus: 'canceled' | 'self_pick';
   }>({
     isOpen: false,
     orderId: 0,
-    productName: ''
+    productName: '',
+    currentStatus: 'pending',
+    newStatus: 'canceled'
   });
 
   // 초기 로드 및 날짜 변경 시 재호출
@@ -100,7 +104,7 @@ export default function OrdersPage() {
             // ReservationResponse를 OrderRow로 변환
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
-              let orderStatus: 'pending' | 'picked' | 'canceled';
+              let orderStatus: 'pending' | 'picked' | 'self_pick' | 'canceled';
               switch (r.status?.toLowerCase()) {
                 case 'pending':
                   orderStatus = 'pending';
@@ -108,6 +112,10 @@ export default function OrdersPage() {
                 case 'picked':
                 case 'completed':
                   orderStatus = 'picked';
+                  break;
+                case 'self_pick':
+                case 'self_picked':
+                  orderStatus = 'self_pick';
                   break;
                 case 'canceled':
                 case 'cancelled':
@@ -168,50 +176,134 @@ export default function OrdersPage() {
   const statusBadge = (s: OrderRow['status']) => {
     const base = 'inline-flex items-center h-7 px-2.5 rounded-full text-xs font-medium';
     if (s === 'pending') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
-    if (s === 'picked')   return `${base} bg-green-50 text-green-700 border border-green-200`;
+    if (s === 'picked') return `${base} bg-green-50 text-green-700 border border-green-200`;
+    if (s === 'self_pick') return `${base} bg-blue-50 text-blue-700 border border-blue-200`;
     return `${base} bg-gray-100 text-gray-600 border border-gray-200`;
   };
 
-  // 취소 dialog 열기
-  const openCancelDialog = (orderId: number, productName: string) => {
-    setCancelDialog({
+  // 상태 변경 dialog 열기
+  const openStatusDialog = (orderId: number, productName: string, currentStatus: 'pending' | 'self_pick') => {
+    setStatusDialog({
       isOpen: true,
       orderId,
-      productName
+      productName,
+      currentStatus,
+      newStatus: 'canceled' // 기본값은 canceled로 설정
     });
   };
 
-  // 주문 취소 처리
-  const handleCancelOrder = async () => {
-    if (!cancelDialog.isOpen) return;
+  // 상태 변경 처리
+  const handleStatusChange = async (newStatus?: 'canceled' | 'self_pick') => {
+    if (!statusDialog.isOpen) return;
+    
+    // newStatus 파라미터가 있으면 사용, 없으면 statusDialog.newStatus 사용
+    const targetStatus = newStatus || statusDialog.newStatus;
     
     try {
+      // pending 상태에서 과거 예약 체크 (취소/셀프 수령 모두)
+      if (statusDialog.currentStatus === 'pending') {
+        const targetOrder = orders.find(o => o.id === statusDialog.orderId);
+        if (!targetOrder) return;
+        
+        // order_date를 KST 기준으로 파싱
+        const orderDate = new Date(targetOrder.date + 'T00:00:00');
+        const kstOffset = 9 * 60; // KST = UTC+9
+        const localOffset = orderDate.getTimezoneOffset();
+        const kstOrderDate = new Date(orderDate.getTime() + (localOffset + kstOffset) * 60 * 1000);
+        
+        // 과거 주문인 경우: 취소/셀프 수령 모두 불가
+        const now = new Date();
+        const kstNow = new Date(now.getTime() + (now.getTimezoneOffset() + kstOffset) * 60 * 1000);
+        const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
+        const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
+        
+        if (orderDateOnly.getTime() < todayDate.getTime()) {
+          show('과거 예약은 취소하거나 셀프 수령 신청할 수 없습니다.', { variant: 'error' });
+          setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+          return;
+        }
+        
+        // self_pick인 경우 추가 체크
+        if (targetStatus === 'self_pick') {
+          // 평일 체크 (월요일~금요일)
+          const orderDay = kstOrderDate.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+          if (orderDay === 0 || orderDay === 6) {
+            show('셀프 수령은 평일에만 가능합니다.', { variant: 'error' });
+            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+            return;
+          }
+          
+          // order_date의 오후 6시 30분(18:30)까지 신청 가능
+          if (orderDateOnly.getTime() === todayDate.getTime()) {
+            // 오늘 주문인 경우: 현재 시간이 오후 6시 30분 이전이어야 함
+            const currentHour = kstNow.getHours();
+            const currentMinute = kstNow.getMinutes();
+            if (currentHour > 18 || (currentHour === 18 && currentMinute >= 30)) {
+              show('셀프 수령은 오후 6시 30분까지만 가능합니다.', { variant: 'error' });
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              return;
+            }
+          }
+          // 미래 주문인 경우: 신청 가능 (시간 제한 없음)
+        }
+      }
+      
       if (USE_MOCKS) {
-        // Mock 취소 처리
+        // Mock 상태 변경 처리
         await new Promise(resolve => setTimeout(resolve, 500));
         setOrders(prev => prev.map(o => 
-          o.id === cancelDialog.orderId 
-            ? { ...o, status: 'canceled' as const }
+          o.id === statusDialog.orderId 
+            ? { ...o, status: targetStatus }
             : o
         ));
-        show(`${cancelDialog.productName} 주문이 취소되었습니다.`);
-        setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
+        
+        if (targetStatus === 'canceled') {
+          show(`${statusDialog.productName} 주문이 취소되었습니다.`);
+        } else if (targetStatus === 'self_pick') {
+          show(`${statusDialog.productName} 주문의 셀프 수령 신청이 완료됬습니다`);
+        }
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
       } else {
-        const res = await cancelReservation(cancelDialog.orderId);
-        if (!res.ok) throw new Error('주문 취소에 실패했습니다.');
+        // 실제 API 호출 (cancelReservation 또는 selfPickReservation)
+        if (targetStatus === 'canceled') {
+          const res = await cancelReservation(statusDialog.orderId);
+          if (!res.ok) {
+            if (res.status === 400) {
+              // 400 에러는 사용자 이슈 - dialog만 닫기
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              return;
+            }
+            throw new Error('주문 취소에 실패했습니다.');
+          }
+        } else if (targetStatus === 'self_pick') {
+          const res = await selfPickReservation(statusDialog.orderId);
+          if (!res.ok) {
+            if (res.status === 400) {
+              // 400 에러는 사용자 이슈 (시간 제한, 평일 아님 등) - dialog만 닫기
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              return;
+            }
+            throw new Error('셀프 수령 신청에 실패했습니다.');
+          }
+        }
         
         // 성공 시 로컬 상태 업데이트
         setOrders(prev => prev.map(o => 
-          o.id === cancelDialog.orderId 
-            ? { ...o, status: 'canceled' as const }
+          o.id === statusDialog.orderId 
+            ? { ...o, status: targetStatus }
             : o
         ));
-        show(`${cancelDialog.productName} 주문이 취소되었습니다.`);
-        setCancelDialog({ isOpen: false, orderId: 0, productName: '' });
+        
+        if (targetStatus === 'canceled') {
+          show(`${statusDialog.productName} 주문이 취소되었습니다.`);
+        } else if (targetStatus === 'self_pick') {
+          show(`${statusDialog.productName} 주문의 셀프 수령을 준비합니다.`);
+        }
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
       }
     } catch (e: any) {
-      safeErrorLog(e, 'OrderPage - handleCancelOrder');
-      show(getSafeErrorMessage(e, '주문 취소 중 오류가 발생했습니다.'), { variant: 'error' });
+      safeErrorLog(e, 'OrderPage - handleStatusChange');
+      show(getSafeErrorMessage(e, '상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
     }
   };
 
@@ -247,6 +339,7 @@ export default function OrdersPage() {
               <option value="all">전체</option>
               <option value="pending">수령 대기</option>
               <option value="picked">수령 완료</option>
+              <option value="self_pick">셀프 수령(19시 이후)</option>
               <option value="canceled">예약 취소</option>
             </select>
           </div>
@@ -261,8 +354,15 @@ export default function OrdersPage() {
           </div>
         </div>
         {/* 안내 문구 */}
-        <div className="mt-2 text-xs text-gray-500">
-          수령 대기 상태인 상품을 클릭하면 예약을 취소할 수 있어요.
+        <div className="mt-2 text-xs text-gray-600">
+          수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.
+        </div>
+        <div className="mt-2 text-xs text-gray-600">
+          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 30분</strong>까지 가능합니다.
+        </div>
+        <div className="mt-2 text-xs text-red-600">
+          이번 달에 <strong>셀프 수령 신청 후 취소를 2회</strong> 하면,
+          이번 달에는 <strong>더 이상 셀프 수령을 신청할 수 없어요.</strong>
         </div>
       </section>
 
@@ -286,14 +386,14 @@ export default function OrdersPage() {
               {filtered.map(o => (
                 <tr
                   key={o.id}
-                  className={`border-t text-sm ${o.status === 'pending' ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
+                  className={`border-t text-sm ${(o.status === 'pending' || o.status === 'self_pick') ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
                   onClick={() => {
-                    if (o.status === 'pending') {
-                      openCancelDialog(o.id, o.items.map(item => item.name).join(', '));
+                    if (o.status === 'pending' || o.status === 'self_pick') {
+                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
                     }
                   }}
-                  role={o.status === 'pending' ? 'button' : undefined}
-                  aria-label={o.status === 'pending' ? '예약 취소' : undefined}
+                  role={(o.status === 'pending' || o.status === 'self_pick') ? 'button' : undefined}
+                  aria-label={(o.status === 'pending' || o.status === 'self_pick') ? '상태 변경' : undefined}
                 >
                   <td className="px-4 py-3">{o.date}</td>
                   <td className="px-4 py-3">
@@ -312,10 +412,12 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                      title={o.status === 'pending' ? '누르면 예약이 취소됩니다.' : undefined}
+                      className={`${statusBadge(o.status)} ${(o.status === 'pending' || o.status === 'self_pick') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                      title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
                     >
-                      {o.status === 'pending' ? '수령 대기(클릭 시 취소)' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                      {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
+                       o.status === 'picked' ? '수령 완료' : 
+                       o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' : '예약 취소'}
                     </span>
                   </td>
                 </tr>
@@ -335,24 +437,30 @@ export default function OrdersPage() {
           {filtered.map(o => (
             <div
               key={o.id}
-              className={`bg-white rounded-lg shadow p-4 ${o.status === 'pending' ? 'active:bg-orange-50 cursor-pointer' : ''}`}
+              className={`bg-white rounded-lg shadow p-4 ${(o.status === 'pending' || o.status === 'self_pick') ? 'active:bg-orange-50 cursor-pointer' : ''}`}
               onClick={() => {
-                if (o.status === 'pending') {
-                  openCancelDialog(o.id, o.items.map(item => item.name).join(', '));
+                if (o.status === 'pending' || o.status === 'self_pick') {
+                  openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
                 }
               }}
-              role={o.status === 'pending' ? 'button' : undefined}
-              aria-label={o.status === 'pending' ? '예약 취소' : undefined}
+              role={(o.status === 'pending' || o.status === 'self_pick') ? 'button' : undefined}
+              aria-label={(o.status === 'pending' || o.status === 'self_pick') ? '상태 변경' : undefined}
             >
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-500">{o.date}</div>
                 <button
-                  onClick={() => openCancelDialog(o.id, o.items.map(item => item.name).join(', '))}
-                  className={`${statusBadge(o.status)} ${o.status === 'pending' ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                  title={o.status === 'pending' ? '누르면 예약이 취소됩니다.' : undefined}
-                  disabled={o.status !== 'pending'}
+                  onClick={() => {
+                    if (o.status === 'pending' || o.status === 'self_pick') {
+                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
+                    }
+                  }}
+                  className={`${statusBadge(o.status)} ${(o.status === 'pending' || o.status === 'self_pick') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                  title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
+                  disabled={!(o.status === 'pending' || o.status === 'self_pick')}
                 >
-                  {o.status === 'pending' ? '수령 대기(클릭 시 취소)' : o.status === 'picked' ? '수령 완료' : '예약 취소'}
+                  {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
+                   o.status === 'picked' ? '수령 완료' : 
+                   o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' : '예약 취소'}
                 </button>
               </div>
               <div className="mt-2 space-y-2">
@@ -390,26 +498,45 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* 취소 확인 Dialog */}
-      {cancelDialog.isOpen && (
+      {/* 상태 변경 확인 Dialog */}
+      {statusDialog.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">주문 취소</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              {statusDialog.currentStatus === 'pending' ? '상태 변경' : '예약 취소'}
+            </h3>
             <p className="text-gray-600 mb-6">
-              <span className="font-medium">"{cancelDialog.productName}"</span> 주문을 취소하시겠습니까?
+              <span className="font-medium">"{statusDialog.productName}"</span>
+              {statusDialog.currentStatus === 'pending' 
+                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>평일 오후 6시 반</b>까지 가능합니다.</>
+                : '주문을 취소하시겠습니까?'}
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => setCancelDialog({ isOpen: false, orderId: 0, productName: '' })}
-                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  // pending -> canceled 또는 self_pick -> canceled
+                  handleStatusChange('canceled');
+                }}
+                className="flex-1 h-10 rounded bg-red-500 hover:bg-red-600 text-white font-medium"
               >
-                취소
+                예약 취소
               </button>
+              {statusDialog.currentStatus === 'pending' && (
+                <button
+                  onClick={() => {
+                    // pending -> self_pick
+                    handleStatusChange('self_pick');
+                  }}
+                  className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium"
+                >
+                  셀프 수령
+                </button>
+              )}
               <button
-                onClick={() => handleCancelOrder()}
-                className="flex-1 h-10 rounded bg-red-500 text-white hover:bg-red-600"
+                onClick={() => setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' })}
+                className="flex-1 h-10 rounded bg-gray-500 hover:bg-gray-600 text-white"
               >
-                확인
+                닫기
               </button>
             </div>
           </div>

@@ -13,7 +13,7 @@ export type OrderItem = {
 export type OrderRow = {
   id: number;
   date: string;           // YYYY-MM-DD
-  status: 'pending' | 'picked' | 'canceled';
+  status: 'pending' | 'picked' | 'self_pick' | 'canceled';
   items: OrderItem[];
 };
 

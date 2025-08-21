@@ -13,7 +13,7 @@ type ReservationRow = {
   buyerName: string;
   quantity: number;
   amount: number;
-  status: 'pending' | 'picked' | 'canceled'; // 대기 / 완료 / 취소됨
+  status: 'pending' | 'picked' | 'self_pick' | 'canceled'; // 대기 / 완료 / 셀프수령 / 취소됨
 };
 
 const formatKRW = (n: number) =>
@@ -36,14 +36,14 @@ export default function AdminReservationsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all'); // 기본값을 전체로 변경
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'canceled'>('all'); // 기본값을 전체로 변경
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | null>(null);
+  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | 'self_pick' | null>(null);
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
@@ -85,7 +85,10 @@ export default function AdminReservationsPage() {
             const unit = Number(r.price ?? 0);
             const amt = Number(r.amount ?? (unit * qty));
             const rawStatus = String(r.status ?? '').toUpperCase();
-            const mapped: 'pending' | 'picked' | 'canceled' = rawStatus === 'PICKED' ? 'picked' : rawStatus === 'CANCELED' ? 'canceled' : 'pending';
+            const mapped: 'pending' | 'picked' | 'self_pick' | 'canceled' = 
+              rawStatus === 'PICKED' ? 'picked' : 
+              rawStatus === 'CANCELED' ? 'canceled' : 
+              rawStatus === 'SELF_PICK' ? 'self_pick' : 'pending';
             return {
               id: r.id ?? idx,
               date: r.order_date ?? r.orderDate ?? '',
@@ -124,8 +127,8 @@ export default function AdminReservationsPage() {
     if (!sortField) return list;
 
     // 정렬
-    // 상태 정렬: 오름차순 ⇒ 대기(0) < 취소(1) < 완료(2)
-    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, canceled: 1, picked: 2 };
+    // 상태 정렬: 오름차순 ⇒ 대기(0) < 셀프수령(1) < 취소(2) < 완료(3)
+    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, self_pick: 1, canceled: 2, picked: 3 };
     const cmpCore = (a: ReservationRow, b: ReservationRow) => {
       switch (sortField) {
         case 'date':
@@ -153,13 +156,14 @@ export default function AdminReservationsPage() {
   }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
 
   // 드롭다운으로 상태 변경
-  const updateRowStatus = (id: number, next: 'pending' | 'picked') => {
+  const updateRowStatus = (id: number, next: 'pending' | 'picked' | 'self_pick') => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
   // 변경 확인 다이얼로그
-  const openConfirmChange = (id: number, current: 'pending' | 'picked') => {
-    const next = current === 'pending' ? 'picked' : 'pending';
+  const openConfirmChange = (id: number, current: 'pending' | 'picked' | 'self_pick') => {
+    // pending이나 self_pick 상태일 때는 picked로, picked 상태일 때는 pending으로 변경
+    const next = (current === 'pending' || current === 'self_pick') ? 'picked' : 'pending';
     const target = rows.find(r => r.id === id);
     setConfirmId(id);
     setConfirmNext(next);
@@ -253,7 +257,9 @@ export default function AdminReservationsPage() {
             >
               <option value="all">전체</option>
               <option value="pending">수령 대기</option>
+              <option value="self_pick">셀프 수령</option>
               <option value="picked">수령 완료</option>
+              <option value="canceled">예약 취소</option>
             </select>
           </div>
 
@@ -365,6 +371,8 @@ export default function AdminReservationsPage() {
                         'inline-flex items-center h-9 px-3 rounded-full border text-xs font-medium transition ' +
                         (r.status === 'picked'
                           ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                          : r.status === 'self_pick'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                           : r.status === 'canceled'
                             ? 'bg-red-50 text-red-700 border-red-200'
                             : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
@@ -372,7 +380,7 @@ export default function AdminReservationsPage() {
                       aria-pressed={r.status === 'picked'}
                       disabled={r.status === 'canceled'}
                     >
-                      {r.status === 'picked' ? '수령 완료' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
+                      {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
@@ -387,6 +395,7 @@ export default function AdminReservationsPage() {
                     >
                       <option value="pending">수령 대기</option>
                       <option value="canceled">예약 취소</option>
+                      <option value="self_pick">셀프 수령</option>
                       <option value="picked">수령 완료</option>
                     </select>
                   </td>
@@ -488,13 +497,15 @@ export default function AdminReservationsPage() {
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
                     (r.status === 'picked'
                       ? 'bg-green-50 text-green-700 border-green-200'
+                      : r.status === 'self_pick'
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
                       : r.status === 'canceled'
                         ? 'bg-red-50 text-red-700 border-red-200'
                         : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                   disabled={r.status === 'canceled'}
                 >
-                  {r.status === 'picked' ? '수령 완료' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
+                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                 </button>
               </div>
             </div>
@@ -508,8 +519,8 @@ export default function AdminReservationsPage() {
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
             <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
             <p className="text-sm text-gray-600 mt-2">
-            <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신 
-              <span className="font-medium"> "{confirmProductName}"</span> 상품을
+              <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신 
+              <span className="font-medium"> "{confirmProductName}"</span> 상품을{' '}
               {confirmNext === 'picked' ? '수령 완료' : '수령 대기'}로 변경합니다.
             </p>
             <div className="mt-4 flex justify-end gap-2">

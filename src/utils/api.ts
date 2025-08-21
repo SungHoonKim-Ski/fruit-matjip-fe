@@ -414,6 +414,16 @@ export const cancelReservation = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const selfPickReservation = async (id: number) => {
+  const key = 'selfPickReservation';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch(`/api/auth/reservations/self-pick/${id}`, { method: 'PATCH' });
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 export const getReservations = async (from?: string, to?: string) => {
   const key = 'getReservations';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
