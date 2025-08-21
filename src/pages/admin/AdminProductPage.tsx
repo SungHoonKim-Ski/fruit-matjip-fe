@@ -49,48 +49,7 @@ export default function AdminProductPage() {
   const [search, setSearch] = useState('');
   const visibleProducts = useMemo(() => {
     const q = search.trim();
-    let filtered = q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())) : products;
-
-    // 정렬: 판매 당일 / 판매일 전(오름차순: 가까운 날짜 먼저) / 판매일 후(오름차순: 더 오래된 날짜 먼저)
-    filtered.sort((a, b) => {
-      if (!a.sellDate || !b.sellDate) return 0;
-
-      // 한국 시간(KST) 기준 오늘 날짜 계산
-      const today = (() => {
-        const d = new Date();
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        return d.toISOString().split('T')[0];
-      })();
-
-      const aDate = new Date(a.sellDate + 'T00:00:00');
-      const bDate = new Date(b.sellDate + 'T00:00:00');
-      const todayDate = new Date(today);
-
-      const aIsToday = aDate.getTime() === todayDate.getTime();
-      const bIsToday = bDate.getTime() === todayDate.getTime();
-
-      if (aIsToday && !bIsToday) return -1;
-      if (!aIsToday && bIsToday) return 1;
-
-      if (aIsToday && bIsToday) {
-        return a.name.localeCompare(b.name);
-      }
-
-      if (aDate > todayDate && bDate > todayDate) {
-        return aDate.getTime() - bDate.getTime(); // 미래: 가까운 날짜가 위
-      }
-
-      if (aDate < todayDate && bDate < todayDate) {
-        return aDate.getTime() - bDate.getTime(); // 과거: 더 오래된 날짜가 위
-      }
-
-      if (aDate > todayDate && bDate < todayDate) return -1; // 미래가 위
-      if (aDate < todayDate && bDate > todayDate) return 1;  // 미래가 위
-
-      return 0;
-    });
-
-    return filtered;
+    return q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())) : products;
   }, [products, search]);
 
   // --- 다이얼로그 열기: pushState로 히스토리 한 단계 추가 (뒤로가기 시 다이얼로그만 닫힘) ---

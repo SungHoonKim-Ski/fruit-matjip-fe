@@ -153,47 +153,13 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const t = to ? new Date(to) : null;
-    let filtered = orders.filter(o => {
+    return orders.filter(o => {
       const d = new Date(o.date);
       const inFrom = f ? d >= f : true;
       const inTo = t ? d <= t : true;
       const s = status === 'all' ? true : o.status === status;
       return inFrom && inTo && s;
     });
-    
-    // 정렬: 주문일 (오늘/미래/과거 순)
-    filtered.sort((a, b) => {
-      // 날짜 비교를 위해 YYYY-MM-DD 형식으로 변환
-      const aDate = a.date; // 이미 YYYY-MM-DD 형식
-      const bDate = b.date; // 이미 YYYY-MM-DD 형식
-      
-      // 1. 날짜가 다른 경우: 오늘 > 미래 > 과거 순
-      if (aDate !== bDate) {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // 오늘인 주문이 가장 위에
-        if (aDate === today && bDate !== today) return -1;
-        if (aDate !== today && bDate === today) return 1;
-        
-        // 미래가 과거보다 위에
-        if (aDate > today && bDate <= today) return -1;
-        if (aDate <= today && bDate > today) return 1;
-        
-        // 둘 다 미래인 경우, 가까운 날짜가 위에
-        if (aDate > today && bDate > today) {
-          return aDate.localeCompare(bDate);
-        }
-        
-        // 둘 다 과거인 경우, 최근 과거가 위에
-        if (aDate < today && bDate < today) {
-          return bDate.localeCompare(aDate);
-        }
-      }
-      
-      return 0;
-    });
-    
-    return filtered;
   }, [orders, from, to, status]);
 
   const totalPrice = (o: OrderRow) =>
