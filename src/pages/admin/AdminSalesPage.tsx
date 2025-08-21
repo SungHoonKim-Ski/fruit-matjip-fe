@@ -72,7 +72,7 @@ export default function AdminSalesPage() {
         const unit = qty > 0 ? Math.floor(amt / qty) : Number(r.price ?? 0);
         return {
           id: r.id ?? idx,
-          date: r.order_date ?? r.orderDate ?? '',
+          date: r.pickup_date ?? r.pickupDate ?? '',
           productName: r.product_name ?? r.productName ?? '',
           buyerName: r.user_name ?? r.userName ?? '',
           price: unit,
