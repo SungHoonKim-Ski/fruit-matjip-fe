@@ -384,17 +384,18 @@ export default function AdminProductPage() {
                         }}
                       >
                         {(() => {
-                          const today = (() => {
-                            const d = new Date();
-                            d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-                            return d;
-                          })();
-                          const ds = product.sellDate! + 'T00:00:00';
-                          const d = new Date(ds);
-                          const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-                          const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                          if (dd > t) return '판매 예정';
-                          if (dd === t) return '판매 당일';
+                          // KST 기준으로 오늘 날짜 계산
+                          const now = new Date();
+                          const kstOffset = 9 * 60; // KST = UTC+9
+                          const localOffset = now.getTimezoneOffset();
+                          const kstNow = new Date(now.getTime() + (localOffset + kstOffset) * 60 * 1000);
+                          
+                          // 오늘 날짜를 YYYY-MM-DD 형식으로
+                          const todayStr = kstNow.toISOString().split('T')[0];
+                          
+                          // 판매일과 비교
+                          if (product.sellDate! > todayStr) return '판매 예정';
+                          if (product.sellDate! === todayStr) return '판매 당일';
                           return '판매 종료';
                         })()}
                       </span>
