@@ -29,8 +29,8 @@ export default function ProductCreatePage() {
   
   const [form, setForm] = useState<ProductForm>({
     name: '',
-    price: 1000, // step 1000 사용 시 자연스럽도록 기본 1000
-    stock: 10,   // step 10 사용 시 자연스럽도록 기본 10
+    price: 0, // step 1000 사용 시 자연스럽도록 기본 1000
+    stock: 0,   // step 10 사용 시 자연스럽도록 기본 10
     image_url: null,
     sell_date: today,
     visible: true,
@@ -254,8 +254,8 @@ export default function ProductCreatePage() {
               onChange={handleChange}
               onInput={handleNumberInput}
               className="w-full border px-3 py-2 rounded"
-              placeholder="10"
-              step={10}
+              placeholder="1"
+              step={1}
               min={1}
               required
             />
