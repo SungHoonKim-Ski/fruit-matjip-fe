@@ -361,7 +361,7 @@ export default function OrdersPage() {
           셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 30분</strong>까지 가능합니다.
         </div>
         <div className="mt-2 text-xs text-red-600">
-          이번 달에 <strong>셀프 수령 신청 후 취소를 2회</strong> 하면,
+          이번 달에 <strong>셀프 수령 신청 후 취소를 2회</strong> 하면,<br />
           이번 달에는 <strong>더 이상 셀프 수령을 신청할 수 없어요.</strong>
         </div>
       </section>
@@ -508,9 +508,12 @@ export default function OrdersPage() {
             <p className="text-gray-600 mb-6">
               <span className="font-medium">"{statusDialog.productName}"</span>
               {statusDialog.currentStatus === 'pending' 
-                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>평일 오후 6시 반</b>까지 가능합니다.</>
+                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시 30분</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
+            <div className="mb-4">
+              <span className="text-sm text-red-600">셀프 수령 신청 후 <strong>취소가 2회 누적</strong>될 경우<br /> <strong>당월 셀프 수령 신청이 불가능</strong>합니다.</span>
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => {
