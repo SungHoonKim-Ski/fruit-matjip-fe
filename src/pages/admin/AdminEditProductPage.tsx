@@ -103,8 +103,7 @@ export default function AdminEditProductPage() {
   const [pendingDetailFiles, setPendingDetailFiles] = useState<File[]>([]);
   const [pendingDetailPreviews, setPendingDetailPreviews] = useState<string[]>([]);
 
-  // 재고 증감
-  const [additionalStock, setAdditionalStock] = useState<number>(0);
+
 
   // 에디터 refs
   const editorRef = useRef<HTMLDivElement>(null);
@@ -627,7 +626,7 @@ export default function AdminEditProductPage() {
 
       const nameChanged = (form.name || '').trim() !== (initial?.name || '').trim();
       const priceChanged = form.price !== (initial?.price ?? 0);
-      const stockChanged = additionalStock !== 0;
+      const stockChanged = form.stock !== (initial?.stock ?? 0);
       const productUrlChanged = toS3Key(newMainKey ?? form.imageUrl) !== toS3Key(initial?.imageUrl || '');
       const sellDateChanged = (form.sellDate || '').trim() !== (initial?.sellDate || '').trim();
 
@@ -654,7 +653,7 @@ export default function AdminEditProductPage() {
       const payload: any = {
         name: nameChanged ? (form.name || '').trim() : null,
         price: priceChanged ? form.price : null,
-        stock_change: stockChanged ? additionalStock : null,
+        stock: stockChanged ? form.stock : null,
         product_url: productUrlChanged ? toS3Key(newMainKey ?? form.imageUrl) : null, // key만
         sell_date: sellDateChanged ? (form.sellDate || '').trim() : null,
         description: descriptionChanged ? (form.description || '') : null,
@@ -752,96 +751,52 @@ export default function AdminEditProductPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium">가격 <span className="text-red-500">*</span></label>
-              <div className="mt-1 relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">₩</span>
-                <input
-                  name="price"
-                  type="number"
-                  min={0}
-                  step={100}
-                  max={PRICE_MAX}
-                  value={form.price}
-                  onChange={onChange}
-                  className="w-full h-10 border rounded pl-7 pr-3 text-center"
-                />
-                <p className="text-xs text-gray-500 mt-1">최대 1,000,000원</p>
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium">현재 재고</label>
-              <div className="mt-1 relative">
-                <input
-                  name="stock"
-                  type="number"
-                  min={0}
-                  value={form.stock + additionalStock}
-                  readOnly
-                  aria-readonly="true"
-                  className={`w-full h-10 border rounded pl-3 pr-12 text-center cursor-not-allowed select-none caret-transparent ${
-                    form.stock + additionalStock > form.stock
-                      ? 'bg-green-100 text-green-700 border-green-300'
-                      : form.stock + additionalStock < form.stock
-                      ? 'bg-red-100 text-red-700 border-red-300'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                />
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-gray-500">개</span>
-              </div>
+          <div>
+            <label className="text-sm font-medium">가격 <span className="text-red-500">*</span></label>
+            <div className="mt-1 relative">                
+              <input
+                name="price"
+                type="number"
+                min={0}
+                step={100}
+                max={PRICE_MAX}
+                value={form.price}
+                onChange={onChange}
+                className="w-full h-10 border rounded pl-7 pr-3 text-center"
+              />
+              <p className="text-xs text-gray-500 mt-1">최대 1,000,000원</p>
             </div>
           </div>
 
           <div>
-            <span className="text-sm font-medium text-gray-800">재고 변경</span>
-            <div className="mt-1 h-10 grid grid-cols-[1fr_4fr_1fr] items-center border rounded overflow-hidden">
-              <button
-                type="button"
-                onClick={() =>
-                  setAdditionalStock(n => (form.stock + n - 10 >= 0 ? n - 10 : n))
-                }
-                disabled={form.stock + additionalStock < 10}
-                className={`h-full w-full text-base leading-none border-r ${
-                  form.stock + additionalStock < 10 ? 'text-gray-300 bg-gray-50' : 'hover:bg-gray-50'
+            <label className="text-sm font-medium">재고 <span className="text-red-500">*</span></label>
+            <div className="mt-1 relative">
+              <input
+                name="stock"
+                type="number"
+                min={0}
+                max={9999}
+                value={form.stock}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (!Number.isFinite(v) || v < 0) return;
+                  const clamped = Math.min(9999, v);
+                  setForm(prev => prev ? { ...prev, stock: clamped } : prev);
+                }}
+                className={`w-full h-10 border rounded pl-3 pr-3 text-center [&::-webkit-outer-spin-button]:ml-auto [&::-webkit-inner-spin-button]:ml-auto ${
+                  form.stock > (initialFormRef.current?.stock ?? 0)
+                    ? 'bg-green-100 text-green-700 border-green-300'
+                    : form.stock < (initialFormRef.current?.stock ?? 0)
+                    ? 'bg-red-100 text-red-700 border-red-300'
+                    : 'bg-white text-gray-700'
                 }`}
-                aria-label="추가 재고 감소"
-              >
-                −
-              </button>
-              <div className="h-full w-full flex items-center justify-center text-base">
-                <input
-                  type="number"
-                  min={-form.stock}
-                  max={9999}
-                  step={1}
-                  value={additionalStock}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (!Number.isFinite(v)) return;
-                    const clamped = Math.max(-form.stock, Math.min(9999, Math.trunc(v)));
-                    setAdditionalStock(clamped);
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '') setAdditionalStock(0);
-                  }}
-                  className="w-full h-full border-0 text-center focus:ring-0 outline-none no-spinner"
-                  aria-label="재고 변경 수량 직접 입력"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => setAdditionalStock(n => Math.min(9999, n + 10))}
-                className="h-full w-full text-base leading-none border-l hover:bg-gray-50"
-                aria-label="추가 재고 증가"
-              >
-                +
-              </button>
+              />
+
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium">판매일</label>
+            <label className="text-sm font-medium">판매일 <span className="text-red-500">*</span></label>
             <input
               name="sellDate"
               type="date"
@@ -936,188 +891,186 @@ export default function AdminEditProductPage() {
           </div>
 
           {/* 이미지들 */}
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:items-end">
-            <div>
-              <label className="text-sm font-medium">이미지 <span className="text-red-500">*</span></label>
-              <p className="text-xs text-gray-500 mt-1">상품 목록에 노출되는 이미지가 교체됩니다.</p>
-              <div className="mt-2">
-                <img
-                  src={localPreviewUrlRef.current || form.imageUrl}
-                  alt={form.name}
-                  className="w-28 h-28 rounded object-cover border"
-                />
+          <div>
+            <label className="text-sm font-medium">이미지 <span className="text-red-500">*</span></label>
+            <p className="text-xs text-gray-500 mt-1">상품 목록에 노출되는 이미지가 교체됩니다.</p>
+            <div className="mt-2">
+              <img
+                src={localPreviewUrlRef.current || form.imageUrl}
+                alt={form.name}
+                className="w-28 h-28 rounded object-cover border"
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <input
+                id="main-image"
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (localPreviewUrlRef.current) {
+                    URL.revokeObjectURL(localPreviewUrlRef.current);
+                  }
+                  localPreviewUrlRef.current = URL.createObjectURL(f);
+                  setForm({ ...form });
+                }}
+              />
+              <label htmlFor="main-image" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
+                파일 선택
+              </label>
+              {fileRef.current?.files?.[0] && (
+                <span className="text-sm text-gray-700 truncate max-w-full">
+                  {fileRef.current.files[0].name}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <label className="text-sm font-medium">추가 이미지</label>
+              <p className="text-xs text-gray-500 mt-1">최대 5장까지 추가할 수 있습니다.</p>
+              <div className="mt-2 flex gap-3 flex-wrap">
+                {(form.images || []).map((src, i) => (
+                  <div key={src} className="relative w-28">
+                    <img src={src} alt="thumb" className="w-28 h-28 rounded object-cover border" />
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, images: (form.images || []).filter((_, idx) => idx !== i) })}
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
+                      aria-label="추가 이미지 삭제"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <input
-                  id="main-image"
-                  ref={fileRef}
+                  id="additional-files"
+                  ref={additionalFileRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    if (localPreviewUrlRef.current) {
-                      URL.revokeObjectURL(localPreviewUrlRef.current);
+                    const input = e.currentTarget as HTMLInputElement;
+                    const files = input.files ? Array.from(input.files) : [];
+                    if (!files.length) return;
+                    const currentCount = (form.images ? form.images.length : 0) + pendingDetailFiles.length;
+                    const available = DETAIL_IMAGES_MAX - currentCount;
+                    if (available <= 0) {
+                      show(`추가 이미지는 최대 ${DETAIL_IMAGES_MAX}장까지 등록할 수 있어요.`, { variant: 'info' });
+                      input.value = '';
+                      return;
                     }
-                    localPreviewUrlRef.current = URL.createObjectURL(f);
-                    setForm({ ...form });
+                    const allowedFiles = files.slice(0, Math.max(0, available));
+                    if (allowedFiles.length < files.length) {
+                      const skipped = files.length - allowedFiles.length;
+                      show(`최대 ${DETAIL_IMAGES_MAX}장까지만 추가할 수 있어요. ${skipped}장은 제외됩니다.`, { variant: 'info' });
+                    }
+                    const names = allowedFiles.map(f => f.name);
+                    const urls = allowedFiles.map(f => URL.createObjectURL(f));
+                    setSelectedAdditionalNames(prev => [...prev, ...names]);
+                    setPendingDetailFiles(prev => [...prev, ...allowedFiles]);
+                    setPendingDetailPreviews(prev => [...prev, ...urls]);
+                    input.value = '';
                   }}
                 />
-                <label htmlFor="main-image" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
+                <label htmlFor="additional-files" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
                   파일 선택
                 </label>
-                {fileRef.current?.files?.[0] && (
+                {selectedAdditionalNames.length > 0 && (
                   <span className="text-sm text-gray-700 truncate max-w-full">
-                    {fileRef.current.files[0].name}
+                    {selectedAdditionalNames.join(', ')}
                   </span>
                 )}
               </div>
 
-              <div className="mt-4">
-                <label className="text-sm font-medium">추가 이미지</label>
-                <p className="text-xs text-gray-500 mt-1">최대 5장까지 추가할 수 있습니다.</p>
-                <div className="mt-2 flex gap-3 flex-wrap">
-                  {(form.images || []).map((src, i) => (
-                    <div key={src} className="relative w-28">
-                      <img src={src} alt="thumb" className="w-28 h-28 rounded object-cover border" />
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, images: (form.images || []).filter((_, idx) => idx !== i) })}
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                        aria-label="추가 이미지 삭제"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <input
-                    id="additional-files"
-                    ref={additionalFileRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      const input = e.currentTarget as HTMLInputElement;
-                      const files = input.files ? Array.from(input.files) : [];
-                      if (!files.length) return;
-                      const currentCount = (form.images ? form.images.length : 0) + pendingDetailFiles.length;
-                      const available = DETAIL_IMAGES_MAX - currentCount;
-                      if (available <= 0) {
-                        show(`추가 이미지는 최대 ${DETAIL_IMAGES_MAX}장까지 등록할 수 있어요.`, { variant: 'info' });
-                        input.value = '';
-                        return;
-                      }
-                      const allowedFiles = files.slice(0, Math.max(0, available));
-                      if (allowedFiles.length < files.length) {
-                        const skipped = files.length - allowedFiles.length;
-                        show(`최대 ${DETAIL_IMAGES_MAX}장까지만 추가할 수 있어요. ${skipped}장은 제외됩니다.`, { variant: 'info' });
-                      }
-                      const names = allowedFiles.map(f => f.name);
-                      const urls = allowedFiles.map(f => URL.createObjectURL(f));
-                      setSelectedAdditionalNames(prev => [...prev, ...names]);
-                      setPendingDetailFiles(prev => [...prev, ...allowedFiles]);
-                      setPendingDetailPreviews(prev => [...prev, ...urls]);
-                      input.value = '';
-                    }}
-                  />
-                  <label htmlFor="additional-files" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
-                    파일 선택
-                  </label>
-                  {selectedAdditionalNames.length > 0 && (
-                    <span className="text-sm text-gray-700 truncate max-w-full">
-                      {selectedAdditionalNames.join(', ')}
-                    </span>
-                  )}
-                </div>
-
-                {pendingDetailPreviews.length > 0 && (
-                  <div className="mt-3">
-                    <div className="text-xs text-gray-500 mb-2">추가 예정</div>
-                    <div className="flex gap-3 flex-wrap">
-                      {pendingDetailPreviews.map((src, i) => (
-                        <div key={src} className="relative w-28">
-                          <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const idx = pendingDetailPreviews.findIndex(u => u === src);
-                              if (idx < 0) return;
-                              try { URL.revokeObjectURL(src); } catch {}
-                              setPendingDetailPreviews(prev => prev.filter((_, j) => j !== idx));
-                              setPendingDetailFiles(prev => prev.filter((_, j) => j !== idx));
-                              setSelectedAdditionalNames(prev => prev.filter((_, j) => j !== idx));
-                            }}
-                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                            aria-label="추가 예정 이미지 제거"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+              {pendingDetailPreviews.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-xs text-gray-500 mb-2">추가 예정</div>
+                  <div className="flex gap-3 flex-wrap">
+                    {pendingDetailPreviews.map((src, i) => (
+                      <div key={src} className="relative w-28">
+                        <img src={src} alt="pending-thumb" className="w-28 h-28 rounded object-cover border" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const idx = pendingDetailPreviews.findIndex(u => u === src);
+                            if (idx < 0) return;
+                            try { URL.revokeObjectURL(src); } catch {}
+                            setPendingDetailPreviews(prev => prev.filter((_, j) => j !== idx));
+                            setPendingDetailFiles(prev => prev.filter((_, j) => j !== idx));
+                            setSelectedAdditionalNames(prev => prev.filter((_, j) => j !== idx));
+                          }}
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
+                          aria-label="추가 예정 이미지 제거"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* 우측 버튼 */}
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => {
+          {/* 버튼들 */}
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  const raw = sessionStorage.getItem(initialStorageKey);
+                  const initial = raw ? (JSON.parse(raw) as ProductEdit) : initialFormRef.current;
+                  if (!initial) return;
+                  if (localPreviewUrlRef.current) {
+                    URL.revokeObjectURL(localPreviewUrlRef.current);
+                    localPreviewUrlRef.current = null;
+                  }
                   try {
-                    const raw = sessionStorage.getItem(initialStorageKey);
-                    const initial = raw ? (JSON.parse(raw) as ProductEdit) : initialFormRef.current;
-                    if (!initial) return;
-                    if (localPreviewUrlRef.current) {
-                      URL.revokeObjectURL(localPreviewUrlRef.current);
-                      localPreviewUrlRef.current = null;
-                    }
-                    try {
-                      for (const u of pendingDetailPreviews) URL.revokeObjectURL(u);
-                    } catch {}
-                    const cloned: ProductEdit = JSON.parse(JSON.stringify(initial));
-                    initialFormRef.current = cloned;
+                    for (const u of pendingDetailPreviews) URL.revokeObjectURL(u);
+                  } catch {}
+                  const cloned: ProductEdit = JSON.parse(JSON.stringify(initial));
+                  initialFormRef.current = cloned;
+                  shouldApplyEditorHtmlRef.current = true;
+                  setForm(cloned);
+                  
+                  setSelectedAdditionalNames([]);
+                  setPendingDetailFiles([]);
+                  setPendingDetailPreviews([]);
+                } catch {
+                  if (initialFormRef.current) {
+                    const cloned: ProductEdit = JSON.parse(JSON.stringify(initialFormRef.current));
                     shouldApplyEditorHtmlRef.current = true;
                     setForm(cloned);
-                    setAdditionalStock(0);
+
                     setSelectedAdditionalNames([]);
                     setPendingDetailFiles([]);
                     setPendingDetailPreviews([]);
-                  } catch {
-                    if (initialFormRef.current) {
-                      const cloned: ProductEdit = JSON.parse(JSON.stringify(initialFormRef.current));
-                      shouldApplyEditorHtmlRef.current = true;
-                      setForm(cloned);
-                      setAdditionalStock(0);
-                      setSelectedAdditionalNames([]);
-                      setPendingDetailFiles([]);
-                      setPendingDetailPreviews([]);
-                    }
                   }
-                }}
-                className="h-10 px-4 rounded border text-gray-700"
-              >
-                초기화
-              </button>
-              <button
-                onClick={save}
-                disabled={saving}
-                className={`h-10 px-5 rounded text-white ${saving ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
-              >
-                {saving ? '저장 중…' : '저장'}
-              </button>
-              <button
-                onClick={del}
-                className="h-10 px-4 rounded border text-red-600 hover:bg-red-50"
-              >
-                삭제
-              </button>
-            </div>
+                }
+              }}
+              className="h-10 px-4 rounded border text-gray-700"
+            >
+              초기화
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className={`h-10 px-5 rounded text-white ${saving ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+            >
+              {saving ? '저장 중…' : '저장'}
+            </button>
+            <button
+              onClick={del}
+              className="h-10 px-4 rounded border text-red-600 hover:bg-red-50"
+            >
+              삭제
+            </button>
           </div>
         </div>
       </section>
