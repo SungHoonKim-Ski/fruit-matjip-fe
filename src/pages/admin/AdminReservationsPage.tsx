@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { togglePicked, getAdminReservations } from '../../utils/api';
+import { updateReservationStatus, getAdminReservations } from '../../utils/api';
 
 type ReservationRow = {
   id: number;
@@ -18,6 +18,16 @@ type ReservationRow = {
 
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
+
+const getStatusText = (status: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+  switch (status) {
+    case 'pending': return '수령 대기';
+    case 'picked': return '수령 완료';
+    case 'self_pick': return '셀프 수령';
+    case 'canceled': return '예약 취소';
+    default: return '알 수 없음';
+  }
+};
 
 type SortField = 'date' | 'productName' | 'buyerName' | 'quantity' | 'amount' | 'status';
 
@@ -43,7 +53,7 @@ export default function AdminReservationsPage() {
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | 'self_pick' | null>(null);
+  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | 'self_pick' | 'canceled' | null>(null);
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
@@ -156,17 +166,15 @@ export default function AdminReservationsPage() {
   }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
 
   // 드롭다운으로 상태 변경
-  const updateRowStatus = (id: number, next: 'pending' | 'picked' | 'self_pick') => {
+  const updateRowStatus = (id: number, next: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
   // 변경 확인 다이얼로그
-  const openConfirmChange = (id: number, current: 'pending' | 'picked' | 'self_pick') => {
-    // pending이나 self_pick 상태일 때는 picked로, picked 상태일 때는 pending으로 변경
-    const next = (current === 'pending' || current === 'self_pick') ? 'picked' : 'pending';
+  const openConfirmChange = (id: number, current: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
     const target = rows.find(r => r.id === id);
     setConfirmId(id);
-    setConfirmNext(next);
+    setConfirmNext(current); // 기본값을 기존 상태로 설정
     setConfirmProductName(target?.productName || '');
     setConfirmBuyerName(target?.buyerName || '');
   };
@@ -183,12 +191,21 @@ export default function AdminReservationsPage() {
       const target = rows.find(r => r.id === confirmId);
       const productName = target ? target.productName : '';
       const buyerName = target ? target.buyerName : '';
+      const currentStatus = target ? target.status : 'pending';
+      
+      // 기존 상태와 동일한 경우 API 호출하지 않음
+      if (confirmNext === currentStatus) {
+        show(`${buyerName}님의 예약 상품은 이미 ${getStatusText(currentStatus)} 상태입니다.`, { variant: 'info' });
+        closeConfirm();
+        return;
+      }
+      
       // 서버 반영
       if (!USE_MOCKS) {
         try {
-          await togglePicked(confirmId, confirmNext === 'picked');
+          await updateReservationStatus(confirmId, confirmNext);
         } catch (e) {
-          safeErrorLog(e, 'AdminReservationsPage - togglePicked');
+          safeErrorLog(e, 'AdminReservationsPage - updateReservationStatus');
           show(getSafeErrorMessage(e, '상태 변경에 실패했습니다.'), { variant: 'error' });
           return;
         }
@@ -197,8 +214,12 @@ export default function AdminReservationsPage() {
       updateRowStatus(confirmId, confirmNext);
       if (confirmNext === 'picked') {
         show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
+      } else if (confirmNext === 'self_pick') {
+        show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`);
+      } else if (confirmNext === 'canceled') {
+        show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`);
       } else {
-        show(`"${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
+        show(`${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
       }
       closeConfirm();
     } finally {
@@ -356,7 +377,7 @@ export default function AdminReservationsPage() {
                 <tr
                   key={r.id}
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
-                  onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
+                  onClick={() => openConfirmChange(r.id, r.status)}
                 >
                   <td className="px-4 py-3 align-middle">{r.date}</td>
                   <td className="px-4 py-3 align-middle">{r.productName}</td>
@@ -366,7 +387,7 @@ export default function AdminReservationsPage() {
                   <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
+                      onClick={() => openConfirmChange(r.id, r.status)}
                       className={
                         'inline-flex items-center h-9 px-3 rounded-full border text-xs font-medium transition ' +
                         (r.status === 'picked'
@@ -374,11 +395,10 @@ export default function AdminReservationsPage() {
                           : r.status === 'self_pick'
                             ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                           : r.status === 'canceled'
-                            ? 'bg-red-50 text-red-700 border-red-200'
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                             : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
                       aria-pressed={r.status === 'picked'}
-                      disabled={r.status === 'canceled'}
                     >
                       {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                     </button>
@@ -474,7 +494,7 @@ export default function AdminReservationsPage() {
               <div
                 key={r.id}
                 className="p-4 active:bg-orange-50"
-                onClick={() => { if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
+                onClick={() => openConfirmChange(r.id, r.status)}
               >
               {/* 상단: 상품명 / 금액 */}
               <div className="flex items-start justify-between gap-3">
@@ -492,7 +512,7 @@ export default function AdminReservationsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); if (r.status !== 'canceled') openConfirmChange(r.id, r.status); }}
+                  onClick={(e) => { e.stopPropagation(); openConfirmChange(r.id, r.status); }}
                   className={
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
                     (r.status === 'picked'
@@ -500,12 +520,11 @@ export default function AdminReservationsPage() {
                       : r.status === 'self_pick'
                         ? 'bg-blue-50 text-blue-700 border-blue-200'
                       : r.status === 'canceled'
-                        ? 'bg-red-50 text-red-700 border-red-200'
+                        ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                         : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
-                  disabled={r.status === 'canceled'}
                 >
-                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
+                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '예약 취소' : '수령 대기'}
                 </button>
               </div>
             </div>
@@ -513,16 +532,67 @@ export default function AdminReservationsPage() {
         </div>
       </div>
 
-      {confirmId !== null && confirmNext !== null && (
+      {confirmId !== null && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeConfirm} />
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
             <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
             <p className="text-sm text-gray-600 mt-2">
               <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신 
-              <span className="font-medium"> "{confirmProductName}"</span> 상품을{' '}
-              {confirmNext === 'picked' ? '수령 완료' : '수령 대기'}로 변경합니다.
+              <span className="font-medium"> "{confirmProductName}"</span> 상품의 상태를 변경합니다.
             </p>
+            
+            {/* 상태 선택 옵션 */}
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-gray-500">변경할 상태를 선택하세요:</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setConfirmNext('pending')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'pending'
+                      ? 'bg-gray-100 border-gray-300 text-gray-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  수령 대기
+                </button>
+                <button
+                  onClick={() => setConfirmNext('picked')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'picked'
+                      ? 'bg-green-100 border-green-300 text-green-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  수령 완료
+                </button>
+                <button
+                  onClick={() => setConfirmNext('self_pick')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'self_pick'
+                      ? 'bg-blue-100 border-blue-300 text-blue-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  셀프 수령
+                </button>
+                <button
+                  onClick={() => setConfirmNext('canceled')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'canceled'
+                      ? 'bg-red-100 border-red-300 text-red-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  예약 취소
+                </button>
+              </div>
+            </div>
+            
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={closeConfirm}
@@ -534,9 +604,9 @@ export default function AdminReservationsPage() {
               </button>
               <button
                 onClick={applyConfirm}
-                disabled={applying}
+                disabled={applying || !confirmNext}
                 className={`h-10 px-4 rounded text-white font-medium ${
-                  applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'
+                  !confirmNext || applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'
                 }`}
                 type="button"
               >

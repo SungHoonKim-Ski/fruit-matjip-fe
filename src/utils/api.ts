@@ -559,12 +559,12 @@ export const deleteAdminProduct = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const togglePicked = async (id: number, picked: boolean) => {
-  const key = 'togglePicked';
+export const updateReservationStatus = async (id: number, status: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+  const key = 'updateReservationStatus';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const status = (picked ? 'PICKED' : 'PENDING');
-    const res = await adminFetch(`/api/admin/reservations/${id}/${status}`, { method: 'PATCH' }, true);
+    const statusUpper = status.toUpperCase();
+    const res = await adminFetch(`/api/admin/reservations/${id}/${statusUpper}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
