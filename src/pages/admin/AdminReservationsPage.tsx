@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateReservationStatus, getAdminReservations } from '../../utils/api';
+import { updateReservationStatus, getAdminReservations, warnReservation } from '../../utils/api';
 
 type ReservationRow = {
   id: number;
@@ -57,6 +57,8 @@ export default function AdminReservationsPage() {
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
+  const [warningId, setWarningId] = useState<number | null>(null); // 경고 처리 중인 예약 ID
+  const [warningDialog, setWarningDialog] = useState<{ isOpen: boolean; id: number; productName: string; buyerName: string; quantity: number }>({ isOpen: false, id: 0, productName: '', buyerName: '', quantity: 0 });
 
   // 예약 데이터 로드: 캘린더 값 변경 시 API 호출
   useEffect(() => {
@@ -215,15 +217,55 @@ export default function AdminReservationsPage() {
       if (confirmNext === 'picked') {
         show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
       } else if (confirmNext === 'self_pick') {
-        show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`);
+        show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`, { variant: 'info' });
       } else if (confirmNext === 'canceled') {
-        show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`);
+        show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`, { variant: 'info' });
       } else {
         show(`${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
       }
       closeConfirm();
     } finally {
       setApplying(false);
+    }
+  };
+
+  // 노쇼 경고 다이얼로그 열기
+  const openWarningDialog = (id: number) => {
+    const target = rows.find(r => r.id === id);
+    if (target) {
+      setWarningDialog({
+        isOpen: true,
+        id: target.id,
+        productName: target.productName,
+        buyerName: target.buyerName,
+        quantity: target.quantity
+      });
+    }
+  };
+
+  // 노쇼 경고 다이얼로그 닫기
+  const closeWarningDialog = () => {
+    setWarningDialog({ isOpen: false, id: 0, productName: '', buyerName: '', quantity: 0 });
+  };
+
+  // 노쇼 경고 처리
+  const handleWarning = async () => {
+    if (!warningDialog.isOpen) return;
+    
+    try {
+      setWarningId(warningDialog.id);
+      
+      if (!USE_MOCKS) {
+        await warnReservation(warningDialog.id);
+      }
+      
+      show(`${warningDialog.buyerName}님에게 노쇼 경고가 등록되었습니다.`, { variant: 'info' });
+      closeWarningDialog();
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminReservationsPage - handleWarning');
+      show(getSafeErrorMessage(e, '경고 등록에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setWarningId(null);
     }
   };
 
@@ -304,11 +346,12 @@ export default function AdminReservationsPage() {
                   { key: 'buyerName', label: '이름' },
                   { key: 'quantity', label: '수량' },
                   { key: 'amount', label: '금액' },
+                  { key: 'warn', label: '경고' },
                   { key: 'status', label: '수령 여부' },
-                ] as { key: SortField; label: string }[]).map(col => (
+                ] as { key: SortField | 'warn'; label: string }[]).map(col => (
                   <th key={col.key} className="px-4 py-2 align-middle">
                     <div className="h-9 flex items-center">
-                      {col.key === 'date' ? (
+                      {col.key === 'date' || col.key === 'warn' ? (
                         <span className="text-gray-700">{col.label}</span>
                       ) : (
                         <span
@@ -321,7 +364,7 @@ export default function AdminReservationsPage() {
                           }`}
                         onClick={() => {
                           if (sortField !== col.key) {
-                            setSortField(col.key);
+                            setSortField(col.key as SortField);
                             setSortOrder('asc');
                           } else if (sortOrder === 'asc') {
                             setSortOrder('desc');
@@ -339,7 +382,7 @@ export default function AdminReservationsPage() {
                               if (sortField === col.key && sortOrder === 'asc') {
                                 setSortField(null);
                               } else {
-                                setSortField(col.key);
+                                setSortField(col.key as SortField);
                                 setSortOrder('asc');
                               }
                             }}
@@ -356,7 +399,7 @@ export default function AdminReservationsPage() {
                               if (sortField === col.key && sortOrder === 'desc') {
                                 setSortField(null);
                               } else {
-                                setSortField(col.key);
+                                setSortField(col.key as SortField);
                                 setSortOrder('desc');
                               }
                             }}
@@ -385,6 +428,27 @@ export default function AdminReservationsPage() {
                   <td className="px-4 py-3 align-middle">{r.quantity.toLocaleString()}개</td>
                   <td className="px-4 py-3 font-medium align-middle">{formatKRW(r.amount)}</td>
                   <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
+                                      {/* 노쇼 경고 버튼 - 셀프 수령 상태일 때만 표시 */}
+                  {r.status === 'self_pick' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openWarningDialog(r.id);
+                      }}
+                      disabled={warningId === r.id}
+                      className="inline-flex items-center justify-center h-9 w-9 rounded-full border-2 border-orange-300 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:border-orange-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="노쇼 경고 등록"
+                    >
+                      {warningId === r.id ? (
+                        <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <span className="text-sm font-bold">!</span>
+                      )}
+                    </button>
+                  )}
+                  </td>
+                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => openConfirmChange(r.id, r.status)}
@@ -394,9 +458,9 @@ export default function AdminReservationsPage() {
                           ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                           : r.status === 'self_pick'
                             ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                          : r.status === 'canceled'
-                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
+                            : r.status === 'canceled'
+                              ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
                       aria-pressed={r.status === 'picked'}
                     >
@@ -496,15 +560,36 @@ export default function AdminReservationsPage() {
                 className="p-4 active:bg-orange-50"
                 onClick={() => openConfirmChange(r.id, r.status)}
               >
-              {/* 상단: 상품명 / 금액 */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="font-medium text-[15px] text-gray-900 break-words flex-1 min-w-0">
-                  <span className="line-clamp-2 break-words">{r.productName}</span>
+              {/* 상단: 상품명 + 경고 / 금액 */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-1 flex-1 min-w-0">
+                  <div className="font-medium text-[15px] text-gray-900 break-words min-w-0">
+                    <span className="line-clamp-2 break-words">{r.productName}</span>
+                  </div>
+                  {/* 노쇼 경고 버튼 - 셀프 수령 상태일 때만 표시 */}
+                  {r.status === 'self_pick' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openWarningDialog(r.id);
+                      }}
+                      disabled={warningId === r.id}
+                      className="inline-flex items-center justify-center h-6 w-6 rounded-full border-2 border-orange-300 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:border-orange-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                      title="노쇼 경고 등록"
+                    >
+                      {warningId === r.id ? (
+                        <div className="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <span className="text-xs font-bold">!</span>
+                      )}
+                    </button>
+                  )}
                 </div>
                 <div className="text-right flex-shrink-0 text-[15px] font-semibold text-orange-600">{formatKRW(r.amount)}</div>
               </div>
-              {/* 하단 메타: 날짜 · 닉네임 · 수량 + 상태 */}
-              <div className="mt-2 flex items-center justify-between gap-3">
+              {/* 하단 메타: 날짜 · 닉네임 · 수량 + 수령여부 */}
+              <div className="mt-2 flex items-center justify-between">
                 <div className="text-xs text-gray-500 flex items-center gap-2 min-w-0">
                   <span className="whitespace-nowrap">{r.date}</span>
                   <span className="truncate">{r.buyerName}</span>
@@ -524,7 +609,7 @@ export default function AdminReservationsPage() {
                         : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
-                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '예약 취소' : '수령 대기'}
+                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '예약 취소' : '수령 완료'}
                 </button>
               </div>
             </div>
@@ -547,28 +632,6 @@ export default function AdminReservationsPage() {
               <p className="text-xs text-gray-500">변경할 상태를 선택하세요:</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setConfirmNext('pending')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'pending'
-                      ? 'bg-gray-100 border-gray-300 text-gray-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  수령 대기
-                </button>
-                <button
-                  onClick={() => setConfirmNext('picked')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'picked'
-                      ? 'bg-green-100 border-green-300 text-green-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  수령 완료
-                </button>
-                <button
                   onClick={() => setConfirmNext('self_pick')}
                   className={`h-10 px-3 rounded border text-sm font-medium transition ${
                     confirmNext === 'self_pick'
@@ -580,6 +643,17 @@ export default function AdminReservationsPage() {
                   셀프 수령
                 </button>
                 <button
+                  onClick={() => setConfirmNext('pending')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'pending'
+                      ? 'bg-gray-100 border-gray-300 text-gray-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  수령 대기
+                </button>
+                <button
                   onClick={() => setConfirmNext('canceled')}
                   className={`h-10 px-3 rounded border text-sm font-medium transition ${
                     confirmNext === 'canceled'
@@ -589,6 +663,17 @@ export default function AdminReservationsPage() {
                   disabled={applying}
                 >
                   예약 취소
+                </button>
+                <button
+                  onClick={() => setConfirmNext('picked')}
+                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                    confirmNext === 'picked'
+                      ? 'bg-green-100 border-green-300 text-green-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                  disabled={applying}
+                >
+                  수령 완료
                 </button>
               </div>
             </div>
@@ -611,6 +696,56 @@ export default function AdminReservationsPage() {
                 type="button"
               >
                 {applying ? '처리 중…' : '확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 노쇼 경고 확인 다이얼로그 */}
+      {warningDialog.isOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={closeWarningDialog} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <span className="text-orange-600 text-xl font-bold">!</span>
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">노쇼 경고 등록</h2>
+                <p className="text-sm text-gray-500">이 예약한 고객에게 노쇼 경고를 등록하시겠습니까?</p>
+              </div>
+            </div>
+            
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-orange-800">
+                <span className="font-medium">"{warningDialog.buyerName}"</span>님이 주문하신 
+                <span className="font-medium"> "{warningDialog.productName} {warningDialog.quantity}개"</span>
+              </p>
+            </div>
+            
+            <div className="text-xs text-gray-600 mb-4">
+              ⚠️ 경고 2회 누적 시 "{warningDialog.buyerName}" 고객은 <strong>당월 셀프 픽업이 불가능</strong>합니다.
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeWarningDialog}
+                className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
+                disabled={warningId === warningDialog.id}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleWarning}
+                disabled={warningId === warningDialog.id}
+                className={`h-10 px-4 rounded text-white font-medium ${
+                  warningId === warningDialog.id ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'
+                }`}
+                type="button"
+              >
+                {warningId === warningDialog.id ? '처리 중…' : '경고 등록'}
               </button>
             </div>
           </div>

@@ -424,6 +424,14 @@ export const selfPickReservation = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const checkCanSelfPick = async (): Promise<boolean> => {
+  const res = await userFetch('/api/auth/reservation/self-pick');
+  if (!res.ok) {
+    throw new Error('셀프 수령 가능 여부 확인에 실패했습니다.');
+  }
+  return res.json();
+};
+
 export const getReservations = async (from?: string, to?: string) => {
   const key = 'getReservations';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -565,6 +573,16 @@ export const updateReservationStatus = async (id: number, status: 'pending' | 'p
   try {
     const statusUpper = status.toUpperCase();
     const res = await adminFetch(`/api/admin/reservations/${id}/${statusUpper}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const warnReservation = async (id: number) => {
+  const key = 'warnReservation';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/reservations/${id}/warn`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }

@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
-import { getReservations, cancelReservation, selfPickReservation } from '../../utils/api';
+import { getReservations, cancelReservation, selfPickReservation, checkCanSelfPick } from '../../utils/api';
 
 // 취소 확인 dialog 타입
 interface CancelDialogProps {
@@ -47,6 +47,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);         // “더 보기” 용
   const [hasMore, setHasMore] = useState(false);
+  const [canSelfPick, setCanSelfPick] = useState<boolean | null>(null); // 셀프 수령 가능 여부
   
   // 상태 변경 dialog 상태
   const [statusDialog, setStatusDialog] = useState<{
@@ -158,6 +159,31 @@ export default function OrdersPage() {
     return () => { alive = false; };
   }, [page, show, from, to]);
 
+  // 셀프 수령 가능 여부 체크 (페이지 진입 시 한 번만)
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (USE_MOCKS) {
+        // Mock에서는 항상 가능
+        setCanSelfPick(true);
+        return;
+      }
+      
+      try {
+        const canPick = await checkCanSelfPick();
+        if (alive) {
+          setCanSelfPick(canPick);
+        }
+      } catch (err) {
+        safeErrorLog(err, 'OrderPage - canSelfPick check');
+        if (alive) {
+          setCanSelfPick(false); // 에러 시 기본적으로 불가능으로 설정
+        }
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const t = to ? new Date(to) : null;
@@ -233,17 +259,20 @@ export default function OrdersPage() {
             return;
           }
           
-          // order_date의 오후 6시 30분(18:30)까지 신청 가능
+          // order_date의 오후 6시 50분(18:50)까지 신청 가능
           if (orderDateOnly.getTime() === todayDate.getTime()) {
-            // 오늘 주문인 경우: 현재 시간이 오후 6시 30분 이전이어야 함
+            // 오늘 주문인 경우: 현재 시간이 오후 6시 50분 이전이어야 함
             const currentHour = kstNow.getHours();
             const currentMinute = kstNow.getMinutes();
-            if (currentHour > 18 || (currentHour === 18 && currentMinute >= 30)) {
-              show('셀프 수령은 오후 6시 30분까지만 가능합니다.', { variant: 'error' });
+            if (currentHour > 18 || (currentHour === 18 && currentMinute >= 50)) {
+              show('셀프 수령은 오후 6시 50분까지만 가능합니다.', { variant: 'error' });
               setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
               return;
             }
           }
+          
+          // 셀프 수령 가능 여부는 이미 페이지 진입 시 체크됨
+          
           // 미래 주문인 경우: 신청 가능 (시간 제한 없음)
         }
       }
@@ -339,7 +368,7 @@ export default function OrdersPage() {
               <option value="all">전체</option>
               <option value="pending">수령 대기</option>
               <option value="picked">수령 완료</option>
-              <option value="self_pick">셀프 수령(19시 이후)</option>
+              {canSelfPick && <option value="self_pick">셀프 수령(19시 이후)</option>}
               <option value="canceled">예약 취소</option>
             </select>
           </div>
@@ -355,14 +384,12 @@ export default function OrdersPage() {
         </div>
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
-          수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.
-        </div>
-        <div className="mt-2 text-xs text-gray-600">
-          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 30분</strong>까지 가능합니다.
+          수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.<br />
+          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 50분</strong>까지 가능합니다.
         </div>
         <div className="mt-2 text-xs text-red-600">
-          이번 달에 <strong>셀프 수령 신청 후 취소를 2회</strong> 하면,<br />
-          이번 달에는 <strong>더 이상 셀프 수령을 신청할 수 없어요.</strong>
+          셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> 
+          <strong>당월 셀프 수령 신청이 불가능</strong>할 수 있습니다.
         </div>
       </section>
 
@@ -508,12 +535,11 @@ export default function OrdersPage() {
             <p className="text-gray-600 mb-6">
               <span className="font-medium">"{statusDialog.productName}"</span>
               {statusDialog.currentStatus === 'pending' 
-                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시 30분</b>까지 가능합니다.</>
+                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시 50분</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
             <div className="mb-4">
-              <span className="text-sm text-red-600">셀프 수령 신청 후 <strong>취소가 2회 누적</strong>될 경우<br /> <strong>당월 셀프 수령 신청이 불가능</strong>합니다.</span>
-            </div>
+              <span className="text-sm text-red-600">셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> <strong>당월 셀프 수령 신청이 불가능</strong>할 수 있습니다.</span>           </div>
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -524,7 +550,7 @@ export default function OrdersPage() {
               >
                 예약 취소
               </button>
-              {statusDialog.currentStatus === 'pending' && (
+              {statusDialog.currentStatus === 'pending' && canSelfPick && (
                 <button
                   onClick={() => {
                     // pending -> self_pick
