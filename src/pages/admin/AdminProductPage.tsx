@@ -345,9 +345,8 @@ export default function AdminProductPage() {
                         {(() => {
                           // KST 기준으로 오늘 날짜 계산
                           const now = new Date();
-                          const kstOffset = 9 * 60; // KST = UTC+9
-                          const localOffset = now.getTimezoneOffset();
-                          const kstNow = new Date(now.getTime() + (localOffset + kstOffset) * 60 * 1000);
+                          // KST 시간대로 현재 시간 계산 (UTC+9)
+                          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
                           
                           // 오늘 날짜를 YYYY-MM-DD 형식으로
                           const todayStr = kstNow.toISOString().split('T')[0];
