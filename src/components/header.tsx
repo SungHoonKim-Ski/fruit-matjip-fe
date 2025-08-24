@@ -1,7 +1,9 @@
 import React from 'react';
 
 const Header = ({ storeName }: { storeName: string }) => {
-  const today = new Date().toLocaleDateString('ko-KR', {
+  const now = new Date();
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  const today = kstNow.toLocaleDateString('ko-KR', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

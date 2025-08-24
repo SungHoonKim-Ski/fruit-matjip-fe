@@ -43,9 +43,10 @@ function formatKstYmd(kstDate: Date): string {
 function getNext3Days(): string[] {
   const arr: string[] = [];
   const now = new Date();
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
   const start = new Date(now);
   // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
-  if (now.getHours() >= 21) {
+  if (kstNow.getHours() >= 21) {
     start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < 7; i++) {
@@ -144,8 +145,10 @@ export default function ReservePage() {
         try {
           // 한국 시간(KST) 기준 오늘을 시작으로, 오후 9시 이후면 다음날부터 포함 7일 범위 요청
           
+          const now = new Date();
+          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
           const start = new Date();
-          if (start.getHours() >= 21) {
+          if (kstNow.getHours() >= 21) {
             start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);

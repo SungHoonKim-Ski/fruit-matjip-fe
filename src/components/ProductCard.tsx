@@ -10,7 +10,9 @@ interface Product {
 }
 
 const ProductCard = ({ product, onReserve }: { product: Product; onReserve: (id: string) => void }) => {
-  const isPickupTimeOver = new Date() > new Date(product.pickupTime);
+  const now = new Date();
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  const isPickupTimeOver = kstNow > new Date(product.pickupTime);
 
   return (
     <div className="border p-4 rounded-lg shadow-sm mb-3 bg-white">

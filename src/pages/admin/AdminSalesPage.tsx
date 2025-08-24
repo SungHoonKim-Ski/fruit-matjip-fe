@@ -11,15 +11,15 @@ const formatKRW = (n: number) =>
 
 export default function AdminSalesPage() {
   const { show } = useSnackbar();
-  // 이번 달의 시작/끝(로컬 타임존 기준)
-  const toLocalYMD = (d: Date) => {
-    const dd = new Date(d);
-    dd.setMinutes(dd.getMinutes() - dd.getTimezoneOffset());
-    return dd.toISOString().split('T')[0];
+  // 이번 달의 시작/끝(KST 기준)
+  const toKstYMD = (d: Date) => {
+    const kstDate = new Date(d.getTime() + 9 * 60 * 60 * 1000); // KST 기준으로 변환
+    return kstDate.toISOString().split('T')[0];
   };
   const now = new Date();
-  const monthStart = toLocalYMD(new Date(now.getFullYear(), now.getMonth(), 1));
-  const monthEnd   = toLocalYMD(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  const monthStart = toKstYMD(new Date(kstNow.getFullYear(), kstNow.getMonth(), 1));
+  const monthEnd   = toKstYMD(new Date(kstNow.getFullYear(), kstNow.getMonth() + 1, 0));
   const [from, setFrom] = useState<string>(monthStart);
   const [to, setTo]     = useState<string>(monthEnd);
 

@@ -233,13 +233,11 @@ export default function OrdersPage() {
         
         // order_date를 KST 기준으로 파싱
         const orderDate = new Date(targetOrder.date + 'T00:00:00');
-        const kstOffset = 9 * 60; // KST = UTC+9
-        const localOffset = orderDate.getTimezoneOffset();
-        const kstOrderDate = new Date(orderDate.getTime() + (localOffset + kstOffset) * 60 * 1000);
+        const kstOrderDate = new Date(orderDate.getTime() + 9 * 60 * 60 * 1000);
         
         // 과거 주문인 경우: 취소/셀프 수령 모두 불가
         const now = new Date();
-        const kstNow = new Date(now.getTime() + (now.getTimezoneOffset() + kstOffset) * 60 * 1000);
+        const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
         const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
         const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
         

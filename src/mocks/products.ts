@@ -22,19 +22,17 @@ function toYmd(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-const base = new Date();
-base.setMinutes(base.getMinutes() - base.getTimezoneOffset());
+const now = new Date();
+const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
 
 const todayStr = (() => {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().split('T')[0];
+  return kstNow.toISOString().split('T')[0];
 })();
 
-const tomorrowStr = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1));
-const plus2Str = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + 2));
-const yesterdayStr = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 1));
-const minus2Str = toYmd(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 2));
+const tomorrowStr = toYmd(new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate() + 1));
+const plus2Str = toYmd(new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate() + 2));
+const yesterdayStr = toYmd(new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate() - 1));
+const minus2Str = toYmd(new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate() - 2));
 
 const seedProducts: MockProduct[] = [
   {

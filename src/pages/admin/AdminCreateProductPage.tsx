@@ -20,11 +20,11 @@ export default function ProductCreatePage() {
   const { show } = useSnackbar();
   const nav = useNavigate();
   
-  // 오늘 날짜를 기본값으로 설정
+  // 오늘 날짜를 기본값으로 설정 (KST 기준)
   const today = (() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().split('T')[0];
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+    return kstNow.toISOString().split('T')[0];
   })();
   
   const [form, setForm] = useState<ProductForm>({
