@@ -282,13 +282,13 @@ export default function OrdersPage() {
             return;
           }
           
-          // order_date의 오후 6시 50분(18:50)까지 신청 가능
+          // order_date의 오후 6시(18:00)까지 신청 가능
           if (orderDateOnly.getTime() === todayDate.getTime()) {
-            // 오늘 주문인 경우: 현재 시간이 오후 6시 50분 이전이어야 함
+            // 오늘 주문인 경우: 현재 시간이 오후 6시 이전이어야 함
             const currentHour = kstNow.getHours();
             const currentMinute = kstNow.getMinutes();
-            if (currentHour > 18 || (currentHour === 18 && currentMinute >= 50)) {
-              show('셀프 수령은 오후 6시 50분까지만 가능합니다.', { variant: 'error' });
+            if (currentHour >= 18) {
+              show('셀프 수령은 오후 6시까지만 가능합니다.', { variant: 'error' });
               setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
               return;
             }
@@ -408,7 +408,7 @@ export default function OrdersPage() {
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
           수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.<br />
-          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 50분</strong>까지 가능하며, <strong className="text-red-600">오후 6시 이후에는 신청할 수 없습니다</strong>.
+                        셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시</strong>까지 가능하며, <strong className="text-red-600">오후 6시 이후에는 신청할 수 없습니다</strong>.
         </div>
         <div className="mt-2 text-xs text-red-600">
           셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> 
@@ -560,7 +560,7 @@ export default function OrdersPage() {
             <p className="text-gray-600 mb-6">
               <span className="font-medium">"{statusDialog.productName}"</span>
               {statusDialog.currentStatus === 'pending' 
-                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시 50분</b>까지 가능합니다.</>
+                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
             <div className="mb-4">
