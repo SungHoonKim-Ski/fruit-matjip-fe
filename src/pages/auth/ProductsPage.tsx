@@ -39,19 +39,20 @@ function formatKstYmd(kstDate: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// 오후 9시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
+// 오후 6시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
 function getNext3Days(): string[] {
   const arr: string[] = [];
   const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+  const kstNow = now;
   const start = new Date(now);
   // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
-  if (kstNow.getHours() >= 21) {
+  if (kstNow.getHours() >= 18) {
     start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < 7; i++) {
     const d = new Date(start);
-    d.setUTCDate(start.getUTCDate() + i);
+    d.setDate(start.getDate() + i); // setUTCDate 대신 setDate 사용
     arr.push(formatKstYmd(d));
   }
   return arr;

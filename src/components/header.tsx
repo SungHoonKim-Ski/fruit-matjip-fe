@@ -2,7 +2,8 @@ import React from 'react';
 
 const Header = ({ storeName }: { storeName: string }) => {
   const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+  const kstNow = now;
   const today = kstNow.toLocaleDateString('ko-KR', {
     weekday: 'long',
     month: 'long',

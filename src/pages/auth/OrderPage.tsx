@@ -233,11 +233,13 @@ export default function OrdersPage() {
         
         // order_date를 KST 기준으로 파싱
         const orderDate = new Date(targetOrder.date + 'T00:00:00');
-        const kstOrderDate = new Date(orderDate.getTime() + 9 * 60 * 60 * 1000);
+        // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+        const kstOrderDate = orderDate;
         
         // 과거 주문인 경우: 취소/셀프 수령 모두 불가
         const now = new Date();
-        const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+        const kstNow = now;
         const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
         const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
         

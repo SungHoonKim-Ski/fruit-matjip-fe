@@ -346,7 +346,8 @@ export default function AdminProductPage() {
                           // KST 기준으로 오늘 날짜 계산
                           const now = new Date();
                           // KST 시간대로 현재 시간 계산 (UTC+9)
-                          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                          // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+                          const kstNow = now;
                           
                           // 오늘 날짜를 YYYY-MM-DD 형식으로
                           const todayStr = kstNow.toISOString().split('T')[0];
