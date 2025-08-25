@@ -5,6 +5,7 @@ import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { updateReservationStatus, getAdminReservations, warnReservation } from '../../utils/api';
+import AdminHeader from '../../components/AdminHeader';
 
 type ReservationRow = {
   id: number;
@@ -13,15 +14,17 @@ type ReservationRow = {
   buyerName: string;
   quantity: number;
   amount: number;
-  status: 'pending' | 'picked' | 'self_pick' | 'canceled'; // 대기 / 완료 / 셀프수령 / 취소됨
-};
+  status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'; // 대기 / 셀프수령준비완료 / 완료 / 셀프수령 / 취소됨
+  createdAt: string;   // YYYY-MM-DD HH:MM:SS
+ };
 
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-const getStatusText = (status: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+const getStatusText = (status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
   switch (status) {
     case 'pending': return '수령 대기';
+    case 'self_pick_ready': return '셀프 수령 준비 완료';
     case 'picked': return '수령 완료';
     case 'self_pick': return '셀프 수령';
     case 'canceled': return '예약 취소';
@@ -29,7 +32,7 @@ const getStatusText = (status: 'pending' | 'picked' | 'self_pick' | 'canceled') 
   }
 };
 
-type SortField = 'date' | 'productName' | 'buyerName' | 'quantity' | 'amount' | 'status';
+type SortField = 'date' | 'productName' | 'buyerName' | 'quantity' | 'amount' | 'status' | 'createdAt';
 
 export default function AdminReservationsPage() {
 
@@ -38,7 +41,8 @@ export default function AdminReservationsPage() {
   // 오늘 날짜를 기본값으로 설정 (KST 기준 YYYY-MM-DD)
   const today = (() => {
     const now = new Date();
-    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+    // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+    const kstNow = now;
     return kstNow.toISOString().split('T')[0];
   })();
   
@@ -46,26 +50,37 @@ export default function AdminReservationsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'canceled'>('all'); // 기본값을 전체로 변경
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'>('all'); // 기본값을 전체로 변경
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [confirmNext, setConfirmNext] = useState<'pending' | 'picked' | 'self_pick' | 'canceled' | null>(null);
+  const [confirmNext, setConfirmNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | null>(null);
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
   const [warningId, setWarningId] = useState<number | null>(null); // 경고 처리 중인 예약 ID
   const [warningDialog, setWarningDialog] = useState<{ isOpen: boolean; id: number; productName: string; buyerName: string; quantity: number }>({ isOpen: false, id: 0, productName: '', buyerName: '', quantity: 0 });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 모바일 메뉴 상태
 
   // 예약 데이터 로드: 캘린더 값 변경 시 API 호출
   useEffect(() => {
     const loadReservations = async () => {
       if (USE_MOCKS) {
         const data = await listReservations(selectedDate);
-        setRows(data.map(r => ({ ...r, status: 'pending' })));
+        setRows(data.map((r, index) => ({ 
+          ...r, 
+          // 테스트를 위해 다양한 상태를 가진 데이터 생성
+          status: (() => {
+            const statuses: Array<'pending' | 'self_pick_ready' | 'self_pick' | 'picked' | 'canceled'> = [
+              'pending', 'self_pick_ready', 'self_pick', 'picked', 'canceled'
+            ];
+            return statuses[index % statuses.length];
+          })(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') // 현재 시간을 기본값으로 설정
+        })));
       } else {
         try {
           const response = await getAdminReservations(selectedDate);
@@ -97,10 +112,21 @@ export default function AdminReservationsPage() {
             const unit = Number(r.price ?? 0);
             const amt = Number(r.amount ?? (unit * qty));
             const rawStatus = String(r.status ?? '').toUpperCase();
-            const mapped: 'pending' | 'picked' | 'self_pick' | 'canceled' = 
+            const mapped: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' = 
               rawStatus === 'PICKED' ? 'picked' : 
               rawStatus === 'CANCELED' ? 'canceled' : 
-              rawStatus === 'SELF_PICK' ? 'self_pick' : 'pending';
+              rawStatus === 'SELF_PICK' ? 'self_pick' : 
+              rawStatus === 'SELF_PICK_READY' ? 'self_pick_ready' : 'pending';
+            
+            // createdAt 처리
+            let createdAt = '';
+            if (r.created_at) {
+              const date = new Date(r.created_at);
+              createdAt = date.toISOString().slice(0, 19).replace('T', ' ');
+            } else {
+              createdAt = new Date().toISOString().slice(0, 19).replace('T', ' '); // 기본값
+            }
+            
             return {
               id: r.id ?? idx,
               date: r.order_date ?? r.orderDate ?? '',
@@ -109,6 +135,7 @@ export default function AdminReservationsPage() {
               quantity: qty || 0,
               amount: amt || 0,
               status: mapped,
+              createdAt: createdAt,
             } as ReservationRow;
           });
           
@@ -130,7 +157,16 @@ export default function AdminReservationsPage() {
       const fieldHit = !v || 
         row.productName.toLowerCase().includes(v.toLowerCase()) ||
         row.buyerName.toLowerCase().includes(v.toLowerCase());
-      const pickupHit = pickupFilter === 'all' || row.status === pickupFilter;
+      
+      // 수령 여부 필터 처리
+      let pickupHit: boolean;
+      if (pickupFilter === 'all') {
+        // 기본값일 때는 취소된 항목 제외
+        pickupHit = row.status !== 'canceled';
+      } else {
+        // 특정 필터 선택 시 해당 상태만 표시
+        pickupHit = row.status === pickupFilter;
+      }
 
       return dateMatch && fieldHit && pickupHit;
     });
@@ -139,8 +175,8 @@ export default function AdminReservationsPage() {
     if (!sortField) return list;
 
     // 정렬
-    // 상태 정렬: 오름차순 ⇒ 대기(0) < 셀프수령(1) < 취소(2) < 완료(3)
-    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, self_pick: 1, canceled: 2, picked: 3 };
+    // 상태 정렬: 오름차순 ⇒ 대기(0) < 셀프수령준비완료(1) < 셀프수령(2) < 완료(3) < 취소(4)
+    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, self_pick_ready: 1, self_pick: 2, picked: 3, canceled: 4 };
     const cmpCore = (a: ReservationRow, b: ReservationRow) => {
       switch (sortField) {
         case 'date':
@@ -155,6 +191,8 @@ export default function AdminReservationsPage() {
           return a.amount - b.amount;
         case 'status':
           return statusOrder[a.status] - statusOrder[b.status];
+        case 'createdAt':
+          return a.createdAt.localeCompare(b.createdAt);
         default:
           return 0;
       }
@@ -168,12 +206,12 @@ export default function AdminReservationsPage() {
   }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
 
   // 드롭다운으로 상태 변경
-  const updateRowStatus = (id: number, next: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+  const updateRowStatus = (id: number, next: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
   // 변경 확인 다이얼로그
-  const openConfirmChange = (id: number, current: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+  const openConfirmChange = (id: number, current: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
     const target = rows.find(r => r.id === id);
     setConfirmId(id);
     setConfirmNext(current); // 기본값을 기존 상태로 설정
@@ -218,6 +256,8 @@ export default function AdminReservationsPage() {
         show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
       } else if (confirmNext === 'self_pick') {
         show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`, { variant: 'info' });
+      } else if (confirmNext === 'self_pick_ready') {
+        show(`${buyerName}님의 예약 상품이 셀프 수령 준비 완료로 변경되었습니다.`, { variant: 'info' });
       } else if (confirmNext === 'canceled') {
         show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`, { variant: 'info' });
       } else {
@@ -273,6 +313,76 @@ export default function AdminReservationsPage() {
   <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
     <div className="max-w-4xl mx-auto flex items-center justify-between mb-4">
       <h1 className="text-2xl font-bold text-gray-800">🧾 예약 확인</h1>
+      
+      {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
+      <div className="relative">
+        {/* 데스크탑: AdminHeader */}
+        <div className="hidden md:block">
+          <AdminHeader />
+        </div>
+        
+        {/* 모바일: 햄버거 버튼 */}
+        <button
+          type="button"
+          className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
+          aria-haspopup="menu"
+          aria-expanded={mobileMenuOpen}
+          aria-label="관리 메뉴"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          ☰
+        </button>
+        
+        {/* 모바일 드롭다운 메뉴 */}
+        {mobileMenuOpen && (
+          <div className="absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50 md:hidden">
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+              onClick={() => { 
+                setMobileMenuOpen(false); 
+                if (window.location.pathname !== '/admin/products') {
+                  window.location.href = '/admin/products';
+                }
+              }}
+            >
+              📦 상품 관리
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+              onClick={() => { 
+                setMobileMenuOpen(false); 
+                if (window.location.pathname !== '/admin/products/new') {
+                  window.location.href = '/admin/products/new';
+                }
+              }}
+            >
+              ➕ 상품 등록
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+              onClick={() => { 
+                setMobileMenuOpen(false); 
+                if (window.location.pathname !== '/admin/sales') {
+                  window.location.href = '/admin/sales';
+                }
+              }}
+            >
+              📈 판매량 확인
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+              onClick={() => { 
+                setMobileMenuOpen(false); 
+                if (window.location.pathname !== '/admin/reservations') {
+                  window.location.href = '/admin/reservations';
+                }
+              }}
+            >
+              🧾 예약 확인
+            </button>
+          </div>
+        )}
+      </div>
     </div>
 
       {/* 필터 */}
@@ -320,6 +430,7 @@ export default function AdminReservationsPage() {
             >
               <option value="all">전체</option>
               <option value="pending">수령 대기</option>
+              <option value="self_pick_ready">셀프 수령 준비 완료</option>
               <option value="self_pick">셀프 수령</option>
               <option value="picked">수령 완료</option>
               <option value="canceled">예약 취소</option>
@@ -341,74 +452,47 @@ export default function AdminReservationsPage() {
             <thead className="bg-gray-50">
               <tr className="text-left text-sm text-gray-500">
                 {([
-                  { key: 'date', label: '일자' },
-                  { key: 'productName', label: '상품명' },
-                  { key: 'buyerName', label: '이름' },
-                  { key: 'quantity', label: '수량' },
-                  { key: 'amount', label: '금액' },
-                  { key: 'warn', label: '경고' },
-                  { key: 'status', label: '수령 여부' },
-                ] as { key: SortField | 'warn'; label: string }[]).map(col => (
-                  <th key={col.key} className="px-4 py-2 align-middle">
-                    <div className="h-9 flex items-center">
-                      {col.key === 'date' || col.key === 'warn' ? (
-                        <span className="text-gray-700">{col.label}</span>
-                      ) : (
-                        <span
-                          className={`inline-flex h-8 items-center gap-1 rounded-full border px-2 ${
+                  { key: 'date', label: '수령일', width: 'w-40' },
+                  { key: 'productName', label: '상품명', width: 'w-40' },
+                  { key: 'buyerName', label: '이름', width: 'w-20' },
+                  { key: 'quantity', label: '수량', width: 'w-20' },
+                  { key: 'amount', label: '금액', width: 'w-24' },
+                  { key: 'createdAt', label: '주문시간', width: 'w-32' },
+                  { key: 'warn', label: '경고', width: 'w-20' },
+                  { key: 'status', label: '수령 여부', width: 'w-40' },
+                ] as { key: SortField | 'warn'; label: string; width: string }[]).map(col => (
+                  <th key={col.key} className={`px-2 py-3 align-middle ${col.width} text-center`}>
+                    <div className="flex items-center justify-center gap-1">
+                      <span className="text-gray-700 font-medium">{col.label}</span>
+                      {col.key !== 'warn' && col.key !== 'date' && col.key !== 'createdAt' && col.key !== 'status' && (
+                        <button
+                          type="button"
+                          className={`text-xs px-2 py-1 rounded transition-colors ${
                             sortField === col.key
-                              ? (sortOrder === 'desc'
-                                  ? 'border-blue-300 bg-blue-50 text-blue-700'
-                                  : 'border-orange-300 bg-orange-50 text-orange-700')
-                              : 'border-gray-200 bg-white text-gray-700'
+                              ? sortOrder === 'asc'
+                                ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
                           }`}
-                        onClick={() => {
-                          if (sortField !== col.key) {
-                            setSortField(col.key as SortField);
-                            setSortOrder('asc');
-                          } else if (sortOrder === 'asc') {
-                            setSortOrder('desc');
-                          } else {
-                            setSortField(null);
-                          }
-                        }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (sortField !== col.key) {
+                              // 첫 번째 클릭: 오름차순
+                              setSortField(col.key as SortField);
+                              setSortOrder('asc');
+                            } else if (sortOrder === 'asc') {
+                              // 두 번째 클릭: 내림차순
+                              setSortOrder('desc');
+                            } else {
+                              // 세 번째 클릭: 정렬해제
+                              setSortField(null);
+                            }
+                          }}
+                          aria-label={`${col.label} 정렬`}
+                          title={`${col.label} 정렬 (클릭: 오름차순 → 내림차순 → 정렬해제)`}
                         >
-                          <span>{col.label}</span>
-                          <button
-                            type="button"
-                            className={`leading-none text-[11px] px-0.5 ${sortField === col.key && sortOrder === 'asc' ? 'text-orange-600' : 'text-gray-400'} hover:text-gray-700`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (sortField === col.key && sortOrder === 'asc') {
-                                setSortField(null);
-                              } else {
-                                setSortField(col.key as SortField);
-                                setSortOrder('asc');
-                              }
-                            }}
-                            aria-label={`${col.label} 오름차순`}
-                            title={`${col.label} 오름차순`}
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            className={`leading-none text-[11px] px-0.5 ${sortField === col.key && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'} hover:text-gray-700`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (sortField === col.key && sortOrder === 'desc') {
-                                setSortField(null);
-                              } else {
-                                setSortField(col.key as SortField);
-                                setSortOrder('desc');
-                              }
-                            }}
-                            aria-label={`${col.label} 내림차순`}
-                            title={`${col.label} 내림차순`}
-                          >
-                            ▼
-                          </button>
-                        </span>
+                          {sortField === col.key ? (sortOrder === 'asc' ? '▲' : '▼') : '↕'}
+                        </button>
                       )}
                     </div>
                   </th>
@@ -422,14 +506,15 @@ export default function AdminReservationsPage() {
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
                   onClick={() => openConfirmChange(r.id, r.status)}
                 >
-                  <td className="px-4 py-3 align-middle">{r.date}</td>
-                  <td className="px-4 py-3 align-middle">{r.productName}</td>
-                  <td className="px-4 py-3 align-middle">{r.buyerName}</td>
-                  <td className="px-4 py-3 align-middle">{r.quantity.toLocaleString()}개</td>
-                  <td className="px-4 py-3 font-medium align-middle">{formatKRW(r.amount)}</td>
-                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
-                                      {/* 노쇼 경고 버튼 - 셀프 수령 상태일 때만 표시 */}
-                  {r.status === 'self_pick' && (
+                  <td className="px-2 py-3 align-middle w-24 text-center">{r.date}</td>
+                  <td className="px-2 py-3 align-middle w-32">{r.productName}</td>
+                  <td className="px-2 py-3 align-middle w-20">{r.buyerName}</td>
+                  <td className="px-2 py-3 align-middle w-16">{r.quantity.toLocaleString()}개</td>
+                  <td className="px-2 py-3 font-medium align-middle w-20">{formatKRW(r.amount)}</td>
+                  <td className="px-2 py-3 align-middle w-32 text-center">{r.createdAt}</td>
+                  <td className="px-2 py-3 align-middle w-16 text-center" onClick={(e) => e.stopPropagation()}>
+                                      {/* 노쇼 경고 버튼 - 셀프 수령 및 셀프 수령 준비 완료 상태일 때 표시 */}
+                  {(r.status === 'self_pick' || r.status === 'self_pick_ready') && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -448,7 +533,7 @@ export default function AdminReservationsPage() {
                     </button>
                   )}
                   </td>
-                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3 align-middle w-24" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => openConfirmChange(r.id, r.status)}
@@ -458,13 +543,20 @@ export default function AdminReservationsPage() {
                           ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                           : r.status === 'self_pick'
                             ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                            : r.status === 'self_pick_ready'
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
                             : r.status === 'canceled'
                               ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                               : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
                       aria-pressed={r.status === 'picked'}
                     >
-                      {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '취소됨' : '수령 대기'}
+                      {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'self_pick_ready' ? (
+                        <>
+                          셀프 수령<br />
+                          준비 완료
+                        </>
+                      ) : r.status === 'canceled' ? '취소됨' : '수령 대기'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
@@ -472,15 +564,16 @@ export default function AdminReservationsPage() {
                     <select
                       id={`pickup-${r.id}`}
                       value={r.status}
-                      onChange={(e) => updateRowStatus(r.id, e.target.value as 'pending'|'picked')}
+                      onChange={(e) => updateRowStatus(r.id, e.target.value as 'pending'|'self_pick_ready'|'picked'|'self_pick'|'canceled')}
                       className="sr-only"
                       aria-hidden="true"
                       tabIndex={-1}
                     >
                       <option value="pending">수령 대기</option>
-                      <option value="canceled">예약 취소</option>
+                      <option value="self_pick_ready">셀프 수령 준비 완료</option>
                       <option value="self_pick">셀프 수령</option>
                       <option value="picked">수령 완료</option>
+                      <option value="canceled">예약 취소</option>
                     </select>
                   </td>
                 </tr>
@@ -566,8 +659,8 @@ export default function AdminReservationsPage() {
                   <div className="font-medium text-[15px] text-gray-900 break-words min-w-0">
                     <span className="line-clamp-2 break-words">{r.productName}</span>
                   </div>
-                  {/* 노쇼 경고 버튼 - 셀프 수령 상태일 때만 표시 */}
-                  {r.status === 'self_pick' && (
+                  {/* 노쇼 경고 버튼 - 셀프 수령 및 셀프 수령 준비 완료 상태일 때 표시 */}
+                  {(r.status === 'self_pick' || r.status === 'self_pick_ready') && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -604,14 +697,23 @@ export default function AdminReservationsPage() {
                       ? 'bg-green-50 text-green-700 border-green-200'
                       : r.status === 'self_pick'
                         ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : r.status === 'self_pick_ready'
+                        ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
                       : r.status === 'canceled'
                         ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                         : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
-                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'canceled' ? '예약 취소' : '수령 완료'}
+                  {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'self_pick_ready' ? (
+                    <>
+                      셀프 수령<br />
+                      준비 완료
+                    </>
+                  ) : r.status === 'canceled' ? '예약 취소' : '수령 대기'}
                 </button>
               </div>
+              {/* 생성일시: 제품명 밑 왼쪽에 표시 */}
+              <div className="mt-1 text-xs text-gray-400">주문시간: {r.createdAt}</div>
             </div>
           ))}
         </div>
@@ -628,53 +730,76 @@ export default function AdminReservationsPage() {
             </p>
             
             {/* 상태 선택 옵션 */}
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-3">
               <p className="text-xs text-gray-500">변경할 상태를 선택하세요:</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setConfirmNext('self_pick')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'self_pick'
-                      ? 'bg-blue-100 border-blue-300 text-blue-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  셀프 수령
-                </button>
-                <button
-                  onClick={() => setConfirmNext('pending')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'pending'
-                      ? 'bg-gray-100 border-gray-300 text-gray-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  수령 대기
-                </button>
-                <button
-                  onClick={() => setConfirmNext('canceled')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'canceled'
-                      ? 'bg-red-100 border-red-300 text-red-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  예약 취소
-                </button>
-                <button
-                  onClick={() => setConfirmNext('picked')}
-                  className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                    confirmNext === 'picked'
-                      ? 'bg-green-100 border-green-300 text-green-700'
-                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  disabled={applying}
-                >
-                  수령 완료
-                </button>
+              
+              <div className="space-y-2">
+                {/* 첫 번째 줄: 수령 대기 | 예약 취소 */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setConfirmNext('pending')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'pending'
+                        ? 'bg-gray-100 border-gray-300 text-gray-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={applying}
+                  >
+                    수령 대기
+                  </button>
+                  <button
+                    onClick={() => setConfirmNext('canceled')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'canceled'
+                        ? 'bg-red-100 border-red-300 text-red-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={applying}
+                  >
+                    예약 취소
+                  </button>
+                </div>
+
+                {/* 두 번째 줄: 셀프 수령 | 셀프 수령 준비 완료 */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setConfirmNext('self_pick')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'self_pick'
+                        ? 'bg-blue-100 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={applying}
+                  >
+                    셀프 수령
+                  </button>
+                  <button
+                    onClick={() => setConfirmNext('self_pick_ready')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'self_pick_ready'
+                        ? 'bg-yellow-100 border-yellow-300 text-yellow-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={applying}
+                  >
+                    셀프 수령 준비 완료
+                  </button>
+                </div>
+
+                {/* 세 번째 줄: 수령 완료 */}
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => setConfirmNext('picked')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'picked'
+                        ? 'bg-green-100 border-green-300 text-green-700'
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                    disabled={applying}
+                  >
+                    수령 완료
+                  </button>
+                </div>
               </div>
             </div>
             

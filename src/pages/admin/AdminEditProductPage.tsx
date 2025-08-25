@@ -18,6 +18,7 @@ import {
 import { compressImage } from '../../utils/image-compress';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
+
 // 글자수/가격 제한
 const DESCRIPTION_LIMIT = 300;
 const PRICE_MAX = 1_000_000;
@@ -733,7 +734,11 @@ export default function AdminEditProductPage() {
         <div className="mx-auto max-w-2xl h-14 flex items-center justify-between px-4">
           <button onClick={() => nav(-1)} className="text-sm text-gray-600">← 뒤로</button>
           <div className="font-bold text-gray-800">상품 수정</div>
-          <div className="w-8" />
+          
+          {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
+          <div className="relative">
+
+          </div>
         </div>
       </header>
 

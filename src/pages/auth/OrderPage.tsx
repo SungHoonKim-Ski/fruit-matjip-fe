@@ -40,7 +40,7 @@ export default function OrdersPage() {
   // 필터 - 기본값: 오늘 ~ 이틀 뒤
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(dayAfterTomorrow);
-  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'canceled'>('all');
+  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled'>('all');
 
   // 데이터
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -102,10 +102,10 @@ export default function OrdersPage() {
               throw new Error('주문 데이터가 배열 형태가 아닙니다.');
             }
             
-            // ReservationResponse를 OrderRow로 변환
+            // ReservationResponse를 OrderRow status로 변환
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
-              let orderStatus: 'pending' | 'picked' | 'self_pick' | 'canceled';
+              let orderStatus: 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
               switch (r.status?.toLowerCase()) {
                 case 'pending':
                   orderStatus = 'pending';
@@ -117,6 +117,9 @@ export default function OrdersPage() {
                 case 'self_pick':
                 case 'self_picked':
                   orderStatus = 'self_pick';
+                  break;
+                case 'self_pick_ready':
+                  orderStatus = 'self_pick_ready';
                   break;
                 case 'canceled':
                 case 'cancelled':
@@ -184,6 +187,25 @@ export default function OrdersPage() {
     return () => { alive = false; };
   }, []);
 
+  // 현재 시간이 18시 이후인지 체크 (실시간 업데이트)
+  const [isAfter6PM, setIsAfter6PM] = useState(false);
+  
+  useEffect(() => {
+    const checkTime = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      setIsAfter6PM(currentHour >= 18);
+    };
+    
+    // 초기 체크
+    checkTime();
+    
+    // 1분마다 체크 (18시 경계를 넘을 때를 위해)
+    const interval = setInterval(checkTime, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const t = to ? new Date(to) : null;
@@ -204,6 +226,7 @@ export default function OrdersPage() {
     if (s === 'pending') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
     if (s === 'picked') return `${base} bg-green-50 text-green-700 border border-green-200`;
     if (s === 'self_pick') return `${base} bg-blue-50 text-blue-700 border border-blue-200`;
+    if (s === 'self_pick_ready') return `${base} bg-yellow-50 text-yellow-700 border border-yellow-200`;
     return `${base} bg-gray-100 text-gray-600 border border-gray-200`;
   };
 
@@ -385,7 +408,7 @@ export default function OrdersPage() {
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
           수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.<br />
-          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 50분</strong>까지 가능합니다.
+          셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시 50분</strong>까지 가능하며, <strong className="text-red-600">오후 6시 이후에는 신청할 수 없습니다</strong>.
         </div>
         <div className="mt-2 text-xs text-red-600">
           셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> 
@@ -444,7 +467,8 @@ export default function OrdersPage() {
                     >
                       {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
                        o.status === 'picked' ? '수령 완료' : 
-                       o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' : '예약 취소'}
+                       o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
+                       o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
                     </span>
                   </td>
                 </tr>
@@ -487,7 +511,8 @@ export default function OrdersPage() {
                 >
                   {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
                    o.status === 'picked' ? '수령 완료' : 
-                   o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' : '예약 취소'}
+                   o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
+                   o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
                 </button>
               </div>
               <div className="mt-2 space-y-2">
@@ -550,7 +575,7 @@ export default function OrdersPage() {
               >
                 예약 취소
               </button>
-              {statusDialog.currentStatus === 'pending' && canSelfPick && (
+              {statusDialog.currentStatus === 'pending' && canSelfPick && !isAfter6PM && (
                 <button
                   onClick={() => {
                     // pending -> self_pick

@@ -7,6 +7,7 @@ import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { setSoldOut, toggleVisible, deleteAdminProduct, getAdminProductsMapped, AdminProductListItem } from '../../utils/api';
 import { useLocation } from 'react-router-dom';
+import AdminHeader from '../../components/AdminHeader';
 
 type Product = AdminProductListItem;
 
@@ -19,8 +20,7 @@ export default function AdminProductPage() {
   const { show } = useSnackbar();
   const [products, setProducts] = useState<Product[]>([]);
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+
 
   // --- Dialog 상태들 ---
   const [deleteStockDialog, setDeleteStockDialog] = useState<{
@@ -95,20 +95,7 @@ export default function AdminProductPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, [toggleStatusDialog.isOpen, deleteProductDialog.isOpen, deleteStockDialog.isOpen]);
 
-  // --- 모바일 햄버거: 바깥 클릭/ESC 닫기 ---
-  useEffect(() => {
-    const onClickOutside = (e: MouseEvent) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onEsc);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onEsc);
-    };
-  }, []);
+
 
   // --- API 실행 핸들러들 (Confirm에서 즉시 호출) ---
   const handleDeleteStock = async (id: number) => {
@@ -192,9 +179,7 @@ export default function AdminProductPage() {
     loadProducts();
   }, [show, location?.state?.bustTs]);
 
-  const goNewProduct = () => navigate('/admin/products/new');
-  const goSales = () => navigate('/admin/sales');
-  const goBuyers = () => navigate('/admin/reservations');
+
 
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
@@ -202,51 +187,74 @@ export default function AdminProductPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
 
-          {/* 데스크탑: 버튼 3개 / 모바일: 햄버거 */}
-          <div className="relative" ref={menuRef}>
-            <div className="hidden md:grid grid-cols-3 gap-2 items-center">
-              <button type="button" onClick={goNewProduct} className="h-10 w-full px-4 rounded bg-orange-500 text-white hover:bg-orange-600 text-sm font-medium">상품 등록</button>
-              <button type="button" onClick={goSales} className="h-10 w-full px-4 rounded bg-indigo-500 text-white hover:bg-indigo-600 text-sm font-medium">판매량 확인</button>
-              <button type="button" onClick={goBuyers} className="h-10 w-full px-4 rounded bg-sky-500 text-white hover:bg-sky-600 text-sm font-medium">구매자 확인</button>
+          {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
+          <div className="relative">
+            {/* 데스크탑: AdminHeader */}
+            <div className="hidden md:block">
+              <AdminHeader />
             </div>
+            
+            {/* 모바일: 햄버거 버튼 */}
             <button
               type="button"
-              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
+              className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
               aria-haspopup="menu"
-              aria-expanded={menuOpen}
+              aria-expanded={false}
               aria-label="관리 메뉴"
-              onClick={() => setMenuOpen(v => !v)}
+              onClick={() => {
+                // 모바일에서 AdminHeader의 버튼들을 드롭다운으로 표시
+                const menu = document.createElement('div');
+                menu.className = 'absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50';
+                
+                // 상품 관리 버튼
+                const productsBtn = document.createElement('button');
+                productsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
+                productsBtn.textContent = '📦 상품 관리';
+                productsBtn.onclick = () => window.location.href = '/admin/products';
+                
+                // 상품 등록 버튼
+                const newProductBtn = document.createElement('button');
+                newProductBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
+                newProductBtn.textContent = '➕ 상품 등록';
+                newProductBtn.onclick = () => window.location.href = '/admin/products/new';
+                
+                // 예약 확인 버튼
+                const reservationsBtn = document.createElement('button');
+                reservationsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
+                reservationsBtn.textContent = '🧾 예약 확인';
+                reservationsBtn.onclick = () => window.location.href = '/admin/reservations';
+                
+                // 판매량 확인 버튼
+                const salesBtn = document.createElement('button');
+                salesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
+                salesBtn.textContent = '📈 판매량 확인';
+                salesBtn.onclick = () => window.location.href = '/admin/sales';
+                
+                // 버튼들을 메뉴에 추가
+                menu.appendChild(productsBtn);
+                menu.appendChild(newProductBtn);
+                menu.appendChild(reservationsBtn);
+                menu.appendChild(salesBtn);
+                
+                // 기존 메뉴가 있으면 제거
+                const existingMenu = document.querySelector('.mobile-admin-menu');
+                if (existingMenu) {
+                  existingMenu.remove();
+                }
+                
+                menu.classList.add('mobile-admin-menu');
+                document.body.appendChild(menu);
+                
+                // 메뉴 외부 클릭시 닫기
+                const closeMenu = () => {
+                  menu.remove();
+                  document.removeEventListener('click', closeMenu);
+                };
+                setTimeout(() => document.addEventListener('click', closeMenu), 100);
+              }}
             >
               ☰
             </button>
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50"
-              >
-                <button
-                  role="menuitem"
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                  onClick={() => { setMenuOpen(false); goNewProduct(); }}
-                >
-                  ➕ 상품 등록
-                </button>
-                <button
-                  role="menuitem"
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                  onClick={() => { setMenuOpen(false); goSales(); }}
-                >
-                  📈 판매량 확인
-                </button>
-                <button
-                  role="menuitem"
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                  onClick={() => { setMenuOpen(false); goBuyers(); }}
-                >
-                  🧾 예약 확인
-                </button>
-              </div>
-            )}
           </div>
         </div>
 

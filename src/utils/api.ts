@@ -567,7 +567,7 @@ export const deleteAdminProduct = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const updateReservationStatus = async (id: number, status: 'pending' | 'picked' | 'self_pick' | 'canceled') => {
+export const updateReservationStatus = async (id: number, status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
   const key = 'updateReservationStatus';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {

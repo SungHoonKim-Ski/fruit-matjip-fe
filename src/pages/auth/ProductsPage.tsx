@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
@@ -17,6 +17,7 @@ type Product = {
   imageUrl: string;
   sellDate: string; // YYYY-MM-DD
   totalSold?: number;
+  reservationId?: number; // 예약 ID (셀프 수령 신청 시 사용)
 };
 
 const formatPrice = (price: number) =>
@@ -80,6 +81,12 @@ export default function ReservePage() {
   // 개인정보처리방침 dialog 상태
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
 
+  // 셀프 수령 확인 dialog 상태
+  const [selfPickDialog, setSelfPickDialog] = useState<{
+    isOpen: boolean;
+    product: Product | null;
+  }>({ isOpen: false, product: null });
+
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
     const saved = localStorage.getItem('nickname');
@@ -92,9 +99,9 @@ export default function ReservePage() {
   
 
 
-  // 모달(상세/닉네임/개인정보) 오픈 시 백그라운드 스크롤 잠금
+  // 모달(상세/닉네임/개인정보/셀프수령) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
-    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen;
+    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen;
     if (anyOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -102,7 +109,7 @@ export default function ReservePage() {
         document.body.style.overflow = prev || '';
       };
     }
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen]);
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
     const onPopState = () => {
@@ -118,10 +125,14 @@ export default function ReservePage() {
         setPrivacyDialogOpen(false);
         return;
       }
+      if (selfPickDialog.isOpen) {
+        setSelfPickDialog({ isOpen: false, product: null });
+        return;
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen]);
 
   // 날짜 탭
   const dates = useMemo(() => getNext3Days(), []);
@@ -144,16 +155,17 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          // 한국 시간(KST) 기준 오늘을 시작으로, 오후 9시 이후면 다음날부터 포함 7일 범위 요청
+          // 한국 시간(KST) 기준 오늘을 시작으로, 오후 6시 이후면 다음날부터 포함 7일 범위 요청
           
           const now = new Date();
-          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
-          const start = new Date();
-          if (kstNow.getHours() >= 21) {
+          // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
+          const kstNow = now;
+          const start = new Date(now);        
+          if (kstNow.getHours() >= 18) {
             start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);
-          const toDate = new Date();
+          const toDate = new Date(start);
           toDate.setDate(start.getDate() + 6);
           const toStr = formatKstYmd(toDate);
           
@@ -261,7 +273,14 @@ export default function ReservePage() {
       if (USE_MOCKS) {
         // Mock 예약 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        show(`${product.name} ${product.quantity}개 예약 완료!`);
+        
+        // Mock 모드에서도 실제 API와 동일한 응답 구조 가정
+        const mockReservationResponse = {
+          id: Date.now(), // Mock용 예약 ID
+          status: 'success'
+        };
+        
+        show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
         
         // Mock 모드에서는 재고 차감
         setProducts(prev =>
@@ -269,6 +288,41 @@ export default function ReservePage() {
             p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
           )
         );
+        
+        // 셀프 수령 가능 여부 미리 확인 (Mock 모드)
+        try {
+          const canPick = await checkCanSelfPick();
+          if (!canPick) {
+            // 셀프 수령이 불가능한 경우 dialog 없이 처리
+            show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
+            return;
+          }
+          
+          // 셀프 수령이 가능한 경우에만 dialog 표시
+          let reservationId = mockReservationResponse.id;
+          if (!reservationId) {
+            console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
+            reservationId = Date.now(); // 임시 ID 사용
+          }
+          
+          const productWithReservationId = { ...product, reservationId };
+          
+          // 이미 dialog가 열려있지 않은 경우에만 열기
+          if (!selfPickDialog.isOpen) {
+            setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+            window.history.pushState({ modal: 'selfPick' }, '');
+          }
+        } catch (e: any) {
+          // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
+          let reservationId = mockReservationResponse.id || Date.now();
+          const productWithReservationId = { ...product, reservationId };
+          
+          // 이미 dialog가 열려있지 않은 경우에만 열기
+          if (!selfPickDialog.isOpen) {
+            setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+            window.history.pushState({ modal: 'selfPick' }, '');
+          }
+        }
       } else {
         // 실제 예약 API 호출
         const reservationData = {
@@ -284,7 +338,28 @@ export default function ReservePage() {
           throw new Error(errorData.message || '예약에 실패했습니다.');
         }
         
-        show(`${product.name} ${product.quantity}개 예약 완료!`);
+        const reservationResponse = await res.json();
+        
+        // API 응답에서 예약 ID 추출 (443이 오는 경우)
+        let reservationId = null;
+        if (reservationResponse && typeof reservationResponse === 'object') {
+          // 객체인 경우 다양한 필드에서 ID 추출
+          reservationId = reservationResponse.id || 
+                         reservationResponse.reservation_id || 
+                         reservationResponse.reservationId ||
+                         null;
+        } else if (typeof reservationResponse === 'number') {
+          // 숫자 ID가 직접 오는 경우 (예: 443)
+          reservationId = reservationResponse;
+        }
+        
+                  // reservationId가 없으면 에러 처리
+          if (!reservationId) {
+            show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
+            return;
+          }
+        
+        show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
         
         // 성공 시 재고 차감
         setProducts(prev =>
@@ -292,6 +367,34 @@ export default function ReservePage() {
             p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
           )
         );
+      
+                  // 셀프 수령 가능 여부 미리 확인
+          try {
+            const canPick = await checkCanSelfPick();
+            if (!canPick) {
+              // 셀프 수령이 불가능한 경우 dialog 없이 처리
+              show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
+              return;
+            }
+            
+            // 셀프 수령이 가능한 경우에만 dialog 표시
+            const productWithReservationId = { ...product, reservationId };
+            
+            // 이미 dialog가 열려있지 않은 경우에만 열기
+            if (!selfPickDialog.isOpen) {
+              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+              window.history.pushState({ modal: 'selfPick' }, '');
+            }
+          } catch (e: any) {
+            // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
+            const productWithReservationId = { ...product, reservationId };
+            
+            // 이미 dialog가 열려있지 않은 경우에만 열기
+            if (!selfPickDialog.isOpen) {
+              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+              window.history.pushState({ modal: 'selfPick' }, '');
+            }
+          }
       }
     } catch (e: any) {
       safeErrorLog(e, 'ProductsPage - handleReserve');
@@ -451,6 +554,39 @@ export default function ReservePage() {
     window.history.pushState({ modal: 'product', productId }, '');
   };
 
+  // 셀프 수령 신청 처리
+  const handleSelfPick = async (product: Product) => {
+    if (!product.reservationId) {
+      show('예약 정보를 찾을 수 없습니다.', { variant: 'error' });
+      return;
+    }
+
+    try {
+
+      const canPick = await checkCanSelfPick();
+
+      if (!canPick) {
+        show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
+        setSelfPickDialog({ isOpen: false, product: null });
+        return;
+      }
+
+      // 셀프 수령 API 호출 (예약 ID 사용)
+      const res = await selfPickReservation(product.reservationId);
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || '셀프 수령 신청에 실패했습니다.');
+      }
+
+      show(`${product.name}의 셀프 수령을 준비합니다.`);
+      setSelfPickDialog({ isOpen: false, product: null });
+    } catch (e: any) {
+      safeErrorLog(e, 'ProductsPage - handleSelfPick');
+      show(getSafeErrorMessage(e, '셀프 수령 신청 중 오류가 발생했습니다.'), { variant: 'error' });
+    }
+  };
+
   return (
     <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-10">
       {/* 상단 바: 3등분 레이아웃로 균등 분배 */}
@@ -602,6 +738,15 @@ export default function ReservePage() {
         {/* 안내 카드 */}
         <div className="bg-white p-5 rounded-xl shadow mb-6 text-center">
           <h1 className="text-lg font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
+          <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
+            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-2">
+              <span className="text-orange-600">⏰</span>
+              <span>당일 모든 주문 마감시간은 <strong className="text-orange-900">18:00</strong>입니다</span>
+            </p>
+            <p className="text-xs text-orange-700 mt-1">
+              (셀프수령 여부 체크포함)
+            </p>
+          </div>
         </div>
 
         {/* 전체 비어있을 때 안내 */}
@@ -729,6 +874,63 @@ export default function ReservePage() {
       <FloatingActions
         orderPath="/me/orders"  
       />
+
+      {/* 셀프 수령 확인 Dialog */}
+      {selfPickDialog.isOpen && selfPickDialog.product && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center p-4"
+          aria-modal="true"
+          role="dialog"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelfPickDialog({ isOpen: false, product: null })} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-6">
+            <div className="text-center mb-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">🎉 예약 완료!</h2>
+              <p className="text-sm text-gray-600">
+                <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다.
+              </p>
+            </div>
+            
+            <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
+              <p className="text-sm text-orange-800">
+                <strong>셀프 수령</strong>을 원하시나요?<br />
+                19:00까지는 매장 내 직원이 상주합니다.<br />
+                오셔서 닉네임을 말씀해주시면 <br />
+                예약가격으로 준비해드립니다.
+              </p>
+              <p className="text-sm text-orange-800 mt-2">
+                혹시 매장 오시는 시간이 <strong>19:00 이후</strong>이실 경우<br />
+                <strong>'셀프수령'</strong>을 신청해주세요.<br />
+              </p>
+              <p className="text-sm text-orange-800 mt-2">
+              저희가 매장 한편에 닉네임을 적어서 준비해놓습니다.<br />
+                <span className="text-xs text-orange-600">
+                  (단, 1달 2회 이상 미수령시 셀프수령 기능이 비활성화됩니다)
+                </span>
+              </p>
+              
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setSelfPickDialog({ isOpen: false, product: null });
+                  show('주문 내역에서 셀프 수령을 신청할 수 있습니다.');
+                }}
+                className="flex-1 h-12 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
+              >
+                나중에 하기
+              </button>
+              <button
+                onClick={() => handleSelfPick(selfPickDialog.product!)}
+                className="flex-1 h-12 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
+              >
+                셀프 수령 신청
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 상품 상세 Dialog */}
       {detailDialog.isOpen && (
