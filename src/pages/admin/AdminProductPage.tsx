@@ -338,14 +338,14 @@ export default function AdminProductPage() {
                         className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border "
                         style={{
                           backgroundColor: (() => {
-                            const today = (() => {
-                              const d = new Date();
-                              d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-                              return d;
-                            })();
+                            const now = new Date();
+                            // KST 시간대로 현재 시간 계산 (UTC+9)
+                            const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                            // 오늘 날짜를 YYYY-MM-DD 형식으로
+                            const todayStr = kstNow.toISOString().split('T')[0];
                             const ds = product.sellDate! + 'T00:00:00';
                             const d = new Date(ds);
-                            const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+                            const t = new Date(todayStr).getTime();
                             const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
                             if (dd > t) return '#E0F2FE';
                             if (dd === t) return '#DCFCE7';
@@ -359,12 +359,9 @@ export default function AdminProductPage() {
                           // KST 기준으로 오늘 날짜 계산
                           const now = new Date();
                           // KST 시간대로 현재 시간 계산 (UTC+9)
-                          // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
-                          const kstNow = now;
-                          
+                          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
                           // 오늘 날짜를 YYYY-MM-DD 형식으로
                           const todayStr = kstNow.toISOString().split('T')[0];
-                          
                           // 판매일과 비교
                           if (product.sellDate! > todayStr) return '판매 예정';
                           if (product.sellDate! === todayStr) return '판매 당일';

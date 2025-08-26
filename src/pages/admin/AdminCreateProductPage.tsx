@@ -16,6 +16,13 @@ type ProductForm = {
 };
 const PRICE_MAX = 1_000_000;
 
+// KST 기준 오늘 날짜 반환 함수
+function getKstTodayStr() {
+  const now = new Date();
+  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kstNow.toISOString().split('T')[0];
+}
+
 export default function ProductCreatePage() {
   const { show } = useSnackbar();
   const nav = useNavigate();
@@ -33,7 +40,7 @@ export default function ProductCreatePage() {
     price: 0, // step 1000 사용 시 자연스럽도록 기본 1000
     stock: 0,   // step 10 사용 시 자연스럽도록 기본 10
     image_url: null,
-    sell_date: today,
+    sell_date: getKstTodayStr(),
     visible: true,
   });
   const [uploading, setUploading] = useState(false);

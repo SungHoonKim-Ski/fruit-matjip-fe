@@ -41,8 +41,7 @@ export default function AdminReservationsPage() {
   // 오늘 날짜를 기본값으로 설정 (KST 기준 YYYY-MM-DD)
   const today = (() => {
     const now = new Date();
-    // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
-    const kstNow = now;
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     return kstNow.toISOString().split('T')[0];
   })();
   
