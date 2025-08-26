@@ -188,7 +188,7 @@ export default function AdminReservationsPage() {
           next.add(id);
           return next;
         } else {
-          show('처음 선택한 유저와 상태가 동일한 항목만 선택할 수 있습니다.', { variant: 'info' });
+          show('유저와 수령여부가 모두 동일한 예약이어야 합니다.', { variant: 'info' });
           return next;
         }
       }
@@ -896,14 +896,23 @@ export default function AdminReservationsPage() {
                 </>
               )}
             </p>
-            
-            {/* 상태 선택 옵션 동일하게 노출 */}
+            {/* 상태 선택 옵션: 일괄 변경 시 예약취소 버튼 숨김 */}
             <div className="mt-4 space-y-3">
               <p className="text-xs text-gray-500">변경할 상태를 선택하세요:</p>
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setConfirmNext('pending')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'pending' ? 'bg-gray-100 border-gray-300 text-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>수령 대기</button>
-                  <button onClick={() => setConfirmNext('canceled')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'canceled' ? 'bg-red-100 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>예약 취소</button>
+                  <button
+                    onClick={() => setConfirmNext('canceled')}
+                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
+                      confirmNext === 'canceled'
+                        ? 'bg-red-100 border-red-300 text-red-700'
+                        : (confirmId === -1
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 opacity-50 cursor-not-allowed'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50')
+                    }`}
+                    disabled={applying || confirmId === -1}
+                  >예약 취소</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setConfirmNext('self_pick')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'self_pick' ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>셀프 수령</button>
