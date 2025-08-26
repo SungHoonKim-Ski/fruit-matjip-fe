@@ -201,10 +201,15 @@ export default function AdminProductPage() {
               aria-haspopup="menu"
               aria-expanded={false}
               aria-label="관리 메뉴"
-              onClick={() => {
+              onClick={(event) => {
                 // 모바일에서 AdminHeader의 버튼들을 드롭다운으로 표시
+                const button = event.currentTarget as HTMLElement;
+                const rect = button.getBoundingClientRect();
+                
                 const menu = document.createElement('div');
-                menu.className = 'absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50';
+                menu.className = 'fixed w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50';
+                menu.style.left = `${rect.right - 176}px`; // 176px = w-44 (44 * 4)
+                menu.style.top = `${rect.top}px`;
                 
                 // 상품 관리 버튼
                 const productsBtn = document.createElement('button');

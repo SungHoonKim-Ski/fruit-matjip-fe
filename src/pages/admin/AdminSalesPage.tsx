@@ -137,7 +137,7 @@ export default function AdminSalesPage() {
           
           {/* 모바일 드롭다운 메뉴 */}
           {mobileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50 md:hidden">
+            <div className="absolute right-0 top-0 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50 md:hidden">
               <button
                 className="w-full text-left px-3 py-2 hover:bg-gray-50"
                 onClick={() => { 
