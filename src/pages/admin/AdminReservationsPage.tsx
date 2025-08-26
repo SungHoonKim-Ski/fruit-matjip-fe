@@ -118,13 +118,14 @@ export default function AdminReservationsPage() {
               rawStatus === 'SELF_PICK' ? 'self_pick' : 
               rawStatus === 'SELF_PICK_READY' ? 'self_pick_ready' : 'pending';
             
-            // createdAt 처리
+            // createdAt 처리: 서버가 준 문자열을 그대로 사용 (KST 반영 가정)
             let createdAt = '';
-            if (r.created_at) {
-              const date = new Date(r.created_at);
-              createdAt = date.toISOString().slice(0, 19).replace('T', ' ');
+            if (typeof r.created_at === 'string') {
+              createdAt = r.created_at;
+            } else if (typeof r.createdAt === 'string') {
+              createdAt = r.createdAt;
             } else {
-              createdAt = new Date().toISOString().slice(0, 19).replace('T', ' '); // 기본값
+              createdAt = new Date().toString().slice(0, 19).replace('T', ' '); // 기본값
             }
             
             return {
@@ -457,7 +458,7 @@ export default function AdminReservationsPage() {
                   { key: 'buyerName', label: '이름', width: 'w-20' },
                   { key: 'quantity', label: '수량', width: 'w-20' },
                   { key: 'amount', label: '금액', width: 'w-24' },
-                  { key: 'createdAt', label: '주문시간', width: 'w-32' },
+                  { key: 'createdAt', label: '주문일시', width: 'w-32' },
                   { key: 'warn', label: '경고', width: 'w-20' },
                   { key: 'status', label: '수령 여부', width: 'w-40' },
                 ] as { key: SortField | 'warn'; label: string; width: string }[]).map(col => (
@@ -713,7 +714,7 @@ export default function AdminReservationsPage() {
                 </button>
               </div>
               {/* 생성일시: 제품명 밑 왼쪽에 표시 */}
-              <div className="mt-1 text-xs text-gray-400">주문시간: {r.createdAt}</div>
+              <div className="mt-1 text-xs text-gray-400">주문일시: {r.createdAt}</div>
             </div>
           ))}
         </div>
