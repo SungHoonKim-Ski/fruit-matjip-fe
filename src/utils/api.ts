@@ -805,3 +805,21 @@ export const getHealth = async () => {
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
+
+// 관리자 예약 일괄 상태 변경
+export const updateReservationsStatusBulk = async (reservationIds: number[], status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
+  const key = 'updateReservationsStatusBulk';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const body = {
+      reservation_ids: reservationIds,
+      status: status.toUpperCase(),
+    };
+    const res = await adminFetch('/api/admin/reservations/status', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};

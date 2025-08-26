@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateReservationStatus, getAdminReservations, warnReservation } from '../../utils/api';
+import { updateReservationStatus, getAdminReservations, warnReservation, updateReservationsStatusBulk } from '../../utils/api';
 import AdminHeader from '../../components/AdminHeader';
 
 type ReservationRow = {
@@ -64,6 +64,17 @@ export default function AdminReservationsPage() {
   const [warningId, setWarningId] = useState<number | null>(null); // 경고 처리 중인 예약 ID
   const [warningDialog, setWarningDialog] = useState<{ isOpen: boolean; id: number; productName: string; buyerName: string; quantity: number }>({ isOpen: false, id: 0, productName: '', buyerName: '', quantity: 0 });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 모바일 메뉴 상태
+
+  // 다중 선택 & 일괄 변경 상태
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkNext, setBulkNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'>('pending');
+  const [bulkApplying, setBulkApplying] = useState(false);
+  // 일괄 선택 기준값(유저, 상태)
+  const [selectedBulkUser, setSelectedBulkUser] = useState<string | null>(null);
+  const [selectedBulkStatus, setSelectedBulkStatus] = useState<ReservationRow['status'] | null>(null);
+
+  // 일괄 변경 다이얼로그 상태
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
   // 예약 데이터 로드: 캘린더 값 변경 시 API 호출
   useEffect(() => {
@@ -150,6 +161,104 @@ export default function AdminReservationsPage() {
     loadReservations();
   }, [selectedDate, show]);
 
+  // 다중 선택 토글
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const target = filtered.find(r => r.id === id);
+      if (!target) return next;
+      // 아무것도 선택 안 된 상태에서 선택 → 기준값 세팅
+      if (next.size === 0) {
+        setSelectedBulkUser(target.buyerName);
+        setSelectedBulkStatus(target.status);
+        next.add(id);
+        return next;
+      }
+      // 이미 선택된 상태 → 기준값과 비교
+      if (next.has(id)) {
+        // 해제 시, 남은 선택이 없으면 기준값도 초기화
+        next.delete(id);
+        if (next.size === 0) {
+          setSelectedBulkUser(null);
+          setSelectedBulkStatus(null);
+        }
+        return next;
+      } else {
+        // 추가 선택 시 기준값과 비교
+        if (target.buyerName === selectedBulkUser && target.status === selectedBulkStatus) {
+          next.add(id);
+          return next;
+        } else {
+          show('처음 선택한 유저와 상태가 동일한 항목만 선택할 수 있습니다.', { variant: 'info' });
+          return next;
+        }
+      }
+    });
+  };
+
+  // 전체 선택 토글 (현재 필터된 목록 대상)
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // 기준값이 없으면 첫 번째 항목 기준으로
+      let baseUser = selectedBulkUser;
+      let baseStatus = selectedBulkStatus;
+      let list = filtered;
+      if (!baseUser || !baseStatus) {
+        if (filtered.length === 0) {
+          setSelectedIds(new Set());
+          setSelectedBulkUser(null);
+          setSelectedBulkStatus(null);
+          return;
+        }
+        baseUser = filtered[0].buyerName;
+        baseStatus = filtered[0].status;
+        setSelectedBulkUser(baseUser);
+        setSelectedBulkStatus(baseStatus);
+      }
+      // 기준값과 일치하는 것만 선택
+      const ids = filtered.filter(r => r.buyerName === baseUser && r.status === baseStatus).map(r => r.id);
+      setSelectedIds(new Set(ids));
+    } else {
+      setSelectedIds(new Set());
+      setSelectedBulkUser(null);
+      setSelectedBulkStatus(null);
+    }
+  };
+
+  // 일괄 상태 변경 (API 수정 없이 개별 호출/모의 반영)
+  const applyBulkChange = () => {
+    if (selectedIds.size === 0) return;
+    // 일괄 변경도 기존 다이얼로그 재사용: confirmId=-1, confirmNext=selectedBulkStatus, confirmProductName/BuyerName 안내문구
+    setConfirmId(-1);
+    setConfirmNext(selectedBulkStatus); // <-- 실제 선택된 예약들의 상태로 세팅
+    setConfirmProductName('여러 예약');
+    setConfirmBuyerName(selectedBulkUser ?? '여러 유저');
+  };
+
+  // 실제 일괄 변경 실행
+  const confirmBulkChange = async () => {
+    setBulkApplying(true);
+    const ids = Array.from(selectedIds);
+    try {
+      if (!USE_MOCKS) {
+        await Promise.allSettled(
+          ids.map(id => updateReservationStatus(id, bulkNext))
+        );
+      }
+      setRows(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, status: bulkNext } : r));
+      show(`${ids.length}건의 상태를 "${getStatusText(bulkNext)}"(으)로 변경했습니다.`, { variant: 'info' });
+      setBulkDialogOpen(false);
+      setSelectedIds(new Set());
+      setSelectedBulkUser(null);
+      setSelectedBulkStatus(null);
+    } catch (e) {
+      safeErrorLog(e, 'AdminReservationsPage - applyBulkChange');
+      show(getSafeErrorMessage(e, '일괄 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setBulkApplying(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     const v = term.trim();
 
@@ -225,44 +334,59 @@ export default function AdminReservationsPage() {
     setConfirmProductName(''); 
     setConfirmBuyerName(''); 
   };
+  // 변경 확인 다이얼로그에서 확인 시
   const applyConfirm = async () => {
     if (confirmId == null || confirmNext == null) return;
+    setApplying(true);
     try {
-      setApplying(true);
-      const target = rows.find(r => r.id === confirmId);
-      const productName = target ? target.productName : '';
-      const buyerName = target ? target.buyerName : '';
-      const currentStatus = target ? target.status : 'pending';
-      
-      // 기존 상태와 동일한 경우 API 호출하지 않음
-      if (confirmNext === currentStatus) {
-        show(`${buyerName}님의 예약 상품은 이미 ${getStatusText(currentStatus)} 상태입니다.`, { variant: 'info' });
-        closeConfirm();
-        return;
-      }
-      
-      // 서버 반영
-      if (!USE_MOCKS) {
+      if (confirmId === -1) {
+        // 일괄 변경 모드
+        const ids = Array.from(selectedIds);
         try {
-          await updateReservationStatus(confirmId, confirmNext);
+          if (!USE_MOCKS) {
+            await updateReservationsStatusBulk(ids, confirmNext);
+          }
+          setRows(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, status: confirmNext } : r));
+          show(`${ids.length}건의 상태를 "${getStatusText(confirmNext)}"(으)로 변경했습니다.`, { variant: 'info' });
+          setSelectedIds(new Set());
+          setSelectedBulkUser(null);
+          setSelectedBulkStatus(null);
         } catch (e) {
-          safeErrorLog(e, 'AdminReservationsPage - updateReservationStatus');
-          show(getSafeErrorMessage(e, '상태 변경에 실패했습니다.'), { variant: 'error' });
+          safeErrorLog(e, 'AdminReservationsPage - updateReservationsStatusBulk');
+          show(getSafeErrorMessage(e, '일괄 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+        }
+      } else {
+        // 단일 변경 기존 로직
+        const target = rows.find(r => r.id === confirmId);
+        const productName = target ? target.productName : '';
+        const buyerName = target ? target.buyerName : '';
+        const currentStatus = target ? target.status : 'pending';
+        if (confirmNext === currentStatus) {
+          show(`${buyerName}님의 예약 상품은 이미 ${getStatusText(currentStatus)} 상태입니다.`, { variant: 'info' });
+          closeConfirm();
           return;
         }
-      }
-      // 로컬 갱신
-      updateRowStatus(confirmId, confirmNext);
-      if (confirmNext === 'picked') {
-        show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
-      } else if (confirmNext === 'self_pick') {
-        show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`, { variant: 'info' });
-      } else if (confirmNext === 'self_pick_ready') {
-        show(`${buyerName}님의 예약 상품이 셀프 수령 준비 완료로 변경되었습니다.`, { variant: 'info' });
-      } else if (confirmNext === 'canceled') {
-        show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`, { variant: 'info' });
-      } else {
-        show(`${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
+        if (!USE_MOCKS) {
+          try {
+            await updateReservationStatus(confirmId, confirmNext);
+          } catch (e) {
+            safeErrorLog(e, 'AdminReservationsPage - updateReservationStatus');
+            show(getSafeErrorMessage(e, '상태 변경에 실패했습니다.'), { variant: 'error' });
+            return;
+          }
+        }
+        updateRowStatus(confirmId, confirmNext);
+        if (confirmNext === 'picked') {
+          show(`${buyerName}님의 예약 상품이 수령 완료로 변경되었습니다.`);
+        } else if (confirmNext === 'self_pick') {
+          show(`${buyerName}님의 예약 상품이 셀프 수령으로 변경되었습니다.`, { variant: 'info' });
+        } else if (confirmNext === 'self_pick_ready') {
+          show(`${buyerName}님의 예약 상품이 셀프 수령 준비 완료로 변경되었습니다.`, { variant: 'info' });
+        } else if (confirmNext === 'canceled') {
+          show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`, { variant: 'info' });
+        } else {
+          show(`${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
+        }
       }
       closeConfirm();
     } finally {
@@ -446,12 +570,37 @@ export default function AdminReservationsPage() {
         </div>
       </div>
 
+      {/* 일괄 변경 바 - 데스크탑에서만 노출 */}
+      <div className="max-w-4xl mx-auto mb-2 flex items-center justify-between gap-2 px-2 sm:px-0 sm:flex sm:items-center sm:justify-between sm:gap-2 sm:block hidden">
+        <div className="text-sm text-gray-600">
+          선택된 항목: <span className="font-medium">{selectedIds.size}</span>건
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={applyBulkChange}
+            disabled={bulkApplying || selectedIds.size === 0}
+            className={`h-9 px-3 rounded text-white text-sm ${selectedIds.size === 0 || bulkApplying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+          >
+            {bulkApplying ? '변경 중…' : '일괄 변경'}
+          </button>
+        </div>
+      </div>
+
       {/* 데스크톱 테이블 */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr className="text-left text-sm text-gray-500">
+                <th className="px-2 py-3 w-8 text-center align-middle">
+                  <input
+                    type="checkbox"
+                    aria-label="전체 선택"
+                    checked={selectedIds.size > 0 && filtered.every(r => selectedIds.has(r.id))}
+                    onChange={(e)=>toggleSelectAll(e.target.checked)}
+                  />
+                </th>
                 {([
                   { key: 'date', label: '수령일', width: 'w-40' },
                   { key: 'productName', label: '상품명', width: 'w-40' },
@@ -507,6 +656,14 @@ export default function AdminReservationsPage() {
                   className="border-t text-sm hover:bg-orange-50 cursor-pointer"
                   onClick={() => openConfirmChange(r.id, r.status)}
                 >
+                  <td className="px-2 py-3 w-8 text-center" onClick={(e)=>e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`선택 ${r.productName}`}
+                      checked={selectedIds.has(r.id)}
+                      onChange={() => toggleSelect(r.id)}
+                    />
+                  </td>
                   <td className="px-2 py-3 align-middle w-24 text-center">{r.date}</td>
                   <td className="px-2 py-3 align-middle w-32">{r.productName}</td>
                   <td className="px-2 py-3 align-middle w-20">{r.buyerName}</td>
@@ -724,105 +881,44 @@ export default function AdminReservationsPage() {
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={closeConfirm} />
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
-            <h2 className="text-base font-semibold text-gray-800">상태를 변경할까요?</h2>
+            <h2 className="text-base font-semibold text-gray-800">
+              {confirmId === -1 ? '선택한 예약 상태를 일괄 변경할까요?' : '상태를 변경할까요?'}
+            </h2>
             <p className="text-sm text-gray-600 mt-2">
-              <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신 
-              <span className="font-medium"> "{confirmProductName}"</span> 상품의 상태를 변경합니다.
+              {confirmId === -1 ? (
+                <>
+                  <span className="font-medium">{confirmBuyerName}</span>의 예약 <span className="font-medium">{selectedIds.size}</span>건을<br />
+                  <span className="font-medium">"{getStatusText(confirmNext!)}"</span> 상태로 변경합니다.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">"{confirmBuyerName}"</span>님이 주문하신
+                  <span className="font-medium"> "{confirmProductName}"</span> 상품의 상태를 변경합니다.
+                </>
+              )}
             </p>
             
-            {/* 상태 선택 옵션 */}
+            {/* 상태 선택 옵션 동일하게 노출 */}
             <div className="mt-4 space-y-3">
               <p className="text-xs text-gray-500">변경할 상태를 선택하세요:</p>
-              
               <div className="space-y-2">
-                {/* 첫 번째 줄: 수령 대기 | 예약 취소 */}
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setConfirmNext('pending')}
-                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                      confirmNext === 'pending'
-                        ? 'bg-gray-100 border-gray-300 text-gray-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                    disabled={applying}
-                  >
-                    수령 대기
-                  </button>
-                  <button
-                    onClick={() => setConfirmNext('canceled')}
-                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                      confirmNext === 'canceled'
-                        ? 'bg-red-100 border-red-300 text-red-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                    disabled={applying}
-                  >
-                    예약 취소
-                  </button>
+                  <button onClick={() => setConfirmNext('pending')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'pending' ? 'bg-gray-100 border-gray-300 text-gray-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>수령 대기</button>
+                  <button onClick={() => setConfirmNext('canceled')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'canceled' ? 'bg-red-100 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>예약 취소</button>
                 </div>
-
-                {/* 두 번째 줄: 셀프 수령 | 셀프 수령 준비 완료 */}
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setConfirmNext('self_pick')}
-                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                      confirmNext === 'self_pick'
-                        ? 'bg-blue-100 border-blue-300 text-blue-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                    disabled={applying}
-                  >
-                    셀프 수령
-                  </button>
-                  <button
-                    onClick={() => setConfirmNext('self_pick_ready')}
-                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                      confirmNext === 'self_pick_ready'
-                        ? 'bg-yellow-100 border-yellow-300 text-yellow-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                    disabled={applying}
-                  >
-                    셀프 수령 준비 완료
-                  </button>
+                  <button onClick={() => setConfirmNext('self_pick')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'self_pick' ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>셀프 수령</button>
+                  <button onClick={() => setConfirmNext('self_pick_ready')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'self_pick_ready' ? 'bg-yellow-100 border-yellow-300 text-yellow-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>셀프 수령 준비 완료</button>
                 </div>
-
-                {/* 세 번째 줄: 수령 완료 */}
                 <div className="grid grid-cols-1 gap-2">
-                  <button
-                    onClick={() => setConfirmNext('picked')}
-                    className={`h-10 px-3 rounded border text-sm font-medium transition ${
-                      confirmNext === 'picked'
-                        ? 'bg-green-100 border-green-300 text-green-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                    disabled={applying}
-                  >
-                    수령 완료
-                  </button>
+                  <button onClick={() => setConfirmNext('picked')} className={`h-10 px-3 rounded border text-sm font-medium transition ${confirmNext === 'picked' ? 'bg-green-100 border-green-300 text-green-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`} disabled={applying}>수령 완료</button>
                 </div>
               </div>
             </div>
             
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={closeConfirm}
-                className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
-                disabled={applying}
-                type="button"
-              >
-                취소
-              </button>
-              <button
-                onClick={applyConfirm}
-                disabled={applying || !confirmNext}
-                className={`h-10 px-4 rounded text-white font-medium ${
-                  !confirmNext || applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'
-                }`}
-                type="button"
-              >
-                {applying ? '처리 중…' : '확인'}
-              </button>
+              <button onClick={closeConfirm} className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700" disabled={applying} type="button">취소</button>
+              <button onClick={applyConfirm} disabled={applying || !confirmNext} className={`h-10 px-4 rounded text-white font-medium ${!confirmNext || applying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`} type="button">{applying ? '처리 중…' : '확인'}</button>
             </div>
           </div>
         </div>
@@ -873,6 +969,34 @@ export default function AdminReservationsPage() {
               >
                 {warningId === warningDialog.id ? '처리 중…' : '경고 등록'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 변경 다이얼로그 */}
+      {bulkDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setBulkDialogOpen(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
+            <h2 className="text-base font-semibold text-gray-800">선택한 예약 상태를 일괄 변경할까요?</h2>
+            <p className="text-sm text-gray-600 mt-2">
+              <span className="font-medium">{selectedBulkUser ?? '여러 유저'}</span>의 예약 <span className="font-medium">{selectedIds.size}</span>건을<br />
+              <span className="font-medium">"{getStatusText(bulkNext)}"</span> 상태로 변경합니다.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setBulkDialogOpen(false)}
+                className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
+                disabled={bulkApplying}
+                type="button"
+              >취소</button>
+              <button
+                onClick={confirmBulkChange}
+                disabled={bulkApplying}
+                className={`h-10 px-4 rounded text-white font-medium ${bulkApplying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+                type="button"
+              >{bulkApplying ? '처리 중…' : '확인'}</button>
             </div>
           </div>
         </div>
