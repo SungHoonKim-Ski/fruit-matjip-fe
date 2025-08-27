@@ -17,27 +17,29 @@ import { AdminSessionProvider } from './contexts/AdminSessionContext';
 
 export default function App() {
   return (
-    <AdminSessionProvider>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/me/orders" element={<OrderPage />} />
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/products" element={<ProductsPage />} />
+      <Route path="/me/orders" element={<OrderPage />} />
 
-        <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/admin/register" element={<AdminRegisterPage />} />
-        <Route element={<RequireAdmin />}>
-          <Route path="/admin/products" element={<AdminProductPage />} />
-          <Route path="/admin/products/new" element={<AdminCreateProductPage />} />
-          <Route path="/admin/sales" element={<AdminSalesPage />} />
-          <Route path="/admin/reservations" element={<AdminReservationsPage />} />
-          <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />
-        </Route>
-        <Route path="/403" element={<Error403Page />} />
-        <Route path="/404" element={<Error404Page />} />
-        <Route path="*" element={<Navigate to="/404" replace />} />
-      </Routes>
-    </AdminSessionProvider>
+      <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/register" element={<AdminRegisterPage />} />
+      <Route element={
+        <AdminSessionProvider>
+          <RequireAdmin />
+        </AdminSessionProvider>
+      }>
+        <Route path="/admin/products" element={<AdminProductPage />} />
+        <Route path="/admin/products/new" element={<AdminCreateProductPage />} />
+        <Route path="/admin/sales" element={<AdminSalesPage />} />
+        <Route path="/admin/reservations" element={<AdminReservationsPage />} />
+        <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />
+      </Route>
+      <Route path="/403" element={<Error403Page />} />
+      <Route path="/404" element={<Error404Page />} />
+      <Route path="*" element={<Navigate to="/404" replace />} />
+    </Routes>
   );
 }
