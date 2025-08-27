@@ -649,7 +649,7 @@ export default function AdminReservationsPage() {
         <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg sm:hidden">
           <div className="flex items-center gap-2 text-sm text-orange-800">
             <span className="text-orange-600">💡</span>
-            <span>예약을 길게 누르면 일괄 선택 모드로 전환됩니다".</span>
+            <span>예약을 길게 누르면 일괄 선택 모드로 전환됩니다</span>
           </div>
         </div>
         {/* 선택된 날짜 정보 표시 */}
