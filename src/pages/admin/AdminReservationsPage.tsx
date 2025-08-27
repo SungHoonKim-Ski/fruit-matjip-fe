@@ -1,5 +1,5 @@
 // src/pages/admin/AdminReservationsPage.tsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
@@ -74,6 +74,89 @@ export default function AdminReservationsPage() {
 
   // 일괄 변경 다이얼로그 상태
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+
+  // 모바일 선택모드 상태
+  const [isSelectingMobile, setIsSelectingMobile] = useState(false);
+  const [selectedMobileIds, setSelectedMobileIds] = useState<Set<number>>(new Set());
+  // 롱프레스 타이머 ref
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // 모바일 카드 롱프레스 진입
+  const handleMobileCardPressStart = (id: number) => {
+    if (isSelectingMobile) return;
+    longPressTimer.current = setTimeout(() => {
+      setIsSelectingMobile(true);
+      setSelectedMobileIds(new Set([id]));
+    }, 400); // 400ms 이상 누르면 롱프레스
+  };
+  const handleMobileCardPressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+  // 모바일 카드 선택/해제
+  const toggleMobileSelect = (id: number) => {
+    setSelectedMobileIds(prev => {
+      const next = new Set(prev);
+      const target = filtered.find(r => r.id === id);
+      if (!target) return next;
+      
+      // 아무것도 선택 안 된 상태에서 선택 → 기준값 세팅
+      if (next.size === 0) {
+        setSelectedBulkUser(target.buyerName);
+        setSelectedBulkStatus(target.status);
+        next.add(id);
+        return next;
+      }
+      
+      // 이미 선택된 상태 → 기준값과 비교
+      if (next.has(id)) {
+        // 해제 시, 남은 선택이 없으면 기준값도 초기화
+        next.delete(id);
+        if (next.size === 0) {
+          setSelectedBulkUser(null);
+          setSelectedBulkStatus(null);
+        }
+        return next;
+      } else {
+        // 추가 선택 시 기준값과 비교
+        if (target.buyerName === selectedBulkUser && target.status === selectedBulkStatus) {
+          next.add(id);
+          return next;
+        } else {
+          show('유저와 수령여부가 모두 동일한 예약이어야 합니다.', { variant: 'info' });
+          return next;
+        }
+      }
+    });
+  };
+  // 모바일 선택모드 해제
+  const clearMobileSelect = () => {
+    setIsSelectingMobile(false);
+    setSelectedMobileIds(new Set());
+  };
+  // 모바일 일괄변경 버튼 클릭
+  const handleMobileBulkChange = () => {
+    if (selectedMobileIds.size === 0) return;
+    // 기준값: 첫 번째 예약의 유저/상태
+    const first = filtered.find(r => selectedMobileIds.has(r.id));
+    if (!first) return;
+    const allSameUser = filtered.filter(r => selectedMobileIds.has(r.id)).every(r => r.buyerName === first.buyerName);
+    const allSameStatus = filtered.filter(r => selectedMobileIds.has(r.id)).every(r => r.status === first.status);
+    if (!allSameUser || !allSameStatus) {
+      show('동일한 유저, 동일한 수령 상태의 예약만 일괄 변경할 수 있습니다.', { variant: 'info' });
+      return;
+    }
+    // PC와 동일한 confirmId === -1 다이얼로그 사용
+    setConfirmId(-1);
+    setConfirmNext(first.status);
+    setConfirmProductName('여러 예약');
+    setConfirmBuyerName(first.buyerName);
+    // selectedIds를 임시로 세팅하여 기존 로직 재사용
+    setSelectedIds(new Set(selectedMobileIds));
+    setIsSelectingMobile(false);
+  };
 
   // 예약 데이터 로드: 캘린더 값 변경 시 API 호출
   useEffect(() => {
@@ -562,7 +645,13 @@ export default function AdminReservationsPage() {
           </div>
 
         </div>
-        
+        {/* 모바일 일괄 선택 안내 문구 */}
+        <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg sm:hidden">
+          <div className="flex items-center gap-2 text-sm text-orange-800">
+            <span className="text-orange-600">💡</span>
+            <span>예약을 길게 누르면 일괄 선택 모드로 전환됩니다".</span>
+          </div>
+        </div>
         {/* 선택된 날짜 정보 표시 */}
         <div className="mt-3 text-sm text-gray-600">
           📅 {selectedDate} ({filtered.length}건)
@@ -741,7 +830,7 @@ export default function AdminReservationsPage() {
 
         {/* 모바일 카드 */}
         <div className="sm:hidden divide-y">
-          {/* 모바일: 가로 스크롤 정렬 칩 (일자 제외) */}
+          {/* 정렬 칩 */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-3 py-2 text-xs text-gray-600">
             {([
               { key: 'productName', label: '상품명' },
@@ -805,11 +894,19 @@ export default function AdminReservationsPage() {
             ))}
           </div>
           {filtered.map(r => (
-              <div
-                key={r.id}
-                className="p-4 active:bg-orange-50"
-                onClick={() => openConfirmChange(r.id, r.status)}
-              >
+            <div
+              key={r.id}
+              className={`p-4 active:bg-orange-50 relative ${isSelectingMobile && selectedMobileIds.has(r.id) ? 'ring-2 ring-orange-400 bg-orange-50' : ''}`}
+              onClick={() => {
+                if (isSelectingMobile) toggleMobileSelect(r.id);
+                else openConfirmChange(r.id, r.status);
+              }}
+              onTouchStart={e => handleMobileCardPressStart(r.id)}
+              onTouchEnd={handleMobileCardPressEnd}
+              onMouseDown={e => { if (window.innerWidth < 640) handleMobileCardPressStart(r.id); }}
+              onMouseUp={e => { if (window.innerWidth < 640) handleMobileCardPressEnd(); }}
+            >
+              {/* 선택모드 체크표시 제거 */}
               {/* 상단: 상품명 + 경고 / 금액 */}
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-1 flex-1 min-w-0">
@@ -820,10 +917,7 @@ export default function AdminReservationsPage() {
                   {(r.status === 'self_pick' || r.status === 'self_pick_ready') && (
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openWarningDialog(r.id);
-                      }}
+                      onClick={e => { e.stopPropagation(); openWarningDialog(r.id); }}
                       disabled={warningId === r.id}
                       className="inline-flex items-center justify-center h-6 w-6 rounded-full border-2 border-orange-300 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:border-orange-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       title="노쇼 경고 등록"
@@ -847,18 +941,18 @@ export default function AdminReservationsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); openConfirmChange(r.id, r.status); }}
+                  onClick={e => { e.stopPropagation(); openConfirmChange(r.id, r.status); }}
                   className={
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
                     (r.status === 'picked'
                       ? 'bg-green-50 text-green-700 border-green-200'
                       : r.status === 'self_pick'
                         ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : r.status === 'self_pick_ready'
-                        ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                      : r.status === 'canceled'
-                        ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                        : 'bg-gray-50 text-gray-700 border-gray-200')
+                        : r.status === 'self_pick_ready'
+                          ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          : r.status === 'canceled'
+                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                            : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
                   {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'self_pick_ready' ? (
@@ -870,9 +964,95 @@ export default function AdminReservationsPage() {
                 </button>
               </div>
               {/* 생성일시: 제품명 밑 왼쪽에 표시 */}
-              <div className="mt-1 text-xs text-gray-400">주문일시: {r.createdAt}</div>
+              <div className="mt-1 text-xs text-gray-400">
+                <span className="sm:hidden">주문일시: {r.createdAt.replace('T', ' ')}</span>
+                <span className="hidden sm:block whitespace-pre-line">주문일시: {r.createdAt.replace('T', '\n')}</span>
+              </div>
             </div>
           ))}
+          {/* 하단 일괄변경 버튼 */}
+          {isSelectingMobile && (
+            <div className="fixed bottom-0 left-0 w-full z-30 bg-white border-t p-3">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-600">
+                  선택된 항목: <span className="font-medium text-orange-600">{selectedMobileIds.size}</span>건
+                </span>
+                <button
+                  onClick={clearMobileSelect}
+                  className="text-sm text-pink-700 bg-pink-100 hover:bg-pink-200 px-3 py-1 rounded border border-pink-300 hover:border-pink-400 transition-colors font-medium"
+                >
+                  선택 모드 해제
+                </button>
+              </div>
+              {/* 동일 상태 일괄 선택과 일괄 변경 버튼을 나란히 배치 */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedMobileIds.size === 0) return;
+                    // 첫 번째 선택된 예약 기준으로 동일한 유저와 상태를 가진 모든 예약 선택
+                    const first = filtered.find(r => selectedMobileIds.has(r.id));
+                    if (!first) return;
+                    
+                    // 이미 선택된 예약이 있으면 기준값과 비교
+                    if (selectedBulkUser && selectedBulkStatus) {
+                      // 기준값과 일치하는지 확인
+                      if (first.buyerName !== selectedBulkUser || first.status !== selectedBulkStatus) {
+                        show('유저와 수령여부가 모두 동일한 예약이어야 합니다.', { variant: 'info' });
+                        return;
+                      }
+                    }
+                    
+                    const sameUserAndStatus = filtered.filter(item => 
+                      item.buyerName === first.buyerName && item.status === first.status
+                    );
+                    
+                    // 토글 기능: 이미 모두 선택된 상태면 전체 취소, 아니면 전체 선택
+                    const allSelected = sameUserAndStatus.length > 0 && 
+                      sameUserAndStatus.every(item => selectedMobileIds.has(item.id));
+                    
+                    if (allSelected) {
+                      // 전체 취소
+                      setSelectedMobileIds(new Set());
+                      setSelectedBulkUser(null);
+                      setSelectedBulkStatus(null);
+                    } else {
+                      // 전체 선택
+                      setSelectedMobileIds(new Set(sameUserAndStatus.map(item => item.id)));
+                      setSelectedBulkUser(first.buyerName);
+                      setSelectedBulkStatus(first.status);
+                    }
+                  }}
+                  disabled={selectedMobileIds.size === 0}
+                  className={`flex-1 h-12 px-6 rounded text-sm font-medium border transition whitespace-pre-line ${
+                    selectedMobileIds.size === 0 
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                  }`}
+                >
+                  {(() => {
+                    if (selectedMobileIds.size === 0) return '동일 조건 전체 선택';
+                    const first = filtered.find(r => selectedMobileIds.has(r.id));
+                    if (!first) return '동일 조건 전체 선택';
+                    const sameUserAndStatus = filtered.filter(item => 
+                      item.buyerName === first.buyerName && item.status === first.status
+                    );
+                    const allSelected = sameUserAndStatus.length > 0 && 
+                      sameUserAndStatus.every(item => selectedMobileIds.has(item.id));
+                    return allSelected ? `전체 취소\n(${sameUserAndStatus.length}건)` : `동일 조건 전체 선택\n(${sameUserAndStatus.length}개)`;
+                  })()}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMobileBulkChange}
+                  disabled={selectedMobileIds.size === 0}
+                  className={`flex-1 h-12 px-6 rounded text-white text-sm font-medium shadow ${selectedMobileIds.size === 0 ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+                >
+                  선택 항목 일괄 변경
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -983,32 +1163,7 @@ export default function AdminReservationsPage() {
       )}
 
       {/* 일괄 변경 다이얼로그 */}
-      {bulkDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setBulkDialogOpen(false)} />
-          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
-            <h2 className="text-base font-semibold text-gray-800">선택한 예약 상태를 일괄 변경할까요?</h2>
-            <p className="text-sm text-gray-600 mt-2">
-              <span className="font-medium">{selectedBulkUser ?? '여러 유저'}</span>의 예약 <span className="font-medium">{selectedIds.size}</span>건을<br />
-              <span className="font-medium">"{getStatusText(bulkNext)}"</span> 상태로 변경합니다.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setBulkDialogOpen(false)}
-                className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
-                disabled={bulkApplying}
-                type="button"
-              >취소</button>
-              <button
-                onClick={confirmBulkChange}
-                disabled={bulkApplying}
-                className={`h-10 px-4 rounded text-white font-medium ${bulkApplying ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
-                type="button"
-              >{bulkApplying ? '처리 중…' : '확인'}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* bulkDialogOpen 다이얼로그 제거 (confirmId === -1 다이얼로그로 통합) */}
     </main>
   );
 }
