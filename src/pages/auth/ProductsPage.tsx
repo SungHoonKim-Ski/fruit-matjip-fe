@@ -59,7 +59,7 @@ function getNext3Days(): string[] {
   return arr;
 }
 
-const storeTitle = '과일맛집 1955';
+const storeTitle = '과일맛집 1995';
 const branchName = '';
 
 export default function ReservePage() {
