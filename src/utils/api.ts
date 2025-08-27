@@ -823,3 +823,14 @@ export const updateReservationsStatusBulk = async (reservationIds: number[], sta
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
+
+// 관리자 세션 유효성 검증
+export const validateAdminSession = async () => {
+  const key = 'validateAdminSession';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/validate', { method: 'GET' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from './snackbar';
+import { validateAdminSession } from '../utils/api';
 
 interface ProtectedAdminRouteProps {
   children: React.ReactNode;
@@ -26,15 +27,10 @@ export default function ProtectedAdminRoute({ children }: ProtectedAdminRoutePro
 
 
         // 서버에 세션 유효성 검사 요청
-        const API_BASE = process.env.REACT_APP_API_BASE || '';
-
-        const response = await fetch(`${API_BASE}/api/admin/validate`, {
-          method: 'GET',
-          credentials: 'include', // 쿠키 포함
-        });
+        const response = await validateAdminSession();
 
         // response.ok 대신 상태 코드로 직접 확인
-        if (response.status === 200) {
+        if (response.ok) {
           setIsAuthenticated(true);
         } else {
           
