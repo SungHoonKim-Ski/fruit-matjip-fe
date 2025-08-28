@@ -80,6 +80,8 @@ export default function AdminReservationsPage() {
   const [selectedMobileIds, setSelectedMobileIds] = useState<Set<number>>(new Set());
   // 롱프레스 타이머 ref
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  // 롱프레스 임계시간(ms)
+  const MOBILE_LONG_PRESS_MS = 500;
 
   // 모바일 카드 롱프레스 진입
   const handleMobileCardPressStart = (id: number) => {
@@ -87,7 +89,7 @@ export default function AdminReservationsPage() {
     longPressTimer.current = setTimeout(() => {
       setIsSelectingMobile(true);
       setSelectedMobileIds(new Set([id]));
-    }, 400); // 400ms 이상 누르면 롱프레스
+    }, MOBILE_LONG_PRESS_MS);
   };
   const handleMobileCardPressEnd = () => {
     if (longPressTimer.current) {
@@ -896,7 +898,7 @@ export default function AdminReservationsPage() {
           {filtered.map(r => (
             <div
               key={r.id}
-              className={`p-4 active:bg-orange-50 relative ${isSelectingMobile && selectedMobileIds.has(r.id) ? 'ring-2 ring-orange-400 bg-orange-50' : ''}`}
+              className={`p-4 active:bg-orange-50 relative select-none ${isSelectingMobile && selectedMobileIds.has(r.id) ? 'ring-2 ring-orange-400 bg-orange-50' : ''}`}
               onClick={() => {
                 if (isSelectingMobile) toggleMobileSelect(r.id);
                 else openConfirmChange(r.id, r.status);
