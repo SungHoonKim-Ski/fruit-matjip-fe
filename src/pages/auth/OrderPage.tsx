@@ -274,19 +274,10 @@ export default function OrdersPage() {
         
         // self_pick인 경우 추가 체크
         if (targetStatus === 'self_pick') {
-          // 평일 체크 (월요일~금요일)
-          const orderDay = kstOrderDate.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
-          if (orderDay === 0 || orderDay === 6) {
-            show('셀프 수령은 평일에만 가능합니다.', { variant: 'error' });
-            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
-            return;
-          }
-          
           // order_date의 오후 6시(18:00)까지 신청 가능
           if (orderDateOnly.getTime() === todayDate.getTime()) {
             // 오늘 주문인 경우: 현재 시간이 오후 6시 이전이어야 함
             const currentHour = kstNow.getHours();
-            const currentMinute = kstNow.getMinutes();
             if (currentHour >= 18) {
               show('셀프 수령은 오후 6시까지만 가능합니다.', { variant: 'error' });
               setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
