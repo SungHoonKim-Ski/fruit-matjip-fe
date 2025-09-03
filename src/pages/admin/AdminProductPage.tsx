@@ -363,9 +363,9 @@ export default function AdminProductPage() {
                           // 오늘 날짜를 YYYY-MM-DD 형식으로
                           const todayStr = kstNow.toISOString().split('T')[0];
                           // 판매일과 비교
-                          if (product.sellDate! > todayStr) return '판매 예정';
-                          if (product.sellDate! === todayStr) return '판매 당일';
-                          return '판매 종료';
+                          if (product.sellDate! > todayStr) return '예정';
+                          if (product.sellDate! === todayStr) return '당일';
+                          return '종료';
                         })()}
                       </span>
                     )}
