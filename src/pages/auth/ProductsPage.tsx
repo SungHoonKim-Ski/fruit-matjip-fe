@@ -799,7 +799,7 @@ export default function ReservePage() {
               />
               <div className="p-4">
                 <h2
-                  className="text-xl font-semibold cursor-pointer flex items-center justify-between gap-2"
+                  className="font-semibold cursor-pointer flex items-center justify-between gap-2 text-[clamp(1rem,4.5vw,1.25rem)] leading-tight"
                   onClick={() => openDetail(item.id)}
                   role="button"
                 >
