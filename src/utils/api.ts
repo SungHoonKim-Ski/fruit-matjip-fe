@@ -582,7 +582,7 @@ export const warnReservation = async (id: number) => {
   const key = 'warnReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/reservations/${id}/warn`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/reservations/${id}/no-show`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
