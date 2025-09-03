@@ -291,7 +291,7 @@ export default function AdminProductPage() {
       <div className="space-y-6 max-w-3xl mx-auto">
         {visibleProducts.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow p-4">
-            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="flex flex-row items-stretch gap-4">
               <img
                 src={(() => {
                   const url = product.imageUrl || '';
@@ -300,11 +300,11 @@ export default function AdminProductPage() {
                   return url.includes('?') ? `${url}&ts=${ts}` : `${url}?ts=${ts}`;
                 })()}
                 alt={product.name}
-                className="w-full sm:w-28 md:w-32 aspect-square object-cover rounded border"
+                className="w-28 h-28 sm:w-28 sm:h-auto sm:aspect-square md:w-32 object-cover rounded border flex-shrink-0"
               />
-              <div className="flex-1">
+              <div className="flex-1 flex flex-col justify-between min-h-[6rem]">
                 {/* 상단 정보 */}
-                <div className="space-y-1">
+                <div className="space-y-1 flex-1">
                   <h2 className="text-lg font-semibold break-keep">{product.name}</h2>
                   <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
                   <p className="text-sm text-gray-500">
@@ -371,47 +371,45 @@ export default function AdminProductPage() {
                     )}
                   </p>
                 </div>
+              </div>
+            </div>
+            {/* 조작 영역: 이미지/텍스트 행 아래 전체 너비 사용 */}
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/products/${product.id}/edit`)}
+                  className="h-10 w-full rounded border border-gray-300 hover:bg-gray-50"
+                >
+                  상세 정보 수정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openToggleStatusDialog(product.id, product.name, product.status)}
+                  className={`h-10 w-full rounded font-medium transition
+                    ${product.status === 'active'
+                      ? 'bg-green-500 hover:bg-green-600 text-white'
+                      : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
+                >
+                  {product.status === 'active' ? '상품 목록 노출 O' : '상품 목록 노출 X'}
+                </button>
+              </div>
 
-                {/* 조작 영역 */}
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/admin/products/${product.id}/edit`)}
-                      className="h-10 w-full rounded border border-gray-300 hover:bg-gray-50"
-                    >
-                      상세 정보 수정
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openToggleStatusDialog(product.id, product.name, product.status)}
-                      className={`h-10 w-full rounded font-medium transition
-                        ${product.status === 'active'
-                          ? 'bg-green-500 hover:bg-green-600 text-white'
-                          : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
-                    >
-                      {product.status === 'active' ? '상품 목록 노출 O' : '상품 목록 노출 X'}
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => openDeleteStockDialog(product.id, product.name)}
-                      className="h-10 w-full rounded bg-amber-500 text-white hover:bg-amber-600"
-                    >
-                      품절 처리
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDeleteProductDialog(product.id, product.name)}
-                      className="h-10 w-full rounded bg-gray-700 text-white hover:bg-gray-800"
-                    >
-                      상품 삭제
-                    </button>
-                  </div>
-                </div>
-                {/* 조작 영역 끝 */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => openDeleteStockDialog(product.id, product.name)}
+                  className="h-10 w-full rounded bg-amber-500 text-white hover:bg-amber-600"
+                >
+                  품절 처리
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openDeleteProductDialog(product.id, product.name)}
+                  className="h-10 w-full rounded bg-gray-700 text-white hover:bg-gray-800"
+                >
+                  상품 삭제
+                </button>
               </div>
             </div>
           </div>
