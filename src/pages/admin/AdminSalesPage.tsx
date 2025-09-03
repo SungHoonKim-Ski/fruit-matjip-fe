@@ -164,17 +164,6 @@ export default function AdminSalesPage() {
                 className="w-full text-left px-3 py-2 hover:bg-gray-50"
                 onClick={() => { 
                   setMobileMenuOpen(false); 
-                  if (window.location.pathname !== '/admin/sales') {
-                    window.location.href = '/admin/sales';
-                  }
-                }}
-              >
-                📈 판매량 확인
-              </button>
-              <button
-                className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                onClick={() => { 
-                  setMobileMenuOpen(false); 
                   if (window.location.pathname !== '/admin/reservations') {
                     window.location.href = '/admin/reservations';
                   }
@@ -182,6 +171,18 @@ export default function AdminSalesPage() {
               >
                 🧾 예약 확인
               </button>
+              <button
+                className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                onClick={() => { 
+                  setMobileMenuOpen(false); 
+                  if (window.location.pathname !== '/admin/sales') {
+                    window.location.href = '/admin/sales';
+                  }
+                }}
+              >
+                📈 판매량 확인
+              </button>
+              
             </div>
           )}
         </div>
