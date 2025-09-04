@@ -222,6 +222,16 @@ export default function AdminSalesPage() {
     return Number(summaryByDate[selectedDate] || 0);
   }, [selectedDate, summaryByDate]);
 
+  // 선택일 MM/DD만 추출 (라벨 스타일링용)
+  const selectedDayMD = useMemo(() => {
+    if (!selectedDate) return null;
+    const parts = selectedDate.split('-'); // 'YYYY-MM-DD'
+    if (parts.length !== 3) return null;
+    const mm = String(Number(parts[1] || '0'));
+    const dd = String(Number(parts[2] || '0'));
+    return `${mm}/${dd}`;
+  }, [selectedDate]);
+
   // 캘린더 생성 (from 기준 월)
   const monthStartDate = useMemo(() => new Date(from), [from]);
   const year = monthStartDate.getFullYear();
@@ -402,15 +412,17 @@ export default function AdminSalesPage() {
       {/* 상단 월 입력 제거됨 (달력 내 네비게이션 사용) */}
 
       {/* 요약 */}
-      <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">{displayMonthNum}월 판매수량</p>
-          <p className="text-xl font-bold">{totalQty.toLocaleString()}개</p>
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-3">
+      <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">{displayMonthNum}월 판매수량</p>
+          <p className="text-sm font-semibold">{totalQty.toLocaleString()}개</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">{displayMonthNum}월 매출</p>
-          <p className="text-xl font-bold text-orange-500">{formatKRW(totalRev)}</p>
-        </div>
+      <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">{displayMonthNum}월 매출</p>
+          <p className="text-sm font-semibold text-orange-600">{`₩${totalRev.toLocaleString('ko-KR')}`}</p>
+        </div>        
+        
+
       </div>
 
       {/* 캘린더(월) - 요약 매출 표시 */}
@@ -512,17 +524,31 @@ export default function AdminSalesPage() {
         </div>
       </div>
 
-      {/* 선택 일 요약 (검색 상단) */}
-      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-3">
-        <div className="rounded border bg-white p-2 text-center">
-          <p className="text-[11px] text-gray-500">선택일 판매수량</p>
+      {/* 선택 일 요약 (품목 하단) */}
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mt-3 mb-">
+
+      <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">
+            {selectedDayMD ? (
+              <>
+                <span className="font-semibold text-gray-800">{selectedDayMD}</span>
+                <span className="ml-1">판매수량</span>
+              </>
+            ) : '선택일 판매수량'}
+          </p>
           <p className="text-sm font-semibold">{selectedDate ? `${selectedDayQty.toLocaleString()}개` : '—'}</p>
         </div>
         <div className="rounded border bg-white p-2 text-center">
-          <p className="text-[11px] text-gray-500">선택일 매출</p>
+          <p className="text-[11px] text-gray-500">
+            {selectedDayMD ? (
+              <>
+                <span className="font-semibold text-gray-800">{selectedDayMD}</span>
+                <span className="ml-1">매출</span>
+              </>
+            ) : '선택일 매출'}
+          </p>
           <p className="text-sm font-semibold text-sky-600">
-            <span className="sm:hidden">{selectedDate ? formatKRWShort(selectedDayRev) : '—'}</span>
-            <span className="hidden sm:inline">{selectedDate ? `₩${selectedDayRev.toLocaleString('ko-KR')}` : '—'}</span>
+            {selectedDate ? `₩${selectedDayRev.toLocaleString('ko-KR')}` : '—'}
           </p>
         </div>
       </div>
