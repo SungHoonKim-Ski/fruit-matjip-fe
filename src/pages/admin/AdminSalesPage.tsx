@@ -134,7 +134,6 @@ export default function AdminSalesPage() {
   };
 
   useEffect(() => {
-    setSelectedDate(null);
     setRows([]);
     loadSummary(from, to);
   }, [from, to, show]);
@@ -196,6 +195,16 @@ export default function AdminSalesPage() {
 
   const totalRev = useMemo(() => Object.values(summaryByDate).reduce((s, v) => s + Number(v || 0), 0), [summaryByDate]);
 
+  // 선택 일 집계
+  const selectedDayQty = useMemo(() => {
+    if (!selectedDate) return 0;
+    return rows.reduce((s, r) => s + Number(r.quantity || 0), 0);
+  }, [rows, selectedDate]);
+  const selectedDayRev = useMemo(() => {
+    if (!selectedDate) return 0;
+    return Number(summaryByDate[selectedDate] || 0);
+  }, [selectedDate, summaryByDate]);
+
   // 캘린더 생성 (from 기준 월)
   const monthStartDate = useMemo(() => new Date(from), [from]);
   const year = monthStartDate.getFullYear();
@@ -213,7 +222,7 @@ export default function AdminSalesPage() {
     const cells: Array<{ label: string; dateStr: string | null }> = [];
     for (let i = 0; i < startDay; i++) cells.push({ label: '', dateStr: null });
     for (let d = 1; d <= daysInMonth; d++) {
-      const ds = new Date(year, month, d).toISOString().split('T')[0];
+      const ds = toKstYMD(new Date(year, month, d)); // ✅ KST-safe YMD
       cells.push({ label: String(d), dateStr: ds });
     }
     while (cells.length % 7 !== 0) cells.push({ label: '', dateStr: null });
@@ -400,6 +409,11 @@ export default function AdminSalesPage() {
               const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
               setMonthValue(next);
               applyMonthRange(next);
+              // 기본 선택: 해당 월 1일
+              const first = toKstYMD(new Date(d.getFullYear(), d.getMonth(), 1));
+              setSelectedDate(first);
+              setRows([]);
+              loadDetailsForDate(first);
             }}
           >
             ◀
@@ -422,6 +436,11 @@ export default function AdminSalesPage() {
               const clamped = next > currentMonthStr ? currentMonthStr : next;
               setMonthValue(clamped);
               applyMonthRange(clamped);
+              // 기본 선택: 해당 월 1일
+              const first = toKstYMD(new Date(d.getFullYear(), d.getMonth(), 1));
+              setSelectedDate(first);
+              setRows([]);
+              loadDetailsForDate(first);
             }}
             disabled={monthValue === currentMonthStr}
           >
@@ -476,6 +495,20 @@ export default function AdminSalesPage() {
         </div>
       </div>
 
+      {/* 선택 일 요약 (검색 상단) */}
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-3">
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">선택일 판매수량</p>
+          <p className="text-sm font-semibold">{selectedDate ? `${selectedDayQty.toLocaleString()}개` : '—'}</p>
+        </div>
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">선택일 매출</p>
+          <p className="text-sm font-semibold text-sky-600">
+            <span className="sm:hidden">{selectedDate ? formatKRWShort(selectedDayRev) : '—'}</span>
+            <span className="hidden sm:inline">{selectedDate ? `₩${selectedDayRev.toLocaleString('ko-KR')}` : '—'}</span>
+          </p>
+        </div>
+      </div>
       {/* 검색 입력: 달력 아래, 상세 위 */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
         <div>
@@ -495,10 +528,10 @@ export default function AdminSalesPage() {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr className="text-left text-sm text-gray-500">
-                <th className="px-4 py-3 w-2/12 text-left">상품명</th>
+                <th className="px-4 py-3 w-5/12 text-left">상품명</th>
                 <th className="px-4 py-3 w-2/12 text-left">수량</th>
-                <th className="px-4 py-3 w-3/12 text-right">단가</th>
-                <th className="px-4 py-3 w-4/12 text-right">매출</th>
+                <th className="px-4 py-3 w-2/12 text-right">단가</th>
+                <th className="px-4 py-3 w-3/12 text-right">매출</th>
               </tr>
             </thead>
             <tbody>
@@ -511,10 +544,10 @@ export default function AdminSalesPage() {
               )}
               {filtered.map(r => (
                 <tr key={r.id} className="border-t text-sm">
-                  <td className="px-4 py-3 w-2/12">{r.productName}</td>
+                  <td className="px-4 py-3 w-5/12">{r.productName}</td>
                   <td className="px-4 py-3 w-2/12 text-left">{r.quantity.toLocaleString()} 개</td>
-                  <td className="px-4 py-3 w-3/12 font-mono text-right">{formatKRW(r.price)}</td>
-                  <td className="px-4 py-3 w-4/12 font-mono text-right">{formatKRW(r.revenue)}</td>
+                  <td className="px-4 py-3 w-2/12 font-mono text-right">{formatKRW(r.price)}</td>
+                  <td className="px-4 py-3 w-3/12 font-mono text-right">{formatKRW(r.revenue)}</td>
                 </tr>
               ))}
             </tbody>
