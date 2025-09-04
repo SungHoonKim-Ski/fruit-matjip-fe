@@ -588,15 +588,41 @@ export const warnReservation = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getReservationReports = async (from?: string, to?: string) => {
-  const key = 'getReservationReports';
+// 일자별 매출 집계 요약 API
+export const getSalesSummary = async (from?: string, to?: string)  => {
+  const key = 'getSalesSummary';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    let url = '/api/admin/reservations/sails';
+    let url = `/api/admin/agg/summary`;
     if (from && to) {
       url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     }
-    const res = await adminFetch(url, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } }, true);
+    
+    const res = await adminFetch(url, { cache: 'no-store' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 특정 날짜 상세 매출 내역 API
+export const getSalesDetails = async (date: string) => {
+  const key = 'getSalesDetails';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const url = `/api/admin/agg/sales?date=${encodeURIComponent(date)}`;
+    const res = await adminFetch(url, { cache: 'no-store' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 오늘 매출 데이터 API
+export const getTodaySales = async (date: string) => {
+  const key = 'getTodaySales';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const url = `/api/admin/reservations/sales/today`;
+    const res = await adminFetch(url, { cache: 'no-store' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }

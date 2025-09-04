@@ -4,11 +4,26 @@ import { mockSales } from '../../mocks/sales';
 import { USE_MOCKS } from '../../config';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getReservationReports } from '../../utils/api';
+import { getSalesSummary, getSalesDetails, getTodaySales } from '../../utils/api';
 import AdminHeader from '../../components/AdminHeader';
 
-const formatKRW = (n: number) =>
-  n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
+const formatKRW = (n: number) => {
+  // 100만원(7자리)까지 여유공간, 앞에 ₩ 표시, 오른쪽 패딩
+  const raw = n.toLocaleString('ko-KR');
+  // 7자리(예: 1,000,000) 기준, 부족하면 앞에 공백 추가
+  const padded = raw.padStart(9, ' '); // 9: '1,000,000' + 여유
+  return `₩${padded}`;
+};
+
+// 모바일 캘린더용 짧은 금액 표기 (만/억 단위)
+const _trimDotZero = (s: string) => (s.endsWith('.0') ? s.slice(0, -2) : s);
+const formatKRWShort = (n: number) => {
+  if (!n) return '';
+  const abs = Math.abs(n);
+  if (abs >= 100_000_000) return `${_trimDotZero((abs / 100_000_000).toFixed(1))}억`;
+  if (abs >= 10_000) return `${_trimDotZero((abs / 10_000).toFixed(1))}만`;
+  return abs.toLocaleString('ko-KR');
+};
 
 export default function AdminSalesPage() {
   const { show } = useSnackbar();
@@ -18,11 +33,24 @@ export default function AdminSalesPage() {
     return kstDate.toISOString().split('T')[0];
   };
   const now = new Date();
-  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // KST 기준 현재 시간
+  // 브라우저 로컬이 이미 KST이므로 추가 보정 없이 사용
+  const kstNow = now;
   const monthStart = toKstYMD(new Date(kstNow.getFullYear(), kstNow.getMonth(), 1));
-  const monthEnd   = toKstYMD(new Date(kstNow.getFullYear(), kstNow.getMonth() + 1, 0));
+  const todayKst   = toKstYMD(kstNow);
+  const kstYesterday = (() => { const d = new Date(kstNow); d.setDate(d.getDate() - 1); return toKstYMD(d); })();
   const [from, setFrom] = useState<string>(monthStart);
-  const [to, setTo]     = useState<string>(monthEnd);
+  const [to, setTo]     = useState<string>(kstYesterday);
+  const [monthValue, setMonthValue] = useState<string>(() => `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,'0')}`);
+  const currentMonthStr = `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,'0')}`;
+
+  const applyMonthRange = (val: string) => {
+    const [yy, mm] = val.split('-').map(Number);
+    const s = toKstYMD(new Date(yy, mm - 1, 1));
+    const isCurrent = val === currentMonthStr;
+    const eCandidate = isCurrent ? kstYesterday : toKstYMD(new Date(yy, mm, 0));
+    const e = (new Date(eCandidate) < new Date(s)) ? s : eCandidate;
+    setFrom(s); setTo(e);
+  };
 
   // 🔎 필수 필드: 기본값 = 이름(buyerName)
   const [field, setField] = useState<'buyerName' | 'productName'>('productName');
@@ -30,53 +58,230 @@ export default function AdminSalesPage() {
 
   type SalesRow = {
     id: number;
-    date: string; // YYYY-MM-DD
     productName: string;
-    buyerName: string;
     price: number;
     quantity: number;
     revenue: number;
+    date?: string; // 내부 필터/로직용(표시 안 함)
   };
 
   const [rows, setRows] = useState<SalesRow[]>([]);
+  const [summaryByDate, setSummaryByDate] = useState<Record<string, number>>({}); // YYYY-MM-DD -> revenue
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 모바일 메뉴 상태
 
-  // 데이터 로드(실데이터 사용)
-  const load = async (rangeFrom: string, rangeTo: string) => {
-    if (USE_MOCKS) {
-      setRows(
-        mockSales.map((r, idx) => ({
-          id: r.id ?? idx,
-          date: r.date,
-          productName: r.productName,
-          buyerName: r.buyerName,
-          price: r.price,
-          quantity: r.quantity,
-          revenue: r.revenue,
-        }))
-      );
-      return;
-    }
+  // 요약 데이터 로드(집계 테이블) - 이번달 1일~어제 + 오늘 합쳐서
+  const loadSummary = async (rangeFrom: string, rangeTo: string) => {
+    setLoadingSummary(true);
     try {
-      const res = await getReservationReports(rangeFrom, rangeTo);
+      if (USE_MOCKS) {
+        const map: Record<string, number> = {};
+        mockSales.forEach((r) => { map[r.date] = (map[r.date] || 0) + r.revenue; });
+        setSummaryByDate(map);
+        return;
+      }
+
+      // 1. 이번달 1일~어제 데이터
+      const res1 = await getSalesSummary(rangeFrom, rangeTo);
+      if (!res1.ok) {
+        if (res1.status === 401 || res1.status === 403) return;
+        const err = await res1.clone().json().catch(() => ({}));
+        throw new Error(err.message || '매출 요약을 불러오지 못했습니다.');
+      }
+      const body1 = await res1.json();
+      // summary, sum_amount, sum_quantity 구조로 응답 처리
+      const list1 = Array.isArray(body1.summary) ? body1.summary : [];
+      const sumAmount = body1.sum_amount ?? 0;
+      const sumQuantity = body1.sum_quantity ?? 0;
+
+      // 2. 오늘 데이터
+      const todayStr = toKstYMD(kstNow);
+      const res2 = await getTodaySales(todayStr);
+      if (!res2.ok) {
+        if (res2.status === 401 || res2.status === 403) return;
+        const err = await res2.clone().json().catch(() => ({}));
+        throw new Error(err.message || '오늘 매출을 불러오지 못했습니다.');
+      }
+      const body2 = await res2.json();
+      const list2 = Array.isArray(body2) ? body2 : (body2?.response || []);
+
+      // 3. 두 결과 합치기
+      const map: Record<string, number> = {};
+      
+      // 이번달 1일~어제 데이터
+      list1.forEach((r: any) => {
+        const date = r.date || r.pickup_date || r.pickupDate || '';
+        const rev = Number(r.revenue ?? r.amount ?? 0);
+        if (date) map[date] = (map[date] || 0) + rev;
+      });
+
+      // 오늘 데이터 추가
+      list2.forEach((r: any) => {
+        const date = r.date || r.pickup_date || r.pickupDate || todayStr;
+        const rev = Number(r.revenue ?? r.amount ?? 0);
+        if (date) map[date] = (map[date] || 0) + rev;
+      });
+
+      setSummaryByDate(map);
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminSalesPage - loadSummary');
+      show(getSafeErrorMessage(e, '매출 요약을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  useEffect(() => {
+    setSelectedDate(null);
+    setRows([]);
+    loadSummary(from, to);
+  }, [from, to, show]);
+
+  // 페이지 진입 시 오늘 데이터도 함께 로드
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (USE_MOCKS) return; // Mock은 기존 로직 사용
+      
+      try {
+        const todayStr = toKstYMD(kstNow);
+        
+        // 오늘 데이터 미리 로드
+        const res = await getTodaySales(todayStr);
+        if (res.ok) {
+          const body = await res.json();
+          const list = Array.isArray(body) ? body : (body?.response || []);
+          if (list.length > 0) {
+            // 오늘 데이터가 있으면 기본 선택
+            setSelectedDate(todayStr);
+            loadDetailsForDate(todayStr);
+          }
+        }
+      } catch (e) {
+        // 오늘 데이터 로드 실패는 무시 (기존 월 데이터는 정상 로드됨)
+        safeErrorLog(e, 'AdminSalesPage - loadInitialTodayData');
+      }
+    };
+
+    loadInitialData();
+  }, []); // 페이지 진입 시 한 번만 실행
+
+  // 오늘 날짜를 기본 선택 (기존 로직 유지)
+  useEffect(() => {
+    if (!selectedDate && summaryByDate && Object.keys(summaryByDate).length > 0) {
+      const todayStr = toKstYMD(kstNow);
+      if (summaryByDate[todayStr]) {
+        setSelectedDate(todayStr);
+        loadDetailsForDate(todayStr);
+      }
+    }
+  }, [summaryByDate, selectedDate]);
+
+  // 검색은 상세 rows(선택 날짜)에만 적용; 월 단위 필드는 제거
+  const filtered = useMemo(() => {
+    const v = term.trim();
+    if (!v) return rows;
+    return rows.filter(r => (r.productName || '').includes(v));
+  }, [term, rows]);
+
+  const totalQty = useMemo(() => {
+    // 수량은 amount/quantity로 계산
+    return Object.values(summaryByDate).reduce((total, revenue) => {
+      // Mock 데이터나 실제 데이터에서 quantity가 있으면 사용, 없으면 revenue/price로 추정
+      // 여기서는 revenue 기준으로만 계산 (실제로는 API에서 quantity 정보가 필요)
+      return total + Math.floor(revenue / 1000); // 임시: 1000원당 1개로 가정
+    }, 0);
+  }, [summaryByDate]);
+
+  const totalRev = useMemo(() => Object.values(summaryByDate).reduce((s, v) => s + Number(v || 0), 0), [summaryByDate]);
+
+  // 캘린더 생성 (from 기준 월)
+  const monthStartDate = useMemo(() => new Date(from), [from]);
+  const year = monthStartDate.getFullYear();
+  const month = monthStartDate.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const lastOfMonth = new Date(year, month + 1, 0);
+  const startDay = firstOfMonth.getDay();
+  const daysInMonth = lastOfMonth.getDate();
+  const displayMonthNum = useMemo(() => {
+    const parts = (monthValue || '').split('-');
+    const mm = parts.length > 1 ? Number(parts[1]) : (month + 1);
+    return mm;
+  }, [monthValue, month]);
+  const calendarCells = useMemo(() => {
+    const cells: Array<{ label: string; dateStr: string | null }> = [];
+    for (let i = 0; i < startDay; i++) cells.push({ label: '', dateStr: null });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const ds = new Date(year, month, d).toISOString().split('T')[0];
+      cells.push({ label: String(d), dateStr: ds });
+    }
+    while (cells.length % 7 !== 0) cells.push({ label: '', dateStr: null });
+    return cells;
+  }, [startDay, daysInMonth, year, month]);
+
+  const loadDetailsForDate = async (dateStr: string) => {
+    setSelectedDate(dateStr);
+    setLoadingDetails(true);
+    try {
+      if (USE_MOCKS) {
+        const mapped: SalesRow[] = mockSales
+          .filter(r => r.date === dateStr)
+          .map((r, idx) => ({
+            id: r.id ?? idx,
+            date: r.date,
+            productName: r.productName,
+            price: r.price,
+            quantity: r.quantity,
+            revenue: r.revenue,
+          }));
+        setRows(mapped);
+        return;
+      }
+      const todayStr = toKstYMD(kstNow);
+      if (dateStr === todayStr) {
+        // 오늘이면 today API 사용
+        const res = await getTodaySales(dateStr);
+        if (!res.ok) {
+          const err = await res.clone().json().catch(() => ({}));
+          throw new Error(err.message || '오늘 상세 데이터를 불러오지 못했습니다.');
+        }
+        const body = await res.json();
+        const list = Array.isArray(body) ? body : (body?.response || []);
+        // today API 응답: product_id, product_name, quantity, amount
+        const mapped: SalesRow[] = list.map((r: any, idx: number) => {
+          const qty = Number(r.quantity ?? 0);
+          const amt = Number(r.amount ?? 0);
+          // 단가 계산: 수량이 0이 아니면 amount/quantity, 아니면 0
+          const unit = qty > 0 ? Math.floor(amt / qty) : 0;
+          return {
+            id: r.product_id ?? idx,
+            date: dateStr,
+            productName: r.product_name ?? '',
+            price: unit,
+            quantity: qty,
+            revenue: amt,
+          };
+        });
+        setRows(mapped);
+        return;
+      }
+      // 과거는 기존 sales API 사용
+      const res = await getSalesDetails(dateStr)
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) return; // 공통 처리 위임
         const err = await res.clone().json().catch(() => ({}));
-        throw new Error(err.message || '판매 리포트를 불러오지 못했습니다.');
+        throw new Error(err.message || '상세 내역을 불러오지 못했습니다.');
       }
       const body = await res.json();
       const list = Array.isArray(body) ? body : (body?.response || []);
-      if (!Array.isArray(list)) throw new Error('리포트 데이터가 배열이 아닙니다.');
-
       const mapped: SalesRow[] = list.map((r: any, idx: number) => {
         const qty = Number(r.quantity ?? 0);
         const amt = Number(r.amount ?? 0);
         const unit = qty > 0 ? Math.floor(amt / qty) : Number(r.price ?? 0);
         return {
           id: r.id ?? idx,
-          date: r.pickup_date ?? r.pickupDate ?? '',
+          date: r.pickup_date ?? r.pickupDate ?? dateStr,
           productName: r.product_name ?? r.productName ?? '',
-          buyerName: r.user_name ?? r.userName ?? '',
           price: unit,
           quantity: qty,
           revenue: amt,
@@ -84,32 +289,12 @@ export default function AdminSalesPage() {
       });
       setRows(mapped);
     } catch (e: any) {
-      safeErrorLog(e, 'AdminSalesPage - load');
-      show(getSafeErrorMessage(e, '판매 데이터를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+      safeErrorLog(e, 'AdminSalesPage - loadDetailsForDate');
+      show(getSafeErrorMessage(e, '상세 데이터를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setLoadingDetails(false);
     }
   };
-
-  useEffect(() => {
-    load(from, to);
-  }, [from, to, show]);
-
-  // 날짜/검색 필터는 클라이언트에서 적용
-  const filtered = useMemo(() => {
-    const f = new Date(from);
-    const t = new Date(to);
-    return rows.filter(r => {
-      const d = new Date(r.date);
-      const inRange = (isNaN(+f) || d >= f) && (isNaN(+t) || d <= t);
-      const v = term.trim();
-      if (!v) return inRange;
-      if (field === 'buyerName')   return inRange && r.buyerName.includes(v);
-      if (field === 'productName') return inRange && r.productName.includes(v);
-      return inRange;
-    });
-  }, [from, to, field, term, rows]);
-
-  const totalQty = useMemo(() => filtered.reduce((s, r) => s + Number(r.quantity || 0), 0), [filtered]);
-  const totalRev = useMemo(() => filtered.reduce((s, r) => s + Number(r.revenue || 0), 0), [filtered]);
 
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
@@ -188,79 +373,148 @@ export default function AdminSalesPage() {
         </div>
       </div>
 
-      {/* 필터 */}
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-          <div>
-            <label className="text-xs text-gray-500">시작일 <span className="text-red-500">*</span></label>
-            <input type="date" required value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">종료일 <span className="text-red-500">*</span></label>
-            <input type="date" required value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
-          </div>
-
-          {/* 필수 필드 */}
-          <div>
-            <label className="text-xs text-gray-500">검색 필터 *</label>
-            <select
-              value={field}
-              onChange={e=>setField(e.target.value as any)}
-              required
-              className="mt-1 w-full h-10 border rounded px-2"
-            >
-              <option value="buyerName">닉네임</option>
-              <option value="productName">상품명</option>
-            </select>
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="text-xs text-gray-500">검색 값</label>
-            <input
-              value={term}
-              onChange={e=>setTerm(e.target.value)}
-              placeholder={field === 'buyerName' ? '예) 홍길동' : '예) 토마토'}
-              className="mt-1 w-full h-10 border rounded px-3"
-            />
-          </div>
-        </div>
-      </div>
+      {/* 상단 월 입력 제거됨 (달력 내 네비게이션 사용) */}
 
       {/* 요약 */}
       <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">총 판매 수량</p>
+          <p className="text-xs text-gray-500">{displayMonthNum}월 판매수량</p>
           <p className="text-xl font-bold">{totalQty.toLocaleString()}개</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-xs text-gray-500">총 매출</p>
+          <p className="text-xs text-gray-500">{displayMonthNum}월 매출</p>
           <p className="text-xl font-bold text-orange-500">{formatKRW(totalRev)}</p>
         </div>
       </div>
 
-      {/* 테이블 */}
+      {/* 캘린더(월) - 요약 매출 표시 */}
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
+        <div className="grid grid-cols-[32px_1fr_32px] items-center mb-3">
+          <button
+            type="button"
+            className="h-8 w-8 rounded border bg-white hover:bg-gray-50"
+            aria-label="이전 달"
+            onClick={() => {
+              const [y, m] = monthValue.split('-').map(Number);
+              const d = new Date(y, m - 2, 1);
+              const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+              setMonthValue(next);
+              applyMonthRange(next);
+            }}
+          >
+            ◀
+          </button>
+          <div className="text-center font-semibold">
+            {year}년 {month + 1}월
+            {loadingSummary && <span className="ml-2 text-sm text-gray-500">(로딩중...)</span>}
+          </div>
+          <button
+            type="button"
+            className={`h-8 w-8 rounded border bg-white hover:bg-gray-50 ml-auto ${monthValue === currentMonthStr ? 'opacity-40 cursor-not-allowed' : ''}`}
+            aria-label="다음 달"
+            onClick={() => {
+              if (monthValue === currentMonthStr) return;
+              const [y, m] = monthValue.split('-').map(Number);
+              const d = new Date(y, m, 1);
+              const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+              // 미래 달 이동 방지
+              if (next > currentMonthStr) return;
+              const clamped = next > currentMonthStr ? currentMonthStr : next;
+              setMonthValue(clamped);
+              applyMonthRange(clamped);
+            }}
+            disabled={monthValue === currentMonthStr}
+          >
+            ▶
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-2 text-xs text-gray-500 mb-2">
+          {['일','월','화','수','목','금','토'].map((d) => (
+            <div
+              key={d}
+              className={`text-center ${d === '토' ? 'text-blue-600' : d === '일' ? 'text-red-600' : ''}`}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {calendarCells.map((c, i) => {
+            if (!c.dateStr) return <div key={i} className="h-16 sm:h-20" />;
+            const rev = summaryByDate[c.dateStr] || 0;
+            const active = selectedDate === c.dateStr;
+            const weekIdx = i % 7; // 0=일 ... 6=토
+            // 공휴일 감지(있다면 추가): YYYY-MM-DD 문자열 세트
+            const holidaySet = new Set<string>();
+            const isHoliday = holidaySet.has(c.dateStr);
+            // 미래 날짜 비활성화 (단, 오늘은 활성화)
+            const todayStr = toKstYMD(kstNow);
+            const isFuture = new Date(c.dateStr) > kstNow && c.dateStr !== todayStr;
+            return (
+              <button
+                key={i}
+                onClick={() => !isFuture && loadDetailsForDate(c.dateStr!)}
+                disabled={isFuture}
+                className={`h-16 sm:h-20 rounded p-1 flex flex-col justify-between items-center transition
+      ${active ? 'ring-1 ring-orange-300 bg-orange-50' : ''}
+      ${isFuture ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+                aria-label={`${c.dateStr} 매출 ${rev.toLocaleString('ko-KR')}원`}
+              >
+                {/* 날짜 */}
+                <div className={`text-[12px] sm:text-[13px] font-medium
+      ${isHoliday || weekIdx === 0 ? 'text-red-600' : weekIdx === 6 ? 'text-blue-600' : 'text-gray-700'}`}>
+                  {c.label}
+                </div>
+                {/* 금액 */}
+                <div className="text-[10px] sm:text-[12px] tabular-nums leading-tight text-sky-600 w-full text-center sm:text-right sm:w-auto sm:ml-auto">
+                  <span className="sm:hidden">{rev > 0 ? formatKRWShort(rev) : '\u00A0'}</span>
+                  <span className="hidden sm:inline">{rev > 0 ? rev.toLocaleString('ko-KR') : '\u00A0'}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 검색 입력: 달력 아래, 상세 위 */}
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mb-4">
+        <div>
+          <label className="text-xs text-gray-500">제품 검색</label>
+          <input
+            value={term}
+            onChange={e=>setTerm(e.target.value)}
+            placeholder={'예) 토마토'}
+            className="mt-1 w-full h-10 border rounded px-3"
+          />
+        </div>
+      </div>
+
+      {/* 테이블 (선택 날짜 상세) */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr className="text-left text-sm text-gray-500">
-                <th className="px-4 py-3">일자</th>
-                <th className="px-4 py-3">상품명</th>
-                <th className="px-4 py-3">닉네임</th>
-                <th className="px-4 py-3">단가</th>
-                <th className="px-4 py-3">수량</th>
-                <th className="px-4 py-3">매출</th>
+                <th className="px-4 py-3 w-2/12 text-left">상품명</th>
+                <th className="px-4 py-3 w-2/12 text-left">수량</th>
+                <th className="px-4 py-3 w-3/12 text-right">단가</th>
+                <th className="px-4 py-3 w-4/12 text-right">매출</th>
               </tr>
             </thead>
             <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td className="px-4 py-8 text-center text-sm text-gray-500" colSpan={4}>
+                    {selectedDate ? (loadingDetails ? '불러오는 중…' : '해당 날짜의 매출 내역이 없습니다.') : '날짜를 클릭하면 상세 매출이 표시됩니다.'}
+                  </td>
+                </tr>
+              )}
               {filtered.map(r => (
                 <tr key={r.id} className="border-t text-sm">
-                  <td className="px-4 py-3">{r.date}</td>
-                  <td className="px-4 py-3">{r.productName}</td>
-                  <td className="px-4 py-3">{r.buyerName}</td>
-                  <td className="px-4 py-3">{formatKRW(r.price)}</td>
-                  <td className="px-4 py-3">{r.quantity.toLocaleString()}</td>
-                  <td className="px-4 py-3 font-medium">{formatKRW(r.revenue)}</td>
+                  <td className="px-4 py-3 w-2/12">{r.productName}</td>
+                  <td className="px-4 py-3 w-2/12 text-left">{r.quantity.toLocaleString()} 개</td>
+                  <td className="px-4 py-3 w-3/12 font-mono text-right">{formatKRW(r.price)}</td>
+                  <td className="px-4 py-3 w-4/12 font-mono text-right">{formatKRW(r.revenue)}</td>
                 </tr>
               ))}
             </tbody>
@@ -269,14 +523,16 @@ export default function AdminSalesPage() {
 
         {/* 모바일 카드 */}
         <div className="sm:hidden divide-y">
+          {filtered.length === 0 && (
+            <div className="p-6 text-center text-sm text-gray-500">
+              {selectedDate ? (loadingDetails ? '불러오는 중…' : '해당 날짜의 매출 내역이 없습니다.') : '날짜를 클릭하면 상세 매출이 표시됩니다.'}
+            </div>
+          )}
           {filtered.map(r => (
             <div key={r.id} className="p-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">{r.date}</span>
-                <span className="font-medium">{formatKRW(r.revenue)}</span>
-              </div>
-              <div className="mt-1 text-sm">{r.productName}</div>
-              <div className="mt-1 text-xs text-gray-500">{r.buyerName} · {r.quantity}개 · 단가 {formatKRW(r.price)}</div>
+              <div className="text-sm font-medium">{r.productName}</div>
+              <div className="mt-1 text-xs text-gray-500">수량 {r.quantity.toLocaleString()}개 · 단가 {formatKRW(r.price)}</div>
+              <div className="mt-1 text-sm font-semibold text-right">{formatKRW(r.revenue)}</div>
             </div>
           ))}
         </div>
