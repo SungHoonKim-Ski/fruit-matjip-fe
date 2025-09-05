@@ -11,6 +11,7 @@ export type MockProduct = {
   description?: string;
   images?: string[]; // additional gallery images
   totalSold?: number;
+  orderIndex?: number; // 노출 순서
 };
 
 const STORAGE_KEY = 'mock_products_v1';
@@ -46,6 +47,7 @@ const seedProducts: MockProduct[] = [
     description: '안녕하세요! 이것은 <b>굵은 텍스트</b>입니다.<br><br>이것은 보통 크기 텍스트입니다.<br><span style="font-size: 24px">이것은 큰 텍스트입니다.</span><br><span style="font-size: 40px">이것은 매우 큰 텍스트입니다.</span><br><br>여러 줄로 작성된<br>상품 설명입니다.',
     images: ['/images/image1.png', '/images/image2.png'],
     totalSold: 24,
+    orderIndex: 1,
   },
   {
     id: 2,
@@ -57,6 +59,7 @@ const seedProducts: MockProduct[] = [
     description: '감칠맛 좋은 유기농 감자.',
     images: ['/images/image2.png'],
     totalSold: 12,
+    orderIndex: 1,
   },
   {
     id: 3,
@@ -68,6 +71,7 @@ const seedProducts: MockProduct[] = [
     description: '매콤달콤한 햇양파.',
     images: ['/images/image3.png'],
     totalSold: 7,
+    orderIndex: 3,
   },
   {
     id: 4,
@@ -79,6 +83,7 @@ const seedProducts: MockProduct[] = [
     description: '부드럽고 고소한 아보카도.',
     images: ['/images/image1.png'],
     totalSold: 3,
+    orderIndex: 2,
   },
   {
     id: 5,
@@ -90,6 +95,7 @@ const seedProducts: MockProduct[] = [
     description: '달콤한 바나나.',
     images: ['/images/image2.png'],
     totalSold: 18,
+    orderIndex: 2,
   },
   {
     id: 6,
@@ -101,6 +107,7 @@ const seedProducts: MockProduct[] = [
     description: '상큼한 블루베리.',
     images: ['/images/image3.png'],
     totalSold: 11,
+    orderIndex: 1,
   },
   // 관리자 검증용: 고정 날짜 8/10, 8/11, 8/12
   {
@@ -113,6 +120,7 @@ const seedProducts: MockProduct[] = [
     description: '달콤한 복숭아.',
     images: ['/images/image1.png'],
     totalSold: 5,
+    orderIndex: 1,
   },
   {
     id: 8,
@@ -124,6 +132,7 @@ const seedProducts: MockProduct[] = [
     description: '새콤달콤 귤.',
     images: ['/images/image2.png'],
     totalSold: 14,
+    orderIndex: 1,
   },
   {
     id: 9,
@@ -135,6 +144,7 @@ const seedProducts: MockProduct[] = [
     description: '탱글한 샤인머스켓.',
     images: ['/images/image3.png'],
     totalSold: 2,
+    orderIndex: 1,
   },
 ];
 

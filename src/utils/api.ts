@@ -724,6 +724,7 @@ export type AdminProductListItem = {
   status: 'active' | 'inactive';
   imageUrl: string;
   sellDate?: string;
+  orderIndex?: number;
 };
 
 const addImgPrefix = (url?: string) => {
@@ -752,6 +753,7 @@ const mapAdminListItem = (p: any): AdminProductListItem => {
     status: visible ? 'active' : 'inactive',
     imageUrl: addImgPrefix(p.productUrl ?? p.product_url ?? p.imageUrl ?? ''),
     sellDate: (p.sellDate ?? p.sell_date) || undefined,
+    orderIndex: p.order_index ? Number(p.order_index) : undefined,
   };
 };
 
@@ -858,5 +860,49 @@ export const validateAdminSession = async () => {
     const res = await adminFetch('/api/admin/validate', { method: 'GET' }, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 상품 판매일 일괄 변경
+export const bulkUpdateSellDate = async (productIds: number[], sellDate: string) => {
+  const key = 'bulkUpdateSellDate';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const body = {
+      product_ids: productIds,
+      sell_date: sellDate,
+    };
+    const res = await adminFetch('/api/admin/products/bulk-sell-date', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 상품 판매일 일괄 조회
+export const getBulkSellDates = async (productIds: number[]) => {
+  const key = 'getBulkSellDates';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const queryParams = productIds.map(id => `ids=${id}`).join('&');
+    const res = await adminFetch(`/api/admin/products/bulk-sell-date?${queryParams}`, {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 상품 순서 업데이트
+export const updateProductOrder = async (product_ids: number[]) => {
+  const key = 'updateProductOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/products/order', {
+      method: 'PATCH',
+      body: JSON.stringify({ product_ids }),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };

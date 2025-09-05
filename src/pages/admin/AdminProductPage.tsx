@@ -183,83 +183,11 @@ export default function AdminProductPage() {
 
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
-      <div className="max-w-3xl mx-auto mb-6">
-        <div className="flex items-center justify-between gap-3">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
-
-          {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
-          <div className="relative">
-            {/* 데스크탑: AdminHeader */}
-            <div className="hidden md:block">
-              <AdminHeader />
-            </div>
-            
-            {/* 모바일: 햄버거 버튼 */}
-            <button
-              type="button"
-              className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
-              aria-haspopup="menu"
-              aria-expanded={false}
-              aria-label="관리 메뉴"
-              onClick={(event) => {
-                // 모바일에서 AdminHeader의 버튼들을 드롭다운으로 표시
-                const button = event.currentTarget as HTMLElement;
-                const rect = button.getBoundingClientRect();
-                
-                const menu = document.createElement('div');
-                menu.className = 'fixed w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50';
-                menu.style.left = `${rect.right - 176}px`; // 176px = w-44 (44 * 4)
-                menu.style.top = `${rect.top}px`;
-                
-                // 상품 관리 버튼
-                const productsBtn = document.createElement('button');
-                productsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
-                productsBtn.textContent = '📦 상품 관리';
-                productsBtn.onclick = () => window.location.href = '/admin/products';
-                
-                // 상품 등록 버튼
-                const newProductBtn = document.createElement('button');
-                newProductBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
-                newProductBtn.textContent = '➕ 상품 등록';
-                newProductBtn.onclick = () => window.location.href = '/admin/products/new';
-                
-                // 예약 확인 버튼
-                const reservationsBtn = document.createElement('button');
-                reservationsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
-                reservationsBtn.textContent = '🧾 예약 확인';
-                reservationsBtn.onclick = () => window.location.href = '/admin/reservations';
-                
-                // 판매량 확인 버튼
-                const salesBtn = document.createElement('button');
-                salesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50';
-                salesBtn.textContent = '📈 판매량 확인';
-                salesBtn.onclick = () => window.location.href = '/admin/sales';
-                
-                // 버튼들을 메뉴에 추가
-                menu.appendChild(productsBtn);
-                menu.appendChild(newProductBtn);
-                menu.appendChild(reservationsBtn);
-                menu.appendChild(salesBtn);
-                
-                // 기존 메뉴가 있으면 제거
-                const existingMenu = document.querySelector('.mobile-admin-menu');
-                if (existingMenu) {
-                  existingMenu.remove();
-                }
-                
-                menu.classList.add('mobile-admin-menu');
-                document.body.appendChild(menu);
-                
-                // 메뉴 외부 클릭시 닫기
-                const closeMenu = () => {
-                  menu.remove();
-                  document.removeEventListener('click', closeMenu);
-                };
-                setTimeout(() => document.addEventListener('click', closeMenu), 100);
-              }}
-            >
-              ☰
-            </button>
+          <div className="flex justify-end">
+            <AdminHeader />
           </div>
         </div>
 

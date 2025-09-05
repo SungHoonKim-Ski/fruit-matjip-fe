@@ -18,6 +18,7 @@ type Product = {
   sellDate: string; // YYYY-MM-DD
   totalSold?: number;
   reservationId?: number; // 예약 ID (셀프 수령 신청 시 사용)
+  orderIndex?: number; // 노출 순서
 };
 
 const formatPrice = (price: number) =>
@@ -202,6 +203,7 @@ export default function ReservePage() {
             sellDate: p.sell_date || p.sellDate || dates[i % dates.length],
             // 누적 판매량 필드명: total_sold
             totalSold: p.total_sold ?? 0,
+            orderIndex: p.order_index ?? 0,
           })));
         } catch (e: any) {
           safeErrorLog(e, 'ShopPage - loadProducts');
@@ -216,19 +218,36 @@ export default function ReservePage() {
     () => {
       const filtered = products.filter(p => p.sellDate === activeDate);
       
-      // 정렬: 품절이 아닌 상품 우선 → 누적 판매량 높은 순 → 재고 많은 순
+      // 정렬: 품절이 아닌 상품 우선 → orderIndex 오름차순 → 누적 판매량 높은 순 → 재고 많은 순
       return filtered.sort((a, b) => {
         // 1순위: 품절이 아닌 상품이 우선 (stock > 0)
         if (a.stock > 0 && b.stock === 0) return -1;
         if (a.stock === 0 && b.stock > 0) return 1;
         
-        // 2순위: 품절이 아닌 상품들 중에서 누적 판매량이 높은 순
+        // 2순위: 같은 그룹 내에서 orderIndex가 있는 경우 오름차순 정렬
+        if (a.stock > 0 && b.stock > 0) {
+          // 둘 다 품절이 아닌 경우
+          if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
+            return a.orderIndex - b.orderIndex; // 오름차순
+          }
+          if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
+          if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
+        } else if (a.stock === 0 && b.stock === 0) {
+          // 둘 다 품절인 경우
+          if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
+            return a.orderIndex - b.orderIndex; // 오름차순
+          }
+          if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
+          if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
+        }
+        
+        // 3순위: 품절이 아닌 상품들 중에서 누적 판매량이 높은 순
         if (a.stock > 0 && b.stock > 0) {
           if (a.totalSold !== b.totalSold) {
             return (b.totalSold || 0) - (a.totalSold || 0); // 내림차순
           }
           
-          // 3순위: 누적 판매량이 같다면 재고가 많은 순
+          // 4순위: 누적 판매량이 같다면 재고가 많은 순
           return (b.stock - b.quantity) - (a.stock - a.quantity); // 내림차순
         }
         

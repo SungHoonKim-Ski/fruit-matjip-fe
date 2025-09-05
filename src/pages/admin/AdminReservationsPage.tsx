@@ -62,7 +62,6 @@ export default function AdminReservationsPage() {
   const [applying, setApplying] = useState(false);
   const [warningId, setWarningId] = useState<number | null>(null); // 경고 처리 중인 예약 ID
   const [warningDialog, setWarningDialog] = useState<{ isOpen: boolean; id: number; productName: string; buyerName: string; quantity: number }>({ isOpen: false, id: 0, productName: '', buyerName: '', quantity: 0 });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 모바일 메뉴 상태
 
   // 다중 선택 & 일괄 변경 상태
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -520,77 +519,12 @@ export default function AdminReservationsPage() {
 
   return (
   <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
-    <div className="max-w-4xl mx-auto flex items-center justify-between mb-4">
-      <h1 className="text-2xl font-bold text-gray-800">🧾 예약 확인</h1>
-      
-      {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
-      <div className="relative">
-        {/* 데스크탑: AdminHeader */}
-        <div className="hidden md:block">
+    <div className="max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">🧾 예약 확인</h1>
+        <div className="flex justify-end">
           <AdminHeader />
         </div>
-        
-        {/* 모바일: 햄버거 버튼 */}
-        <button
-          type="button"
-          className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded bg-white border border-gray-300 shadow-sm hover:shadow active:scale-[0.98]"
-          aria-haspopup="menu"
-          aria-expanded={mobileMenuOpen}
-          aria-label="관리 메뉴"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          ☰
-        </button>
-        
-        {/* 모바일 드롭다운 메뉴 */}
-        {mobileMenuOpen && (
-          <div className="absolute right-0 top-0 w-44 rounded-lg border bg-white shadow-lg overflow-hidden z-50 md:hidden">
-            <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-50"
-              onClick={() => { 
-                setMobileMenuOpen(false); 
-                if (window.location.pathname !== '/admin/products') {
-                  window.location.href = '/admin/products';
-                }
-              }}
-            >
-              📦 상품 관리
-            </button>
-            <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-50"
-              onClick={() => { 
-                setMobileMenuOpen(false); 
-                if (window.location.pathname !== '/admin/products/new') {
-                  window.location.href = '/admin/products/new';
-                }
-              }}
-            >
-              ➕ 상품 등록
-            </button>
-            <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-50"
-              onClick={() => { 
-                setMobileMenuOpen(false); 
-                if (window.location.pathname !== '/admin/reservations') {
-                  window.location.href = '/admin/reservations';
-                }
-              }}
-            >
-              🧾 예약 확인
-            </button>
-            <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-50"
-              onClick={() => { 
-                setMobileMenuOpen(false); 
-                if (window.location.pathname !== '/admin/sales') {
-                  window.location.href = '/admin/sales';
-                }
-              }}
-            >
-              📈 판매량 확인
-            </button>
-          </div>
-        )}
       </div>
     </div>
 
