@@ -566,7 +566,25 @@ export default function OrdersPage() {
               >
                 예약 취소
               </button>
-              {statusDialog.currentStatus === 'pending' && canSelfPick && !isAfter6PM && (
+              {statusDialog.currentStatus === 'pending' && canSelfPick === true && (() => {
+                // 주문일 기준으로 18시 체크
+                const targetOrder = orders.find(o => o.id === statusDialog.orderId);
+                if (!targetOrder) return false;
+                
+                const orderDate = new Date(targetOrder.date + 'T00:00:00');
+                const now = new Date();
+                const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const orderDateOnly = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+                
+                // 주문일이 오늘인 경우에만 18시 체크
+                if (orderDateOnly.getTime() === todayDate.getTime()) {
+                  const currentHour = now.getHours();
+                  return currentHour < 18;
+                }
+                
+                // 주문일이 미래인 경우는 항상 가능
+                return true;
+              })() && (
                 <button
                   onClick={() => {
                     // pending -> self_pick
