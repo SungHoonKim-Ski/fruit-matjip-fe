@@ -98,11 +98,14 @@ export default function ReservePage() {
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
   
+  // 검색 모달 상태
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  
 
 
-  // 모달(상세/닉네임/개인정보/셀프수령) 오픈 시 백그라운드 스크롤 잠금
+  // 모달(상세/닉네임/개인정보/셀프수령/검색) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
-    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen;
+    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen;
     if (anyOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -110,7 +113,7 @@ export default function ReservePage() {
         document.body.style.overflow = prev || '';
       };
     }
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen]);
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
     const onPopState = () => {
@@ -130,14 +133,25 @@ export default function ReservePage() {
         setSelfPickDialog({ isOpen: false, product: null });
         return;
       }
+      if (searchModalOpen) {
+        setSearchModalOpen(false);
+        return;
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen]);
 
   // 날짜 탭
   const dates = useMemo(() => getNext3Days(), []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
+  
+  // 검색어 (상품명)
+  const [search, setSearch] = useState('');
+  
+  // 임시 검색어 (모달에서 입력 중인 검색어)
+  const [tempSearch, setTempSearch] = useState('');
+  
   // Load data from mock or API
   useEffect(() => {
     const loadProducts = async () => {
@@ -214,12 +228,18 @@ export default function ReservePage() {
     loadProducts();
   }, [show, dates]);
 
+
   const productsOfDay = useMemo(
     () => {
       const filtered = products.filter(p => p.sellDate === activeDate);
       
+      // 검색어 필터링
+      const searchQuery = search.trim().toLowerCase();
+      const searchFiltered = searchQuery === '' ? filtered : 
+        filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
+      
       // 정렬: 품절이 아닌 상품 우선 → orderIndex 오름차순 → 누적 판매량 높은 순 → 재고 많은 순
-      return filtered.sort((a, b) => {
+      return searchFiltered.sort((a, b) => {
         // 1순위: 품절이 아닌 상품이 우선 (stock > 0)
         if (a.stock > 0 && b.stock === 0) return -1;
         if (a.stock === 0 && b.stock > 0) return 1;
@@ -259,9 +279,97 @@ export default function ReservePage() {
         return 0;
       });
     },
-    [products, activeDate]
+    [products, activeDate, search]
   );
   const countOf = (date: string) => products.filter(p => p.sellDate === date).length;
+
+  // 임시 검색어로 필터링된 상품 목록 (모달에서 미리보기용)
+  const getFilteredProductsByDate = (searchQuery: string) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query === '') return products;
+    
+    return products.filter(p => p.name.toLowerCase().includes(query));
+  };
+
+  // 날짜별 필터링된 상품 개수
+  const getFilteredCountByDate = (date: string, searchQuery: string) => {
+    const filteredProducts = getFilteredProductsByDate(searchQuery);
+    return filteredProducts.filter(p => p.sellDate === date).length;
+  };
+
+  // 검색어 하이라이트 함수
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 px-1 rounded">{part}</mark>
+      ) : part
+    );
+  };
+
+  // 검색 모달 열기/닫기
+  const openSearchModal = () => {
+    setTempSearch(search); // 현재 검색어를 임시 검색어로 설정
+    setSearchModalOpen(true);
+    window.history.pushState({ modal: 'search' }, '');
+  };
+
+  const closeSearchModal = () => {
+    setSearchModalOpen(false);
+    setTempSearch(''); // 임시 검색어 초기화
+  };
+
+  // 검색 결과가 있는 가장 가까운 날짜 찾기
+  const findClosestDateWithResults = (searchQuery: string) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query === '') return null;
+    
+    const filteredProducts = products.filter(p => p.name.toLowerCase().includes(query));
+    if (filteredProducts.length === 0) return null;
+    
+    // 검색 결과가 있는 날짜들
+    const datesWithResults = filteredProducts.map(p => p.sellDate);
+    const uniqueDates = [...new Set(datesWithResults)];
+    
+    if (uniqueDates.length === 0) return null;
+    
+    // 현재 활성 날짜와의 거리 계산
+    const currentDateIndex = dates.indexOf(activeDate);
+    let closestDate = uniqueDates[0];
+    let minDistance = Math.abs(dates.indexOf(closestDate) - currentDateIndex);
+    
+    for (const date of uniqueDates) {
+      const distance = Math.abs(dates.indexOf(date) - currentDateIndex);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestDate = date;
+      }
+    }
+    
+    return closestDate;
+  };
+
+  // 검색 적용
+  const applySearch = () => {
+    setSearch(tempSearch);
+    setSearchModalOpen(false);
+    
+    // 검색 결과가 있으면 해당 날짜로 이동
+    const closestDate = findClosestDateWithResults(tempSearch);
+    if (closestDate) {
+      setActiveDate(closestDate);
+    }
+  };
+
+  // 검색 초기화
+  const clearSearch = () => {
+    setSearch('');
+    setTempSearch('');
+  };
 
   // 상품이 있는 날짜만 노출
   const availableDates = useMemo(() => dates.filter(d => countOf(d) > 0), [dates, products]);
@@ -426,6 +534,7 @@ export default function ReservePage() {
     const w = '일월화수목금토'[d.getDay()];
     return `${d.getMonth() + 1}월${d.getDate()}일 (${w})`;
   };
+
 
   // 닉네임 모달
   const openNickModal = () => {
@@ -768,10 +877,25 @@ export default function ReservePage() {
           </div>
         </div>
 
+
+
         {/* 전체 비어있을 때 안내 */}
         {availableDates.length === 0 && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             현재 예약중인 상품이 없습니다.
+          </div>
+        )}
+
+
+        {/* 검색 결과 없음 */}
+        {availableDates.length > 0 && productsOfDay.length === 0 && search && (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            <div className="text-sm">
+              <span className="font-medium text-orange-600">"{search}"</span>에 대한 검색 결과가 없습니다.
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              다른 검색어를 시도해보세요.
+            </div>
           </div>
         )}
 
@@ -822,7 +946,7 @@ export default function ReservePage() {
                   onClick={() => openDetail(item.id)}
                   role="button"
                 >
-                  <span className="truncate hover:underline">{item.name}</span>
+                  <span className="truncate hover:underline">{highlightSearchTerm(item.name, search)}</span>
                   <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{item.stock === 0 ? formatPrice(item.price) : formatPrice(item.price * item.quantity)}</span>
                 </h2>
                 <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
@@ -889,10 +1013,36 @@ export default function ReservePage() {
           ))}
         </div>
         )}
+
       </section>      
       <FloatingActions
         orderPath="/me/orders"  
       />
+
+      {/* FAB 통합 검색/필터 초기화 버튼 */}
+      <button
+        onClick={search ? clearSearch : openSearchModal}
+        className={`fixed bottom-20 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
+          search ? 'border border-blue-500' : 'border-2 border-blue-500'
+        }`}
+        aria-label={search ? "필터 초기화" : "상품 검색"}
+      >
+        {search ? (
+          // 필터 초기화 아이콘 (필터)
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+          </svg>
+        ) : (
+          // 검색 아이콘 (돋보기)
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        )}
+        <span className="text-sm font-bold text-gray-900">
+          {search ? '초기화' : ''}
+        </span>
+      </button>
 
       {/* 셀프 수령 확인 Dialog */}
       {selfPickDialog.isOpen && selfPickDialog.product && (
@@ -1144,6 +1294,108 @@ export default function ReservePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 검색 모달 */}
+      {searchModalOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center p-4"
+          aria-modal="true"
+          role="dialog"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
+            {/* 검색 헤더 */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">상품 검색</h2>
+              <button
+                onClick={closeSearchModal}
+                className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                aria-label="검색창 닫기"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* 검색 입력 */}
+            <div className="p-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={tempSearch}
+                  onChange={e => setTempSearch(e.target.value)}
+                  placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
+                  className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                  autoFocus
+                />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
+                {tempSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setTempSearch('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm w-6 h-6 flex items-center justify-center"
+                    aria-label="검색어 지우기"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* 날짜별 검색 결과 미리보기 */}
+            {tempSearch && (
+              <div className="px-4 pb-4">
+                <div className="text-sm font-medium text-gray-700 mb-3">검색 결과 미리보기</div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {availableDates.map(date => {
+                    const count = getFilteredCountByDate(date, tempSearch);
+                    if (count === 0) return null;
+                    
+                    return (
+                      <div key={date} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="text-sm font-medium text-gray-800">
+                          {prettyKdate(date)}
+                        </div>
+                        <div className="text-sm text-orange-600 font-semibold">
+                          {count}개 상품
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* 검색 결과 없음 */}
+                {availableDates.every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
+                  <div className="text-center text-gray-500 py-6">
+                    <div className="text-sm">
+                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      다른 검색어를 시도해보세요.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* 버튼 영역 */}
+            <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                onClick={closeSearchModal}
+                className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={applySearch}
+                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+              >
+                검색 적용
+              </button>
+            </div>
+            
           </div>
         </div>
       )}
