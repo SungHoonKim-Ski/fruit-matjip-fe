@@ -1326,6 +1326,11 @@ export default function ReservePage() {
                   type="text"
                   value={tempSearch}
                   onChange={e => setTempSearch(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      applySearch();
+                    }
+                  }}
                   placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
                   className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
                   autoFocus
