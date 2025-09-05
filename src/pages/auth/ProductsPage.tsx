@@ -152,6 +152,9 @@ export default function ReservePage() {
   // 임시 검색어 (모달에서 입력 중인 검색어)
   const [tempSearch, setTempSearch] = useState('');
   
+  // 선택된 날짜의 상품 목록 표시 상태
+  const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
+  
   // Load data from mock or API
   useEffect(() => {
     const loadProducts = async () => {
@@ -295,6 +298,12 @@ export default function ReservePage() {
   const getFilteredCountByDate = (date: string, searchQuery: string) => {
     const filteredProducts = getFilteredProductsByDate(searchQuery);
     return filteredProducts.filter(p => p.sellDate === date).length;
+  };
+
+  // 선택된 날짜의 필터링된 상품 목록
+  const getFilteredProductsForDate = (date: string, searchQuery: string) => {
+    const filteredProducts = getFilteredProductsByDate(searchQuery);
+    return filteredProducts.filter(p => p.sellDate === date);
   };
 
   // 검색어 하이라이트 함수
@@ -1350,7 +1359,7 @@ export default function ReservePage() {
             </div>
             
             {/* 날짜별 검색 결과 미리보기 */}
-            {tempSearch && (
+            {tempSearch && !selectedDateForProducts && (
               <div className="px-4 pb-4">
                 <div className="text-sm font-medium text-gray-700 mb-3">검색 결과 미리보기</div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -1359,7 +1368,13 @@ export default function ReservePage() {
                     if (count === 0) return null;
                     
                     return (
-                      <div key={date} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div 
+                        key={date} 
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => {
+                          setSelectedDateForProducts(date);
+                        }}
+                      >
                         <div className="text-sm font-medium text-gray-800">
                           {prettyKdate(date)}
                         </div>
@@ -1382,6 +1397,55 @@ export default function ReservePage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 선택된 날짜의 상품 목록 */}
+            {selectedDateForProducts && (
+              <div className="px-4 pb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm font-medium text-gray-700">
+                    {prettyKdate(selectedDateForProducts)} 상품 목록
+                  </div>
+                  <button
+                    onClick={() => setSelectedDateForProducts(null)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    ← 뒤로
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {getFilteredProductsForDate(selectedDateForProducts, tempSearch).map(product => (
+                    <div
+                      key={product.id}
+                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => {
+                        // 해당 상품의 이름으로 정확한 검색 적용
+                        setSearch(product.name);
+                        setActiveDate(product.sellDate);
+                        setSearchModalOpen(false);
+                        setSelectedDateForProducts(null);
+                      }}
+                    >
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-12 h-12 rounded object-cover border"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-gray-800">
+                          {highlightSearchTerm(product.name, tempSearch)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {product.price.toLocaleString()}원
+                        </div>
+                      </div>
+                      <div className="text-xs text-orange-600 font-semibold">
+                        {product.stock > 0 ? '재고 있음' : '품절'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             
