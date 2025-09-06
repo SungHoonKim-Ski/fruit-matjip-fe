@@ -66,7 +66,7 @@ export default function AdminHeader() {
     // 판매일 변경 버튼
     const bulkSellDateBtn = document.createElement('button');
     bulkSellDateBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    bulkSellDateBtn.innerHTML = '📅 판매일 변경';
+    bulkSellDateBtn.innerHTML = '📅 판매일 일괄 변경';
     bulkSellDateBtn.onclick = () => {
       goBulkSellDate();
       menu.remove();
