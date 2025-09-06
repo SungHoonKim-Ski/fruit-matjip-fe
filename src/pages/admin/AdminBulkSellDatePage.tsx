@@ -312,49 +312,54 @@ export default function AdminBulkSellDatePage() {
                         
                         {/* 상품 정보 */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
+                          <h3 className="text-base font-semibold text-gray-900 truncate mb-2">
                             {highlightSearchTerm(product.name, search)}
                           </h3>
                           
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                            <span>재고: {product.stock}개</span>
-                          </div>
-                          
-                          {/* 판매일 표시 */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">판매일:</span>
-                            <span className="text-sm font-medium text-gray-900">
-                              {product.sellDate || '미설정'}
-                            </span>
-                            {product.sellDate && (
-                              <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                (() => {
-                                  if (!product.sellDate) return 'bg-gray-100 text-gray-600';
-                                  
-                                  // KST 기준으로 오늘 날짜 계산
-                                  const now = new Date();
-                                  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                                  const todayStr = kstNow.toISOString().split('T')[0];
-                                  
-                                  if (product.sellDate > todayStr) return 'bg-blue-100 text-blue-800'; // 미래 - 파란색
-                                  if (product.sellDate === todayStr) return 'bg-red-100 text-red-800'; // 당일 - 빨간색
-                                  return 'bg-yellow-100 text-yellow-800'; // 지난 날 - 노란색
-                                })()
-                              }`}>
-                                {(() => {
-                                  if (!product.sellDate) return '미설정';
-                                  
-                                  // KST 기준으로 오늘 날짜 계산
-                                  const now = new Date();
-                                  const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                                  const todayStr = kstNow.toISOString().split('T')[0];
-                                  
-                                  if (product.sellDate > todayStr) return '예정';
-                                  if (product.sellDate === todayStr) return '당일';
-                                  return '종료';
-                                })()}
-                              </span>
-                            )}
+                          {/* 판매일 표시 - yy/mm 형식 */}
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              {product.sellDate ? (
+                                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                  (() => {
+                                    // KST 기준으로 오늘 날짜 계산
+                                    const now = new Date();
+                                    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                                    const todayStr = kstNow.toISOString().split('T')[0];
+                                    
+                                    if (product.sellDate > todayStr) return 'bg-blue-100 text-blue-800'; // 미래 - 파란색
+                                    if (product.sellDate === todayStr) return 'bg-red-100 text-red-800'; // 당일 - 빨간색
+                                    return 'bg-yellow-100 text-yellow-800'; // 지난 날 - 노란색
+                                  })()
+                                }`}>
+                                  {(() => {
+                                    // 날짜를 mm/dd 형식으로 변환
+                                    const date = new Date(product.sellDate);
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    
+                                    // KST 기준으로 오늘 날짜 계산
+                                    const now = new Date();
+                                    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                                    const todayStr = kstNow.toISOString().split('T')[0];
+                                    
+                                    let status = '';
+                                    if (product.sellDate > todayStr) status = '판매예정';
+                                    else if (product.sellDate === todayStr) status = '판매당일';
+                                    else status = '판매종료';
+                                    
+                                    return `${month}/${day} ${status}`;
+                                  })()}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-600">
+                                  미설정
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              재고: {product.stock}개
+                            </div>
                           </div>
                         </div>
                       </div>
