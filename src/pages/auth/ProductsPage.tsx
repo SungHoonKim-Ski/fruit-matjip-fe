@@ -284,7 +284,16 @@ export default function ReservePage() {
     },
     [products, activeDate, search]
   );
-  const countOf = (date: string) => products.filter(p => p.sellDate === date).length;
+  const countOf = (date: string) => {
+    const filtered = products.filter(p => p.sellDate === date);
+    
+    // 검색어 필터링
+    const searchQuery = search.trim().toLowerCase();
+    const searchFiltered = searchQuery === '' ? filtered : 
+      filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
+    
+    return searchFiltered.length;
+  };
 
   // 임시 검색어로 필터링된 상품 목록 (모달에서 미리보기용)
   const getFilteredProductsByDate = (searchQuery: string) => {
@@ -873,14 +882,14 @@ export default function ReservePage() {
 
       <section className="w-full max-w-md">
         {/* 안내 카드 */}
-        <div className="bg-white p-5 rounded-xl shadow mb-6 text-center">
-          <h1 className="text-lg font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
-          <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
-            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-2">
+        <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
+          <h1 className="text-base font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
+          <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
+            <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⏰</span>
               <span>당일 모든 주문 마감시간은 <strong className="text-orange-900">18:00</strong>입니다</span>
             </p>
-            <p className="text-xs text-orange-700 mt-1">
+            <p className="text-[10px] text-orange-700 mt-0.5">
               (셀프수령 여부 체크포함)
             </p>
           </div>
@@ -910,14 +919,17 @@ export default function ReservePage() {
 
         {/* 날짜 탭 (상품 없는 날짜는 비노출) */}
         {availableDates.length > 0 && (
-          <div className="mt-2 mb-4">
+          <div className="sticky top-14 z-30 bg-white mt-2 mb-4 py-2">
             <div className="flex items-center justify-start gap-2 overflow-x-auto no-scrollbar pl-3 pr-3">
               {availableDates.map(date => {
                 const active = activeDate === date;
                 return (
                   <button
                     key={date}
-                    onClick={() => setActiveDate(date)}
+                    onClick={() => {
+                      setActiveDate(date);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className={
                       'px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition ' +
                       (active
@@ -925,8 +937,8 @@ export default function ReservePage() {
                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
                     }
                   >
-                    <div className="font-semibold">{prettyKdate(date)}</div>
-                    <div className="text-[11px] mt-1 text-center text-gray-600">
+                    <div className="font-semibold text-sm">{prettyKdate(date)}</div>
+                    <div className="text-[10px] mt-1 text-center text-gray-600">
                       {countOf(date)}개 상품 예약중
                     </div>
                   </button>
@@ -938,48 +950,43 @@ export default function ReservePage() {
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
-        <div className="space-y-4 mb-6">
+        <div className="space-y-2 mb-6">
           {productsOfDay.map((item) => (
             <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
               <img
                 src={item.imageUrl}
                 alt={item.name}
-                className="w-full aspect-[4/3] object-cover cursor-pointer"
+                className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
                 onClick={() => openDetail(item.id)}
                 role="button"
                 aria-label={`${item.name} 상세보기`}
               />
-              <div className="p-4">
-                <h2
-                  className="font-semibold cursor-pointer flex items-center justify-between gap-2 text-[clamp(1rem,4.5vw,1.25rem)] leading-tight"
-                  onClick={() => openDetail(item.id)}
-                  role="button"
-                >
-                  <span className="truncate hover:underline">{highlightSearchTerm(item.name, search)}</span>
-                  <span className="text-xl text-orange-500 font-semibold flex-shrink-0">{item.stock === 0 ? formatPrice(item.price) : formatPrice(item.price * item.quantity)}</span>
-                </h2>
-                <div className="flex justify-between text-sm text-gray-500 flex items-center justify-between gap-2">
-                  <span>누적 판매 : {item.totalSold ?? 0}개</span>
-                  {item.stock > 0 && (
+              <div className="p-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h2
+                    className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
+                    onClick={() => openDetail(item.id)}
+                    role="button"
+                  >
+                    <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
+                  </h2>
+                  <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
+                </div>
+                {item.stock > 0 && (
+                  <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
+                    <div>
+                      {(item.stock - item.quantity) < LOW_STOCK_THRESHOLD && (
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">품절임박</span>
+                      )}
+                    </div>
                     <span className="text-l">
                       {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                      {(item.stock - item.quantity) < LOW_STOCK_THRESHOLD && (
-                        <span className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
-                          style={{
-                            backgroundColor: '#FECACA',
-                            borderColor: '#e5e7eb',
-                            color: '#374151'
-                          }}
-                        >
-                          품절임박
-                        </span>
-                      )}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-10">
+                <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
                     <button
                       onClick={() => handleQuantity(item.id, -1)}
                       className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
@@ -1003,7 +1010,7 @@ export default function ReservePage() {
                   <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
                     <button
                       onClick={() => openDetail(item.id)}
-                      className="flex-1 h-10 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
+                      className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
                       type="button"
                     >
                       자세히 보기
@@ -1011,7 +1018,7 @@ export default function ReservePage() {
                     <button
                       onClick={() => handleReserve(item)}
                       disabled={item.stock === 0}
-                      className={`flex-1 h-10 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                     >
                       {item.stock === 0 ? '품절' : '예약하기'}
                     </button>
@@ -1361,7 +1368,6 @@ export default function ReservePage() {
             {/* 날짜별 검색 결과 미리보기 */}
             {tempSearch && !selectedDateForProducts && (
               <div className="px-4 pb-4">
-                <div className="text-sm font-medium text-gray-700 mb-3">검색 결과 미리보기</div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {availableDates.map(date => {
                     const count = getFilteredCountByDate(date, tempSearch);
