@@ -18,6 +18,11 @@ export default function AdminBulkSellDatePage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const navigate = useNavigate();
 
+  // 검색 관련 상태
+  const [search, setSearch] = useState('');
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [tempSearch, setTempSearch] = useState('');
+
   // 상품 목록 로드 및 정렬 (미래~과거순)
   useEffect(() => {
     const loadProducts = async () => {
@@ -141,11 +146,53 @@ export default function AdminBulkSellDatePage() {
     setNewSellDate(todayStr);
   }, []);
 
-  // 날짜별로 상품 그룹화
+  // 검색 관련 함수들
+  const getFilteredProducts = (searchQuery: string) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query === '') return products;
+    
+    return products.filter(p => p.name.toLowerCase().includes(query));
+  };
+
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 px-1 rounded">{part}</mark>
+      ) : part
+    );
+  };
+
+  const openSearchModal = () => {
+    setTempSearch(search);
+    setSearchModalOpen(true);
+  };
+
+  const closeSearchModal = () => {
+    setSearchModalOpen(false);
+    setTempSearch('');
+  };
+
+  const applySearch = () => {
+    setSearch(tempSearch);
+    setSearchModalOpen(false);
+  };
+
+  const clearSearch = () => {
+    setSearch('');
+    setTempSearch('');
+  };
+
+  // 날짜별로 상품 그룹화 (검색 필터링 포함)
   const groupedProducts = React.useMemo(() => {
+    const filteredProducts = getFilteredProducts(search);
     const groups: { [key: string]: Product[] } = {};
     
-    products.forEach(product => {
+    filteredProducts.forEach(product => {
       const dateKey = product.sellDate || '미설정';
       if (!groups[dateKey]) {
         groups[dateKey] = [];
@@ -161,7 +208,7 @@ export default function AdminBulkSellDatePage() {
     });
     
     return sortedGroups;
-  }, [products]);
+  }, [products, search]);
 
   // 날짜 포맷팅 함수
   const formatDate = (dateStr: string) => {
@@ -265,7 +312,9 @@ export default function AdminBulkSellDatePage() {
                         
                         {/* 상품 정보 */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">{product.name}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
+                            {highlightSearchTerm(product.name, search)}
+                          </h3>
                           
                           <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
                             <span>재고: {product.stock}개</span>
@@ -383,6 +432,112 @@ export default function AdminBulkSellDatePage() {
                   className="flex-1 h-10 rounded bg-orange-500 hover:bg-orange-600 text-white font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {isLoading ? '변경 중...' : '변경하기'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FAB 검색 버튼 */}
+        <button
+          onClick={search ? clearSearch : openSearchModal}
+          className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
+            search ? 'border border-blue-500' : 'border-2 border-blue-500'
+          }`}
+          aria-label={search ? "필터 초기화" : "상품 검색"}
+        >
+          {search ? (
+            // 필터 초기화 아이콘 (필터)
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+              <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+            </svg>
+          ) : (
+            // 검색 아이콘 (돋보기)
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+          )}
+          <span className="text-sm font-bold text-gray-900">
+            {search ? '초기화' : ''}
+          </span>
+        </button>
+
+        {/* 검색 모달 */}
+        {searchModalOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
+            <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
+              {/* 검색 헤더 */}
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold text-gray-800">상품 검색</h2>
+                <button
+                  onClick={closeSearchModal}
+                  className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                  aria-label="검색창 닫기"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* 검색 입력 */}
+              <div className="p-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={tempSearch}
+                    onChange={e => setTempSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        applySearch();
+                      }
+                    }}
+                    placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
+                    className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                    autoFocus
+                  />
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
+                  {tempSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTempSearch('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm w-6 h-6 flex items-center justify-center"
+                      aria-label="검색어 지우기"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* 검색 결과 요약 */}
+              {tempSearch && (
+                <div className="px-4 pb-4">
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <div className="text-sm text-orange-800">
+                      <span className="font-medium">"{tempSearch}"</span> 검색 결과: <span className="font-semibold">{getFilteredProducts(tempSearch).length}개</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* 버튼 영역 */}
+              <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+                <button
+                  onClick={closeSearchModal}
+                  className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={applySearch}
+                  className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+                >
+                  검색 적용
                 </button>
               </div>
             </div>
