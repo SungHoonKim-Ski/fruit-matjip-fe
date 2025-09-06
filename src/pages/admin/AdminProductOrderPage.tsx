@@ -283,46 +283,7 @@ const OrderEditDialog = ({
     }, 100); // 상태 업데이트 후 스크롤
   };
   
-  // 순서가 중복되었는지 확인하는 함수
-  const isDuplicateOrder = (order: number) => {
-    // 해당 순서를 사용 중인 제품 ID 목록
-    const productsWithOrder: number[] = [];
-    
-    products.forEach(p => {
-      if (productOrders.get(p.id) === order) {
-        productsWithOrder.push(p.id);
-      }
-    });
-    
-    // 2개 이상의 제품이 같은 순서를 사용하면 중복
-    return productsWithOrder.length > 1;
-  };
-  
-  // 특정 제품의 특정 순서가 중복인지 확인하는 함수
-  const isOrderDuplicate = (productId: number, order: number) => {
-    // 현재 제품의 순서가 주어진 순서와 같고, 그 순서가 중복이면 true
-    return productOrders.get(productId) === order && isDuplicateOrder(order);
-  };
 
-  // 사용되지 않은 순서들을 계산하는 함수
-  const getUnusedOrders = () => {
-    const usedOrders = new Set<number>();
-    products.forEach(p => {
-      const order = productOrders.get(p.id);
-      if (order) {
-        usedOrders.add(order);
-      }
-    });
-    
-    const unusedOrders: number[] = [];
-    for (let i = 1; i <= products.length; i++) {
-      if (!usedOrders.has(i)) {
-        unusedOrders.push(i);
-      }
-    }
-    
-    return unusedOrders;
-  };
 
   // 특정 제품으로 스크롤하는 함수
   const scrollToProduct = (productId: number) => {
@@ -332,23 +293,6 @@ const OrderEditDialog = ({
     }
   };
 
-  // 충돌이 있는지 확인하는 함수
-  const hasConflicts = () => {
-    const orderCounts = new Map<number, number>();
-    
-    products.forEach(p => {
-      const order = productOrders.get(p.id);
-      if (order !== undefined) {
-        orderCounts.set(order, (orderCounts.get(order) || 0) + 1);
-      }
-    });
-    
-    // 0이 있거나 2개 이상의 제품이 같은 순서를 사용하면 충돌
-    const hasZeroOrders = Array.from(orderCounts.keys()).some(order => order === 0);
-    const hasDuplicates = Array.from(orderCounts.values()).some(count => count > 1);
-    
-    return hasZeroOrders || hasDuplicates;
-  };
 
   if (!isOpen) return null;
 
@@ -360,26 +304,6 @@ const OrderEditDialog = ({
           <div>상품 노출 순서 변경</div>
         </h3>
         
-        {/* 빈 순서 목록 */}
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">빈 순서:</p>
-          <div className="flex flex-wrap gap-2">
-            {getUnusedOrders().map(order => (
-              <button
-                key={order}
-                onClick={() => {
-                  if (selectedProductId) {
-                    handleOrderChange(selectedProductId, order);
-                  }
-                }}
-                disabled={!selectedProductId}
-                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {order}
-              </button>
-            ))}
-          </div>
-        </div>
         
         {/* 제품 목록 */}
         <div className="flex-1 overflow-y-auto">
@@ -393,7 +317,6 @@ const OrderEditDialog = ({
             <tbody>
               {sortedProducts.map((product) => {
                 const currentOrder = productOrders.get(product.id) || 1;
-                const isDuplicate = isOrderDuplicate(product.id, currentOrder);
                 const isSelected = selectedProductId === product.id;
                 
                 return (
@@ -403,8 +326,6 @@ const OrderEditDialog = ({
                     onClick={() => setSelectedProductId(product.id)}
                     className={`cursor-pointer hover:bg-gray-50 ${
                       isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                    } ${
-                      isDuplicate ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-500' : ''
                     }`}
                   >
                     <td className="py-3 px-3">
@@ -426,24 +347,10 @@ const OrderEditDialog = ({
                       <select
                         value={currentOrder}
                         onChange={(e) => handleOrderChange(product.id, parseInt(e.target.value))}
-                        className={`w-20 px-2 py-1 text-sm border rounded ${
-                          isDuplicate
-                            ? 'border-red-300 text-red-600 bg-red-50 focus:ring-red-300 focus:border-red-300'
-                            : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                        }`}
+                        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option
-                          value={0}
-                          className={isDuplicateOrder(0) ? 'text-red-600 bg-red-50' : ''}
-                        >
-                          0 (미설정)
-                        </option>
                         {Array.from({ length: products.length }, (_, i) => i + 1).map(num => (
-                          <option
-                            key={num}
-                            value={num}
-                            className={isDuplicateOrder(num) ? 'text-red-600 bg-red-50' : ''}
-                          >
+                          <option key={num} value={num}>
                             {num}
                           </option>
                         ))}
@@ -466,14 +373,9 @@ const OrderEditDialog = ({
           </button>
           <button
             onClick={() => onSave(sortedProducts, productOrders)}
-            disabled={hasConflicts()}
-            className={`flex-1 h-10 rounded font-medium ${
-              hasConflicts()
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-orange-500 hover:bg-orange-600 text-white'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            className="flex-1 h-10 rounded bg-orange-500 hover:bg-orange-600 text-white font-medium"
           >
-            {hasConflicts() ? '순서 중복' : '변경하기'}
+            변경하기
           </button>
         </div>
       </div>
