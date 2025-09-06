@@ -235,8 +235,8 @@ export default function ProductCreatePage() {
             value={form.name}
             onChange={handleChange}
             className="w-full border px-3 py-2 rounded"
-            placeholder="상품명을 입력하세요 (최대 20자)"
-            maxLength={20}
+            placeholder="상품명을 입력하세요 (최대 30자)"
+            maxLength={30}
             required
           />
         </div>

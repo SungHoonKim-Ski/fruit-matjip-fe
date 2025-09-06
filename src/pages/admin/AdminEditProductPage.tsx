@@ -523,8 +523,8 @@ export default function AdminEditProductPage() {
       show('상품 이미지를 업로드해주세요.', { variant: 'error' });
       return false;
     }
-    if (form.name.trim().length > 20) {
-      show('상품명은 20자 이하로 입력해주세요.', { variant: 'error' });
+    if (form.name.trim().length > 30) {
+      show('상품명은 30자 이하로 입력해주세요.', { variant: 'error' });
       return false;
     }
     if (form.description) {
@@ -753,6 +753,7 @@ export default function AdminEditProductPage() {
               onChange={onChange}
               className="mt-1 w-full h-10 border rounded px-3"
               placeholder="예) 신선한 토마토 1kg"
+              maxLength={30}
             />
           </div>
 
