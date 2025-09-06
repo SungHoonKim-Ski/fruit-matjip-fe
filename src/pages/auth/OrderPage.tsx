@@ -64,6 +64,11 @@ export default function OrdersPage() {
     newStatus: 'canceled'
   });
 
+  // 검색 관련 상태
+  const [search, setSearch] = useState('');
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [tempSearch, setTempSearch] = useState('');
+
   // 초기 로드 및 날짜 변경 시 재호출
   useEffect(() => {
     let alive = true;
@@ -209,14 +214,21 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const t = to ? new Date(to) : null;
+    const searchQuery = search.trim().toLowerCase();
+    
     return orders.filter(o => {
       const d = new Date(o.date);
       const inFrom = f ? d >= f : true;
       const inTo = t ? d <= t : true;
       const s = status === 'all' ? true : o.status === status;
-      return inFrom && inTo && s;
+      
+      // 제품명 검색 필터링
+      const matchesSearch = searchQuery === '' || 
+        o.items.some(item => item.name.toLowerCase().includes(searchQuery));
+      
+      return inFrom && inTo && s && matchesSearch;
     });
-  }, [orders, from, to, status]);
+  }, [orders, from, to, status, search]);
 
   const totalPrice = (o: OrderRow) =>
     o.items.reduce((sum, it) => sum + it.price * it.quantity, 0);
@@ -239,6 +251,29 @@ export default function OrdersPage() {
       currentStatus,
       newStatus: 'canceled' // 기본값은 canceled로 설정
     });
+  };
+
+  // 검색 모달 열기/닫기
+  const openSearchModal = () => {
+    setTempSearch(search);
+    setSearchModalOpen(true);
+  };
+
+  const closeSearchModal = () => {
+    setSearchModalOpen(false);
+    setTempSearch('');
+  };
+
+  // 검색 적용
+  const applySearch = () => {
+    setSearch(tempSearch);
+    setSearchModalOpen(false);
+  };
+
+  // 검색 초기화
+  const clearSearch = () => {
+    setSearch('');
+    setTempSearch('');
   };
 
   // 상태 변경 처리
@@ -600,6 +635,149 @@ export default function OrdersPage() {
                 className="flex-1 h-10 rounded bg-gray-500 hover:bg-gray-600 text-white"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FAB 통합 검색/필터 초기화 버튼 */}
+      <button
+        onClick={search ? clearSearch : openSearchModal}
+        className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
+          search ? 'border border-blue-500' : 'border-2 border-blue-500'
+        }`}
+        aria-label={search ? "필터 초기화" : "주문 검색"}
+      >
+        {search ? (
+          // 필터 초기화 아이콘 (필터)
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+          </svg>
+        ) : (
+          // 검색 아이콘 (돋보기)
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        )}
+        <span className="text-sm font-bold text-gray-900">
+          {search ? '초기화' : ''}
+        </span>
+      </button>
+
+      {/* 검색 모달 */}
+      {searchModalOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center p-4"
+          aria-modal="true"
+          role="dialog"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
+            {/* 검색 헤더 */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">주문 검색</h2>
+              <button
+                onClick={closeSearchModal}
+                className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                aria-label="검색창 닫기"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* 검색 입력 */}
+            <div className="p-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={tempSearch}
+                  onChange={e => setTempSearch(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      applySearch();
+                    }
+                  }}
+                  placeholder="제품명을 입력하세요 (예: 토마토, 사과)"
+                  className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                  autoFocus
+                />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
+                {tempSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setTempSearch('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm w-6 h-6 flex items-center justify-center"
+                    aria-label="검색어 지우기"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* 검색 결과 미리보기 */}
+            {tempSearch && (
+              <div className="px-4 pb-4">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {orders.filter(o => 
+                    o.items.some(item => 
+                      item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
+                    )
+                  ).map(order => (
+                    <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                         onClick={() => {
+                           // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
+                           const firstProductName = order.items[0]?.name || '';
+                           setSearch(firstProductName);
+                           setFrom(today);
+                           setTo(dayAfterTomorrow);
+                           setStatus('all');
+                           setSearchModalOpen(false);
+                           setTempSearch('');
+                         }}>
+                      <div className="text-sm font-medium text-gray-800 mb-1">
+                        {order.date}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {order.items.map(item => item.name).join(', ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* 검색 결과 없음 */}
+                {orders.filter(o => 
+                  o.items.some(item => 
+                    item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
+                  )
+                ).length === 0 && (
+                  <div className="text-center text-gray-500 py-6">
+                    <div className="text-sm">
+                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      다른 검색어를 시도해보세요.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* 버튼 영역 */}
+            <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+              <button
+                onClick={closeSearchModal}
+                className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={applySearch}
+                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+              >
+                검색 적용
               </button>
             </div>
           </div>
