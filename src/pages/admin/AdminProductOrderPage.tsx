@@ -162,30 +162,45 @@ const OrderEditDialog = ({
   // 다이얼로그가 열릴 때 초기화
   useEffect(() => {
     if (isOpen && products.length > 0) {
-      // 초기 순서 설정 (orderIndex 기반, 없는 경우 1부터 순차 할당)
+      // 초기 순서 설정: 0이나 충돌하는 값들을 위치에 따라 1~n으로 배치
       const initialOrders = new Map<number, number>();
       const initialUsedOrders = new Set<number>();
       
-      // 먼저 orderIndex가 있는 제품들을 설정
+      // 먼저 기존 orderIndex를 그대로 설정 (0이나 충돌 값도 포함)
       products.forEach(product => {
-        if (product.orderIndex !== undefined) {
-          initialOrders.set(product.id, product.orderIndex);
-          initialUsedOrders.add(product.orderIndex);
+        const orderIndex = product.orderIndex !== undefined ? product.orderIndex : 0;
+        initialOrders.set(product.id, orderIndex);
+        if (orderIndex > 0) {
+          initialUsedOrders.add(orderIndex);
         }
       });
       
-      // orderIndex가 없는 제품들에 대해 1부터 순차적으로 할당
+      // 0이나 충돌하는 값들을 찾아서 위치에 따라 1~n으로 재배치
+      const orderCounts = new Map<number, number>();
+      products.forEach(p => {
+        const order = initialOrders.get(p.id) || 0;
+        orderCounts.set(order, (orderCounts.get(order) || 0) + 1);
+      });
+      
+      // 0이거나 중복되는 제품들을 찾기
+      const problematicProducts: number[] = [];
+      products.forEach(p => {
+        const order = initialOrders.get(p.id) || 0;
+        if (order === 0 || orderCounts.get(order)! > 1) {
+          problematicProducts.push(p.id);
+        }
+      });
+      
+      // 문제가 있는 제품들을 위치에 따라 1~n으로 재배치
       let nextOrder = 1;
-      products.forEach(product => {
-        if (product.orderIndex === undefined) {
-          // 이미 사용된 순서는 건너뛰기
-          while (initialUsedOrders.has(nextOrder)) {
-            nextOrder++;
-          }
-          initialOrders.set(product.id, nextOrder);
-          initialUsedOrders.add(nextOrder);
+      problematicProducts.forEach(productId => {
+        // 이미 사용된 순서는 건너뛰기
+        while (initialUsedOrders.has(nextOrder)) {
           nextOrder++;
         }
+        initialOrders.set(productId, nextOrder);
+        initialUsedOrders.add(nextOrder);
+        nextOrder++;
       });
       
       setProductOrders(initialOrders);
@@ -214,14 +229,38 @@ const OrderEditDialog = ({
     // 순서 업데이트
     const newOrders = new Map(productOrders);
     
-    // 새 순서 설정 (중복 허용)
+    // 새 순서 설정
     newOrders.set(productId, newOrder);
+    
+    // 다른 제품들의 순서 자동 조정
+    if (currentOrder !== undefined && newOrder !== undefined) {
+      products.forEach(p => {
+        if (p.id !== productId) {
+          const order = newOrders.get(p.id) || 0;
+          
+          // 현재 제품이 앞으로 이동하는 경우 (예: 5 → 2)
+          if (currentOrder > newOrder) {
+            // newOrder와 currentOrder 사이의 제품들을 +1
+            if (order >= newOrder && order < currentOrder) {
+              newOrders.set(p.id, order + 1);
+            }
+          }
+          // 현재 제품이 뒤로 이동하는 경우 (예: 2 → 5)
+          else if (currentOrder < newOrder) {
+            // currentOrder와 newOrder 사이의 제품들을 -1
+            if (order > currentOrder && order <= newOrder) {
+              newOrders.set(p.id, order - 1);
+            }
+          }
+        }
+      });
+    }
     
     // 사용 중인 순서 업데이트
     const newUsedOrders = new Set<number>();
     products.forEach(p => {
       const order = newOrders.get(p.id);
-      if (order) {
+      if (order && order > 0) {
         newUsedOrders.add(order);
       }
     });
@@ -229,7 +268,7 @@ const OrderEditDialog = ({
     setProductOrders(newOrders);
     setUsedOrders(newUsedOrders);
     
-    // 순서에 따라 제품 목록 재정렬 (중복 허용)
+    // 순서에 따라 제품 목록 재정렬
     const newSortedProducts = [...products].sort((a, b) => {
       const orderA = newOrders.get(a.id) || 0;
       const orderB = newOrders.get(b.id) || 0;
@@ -299,13 +338,16 @@ const OrderEditDialog = ({
     
     products.forEach(p => {
       const order = productOrders.get(p.id);
-      if (order) {
+      if (order !== undefined) {
         orderCounts.set(order, (orderCounts.get(order) || 0) + 1);
       }
     });
     
-    // 2개 이상의 제품이 같은 순서를 사용하면 충돌
-    return Array.from(orderCounts.values()).some(count => count > 1);
+    // 0이 있거나 2개 이상의 제품이 같은 순서를 사용하면 충돌
+    const hasZeroOrders = Array.from(orderCounts.keys()).some(order => order === 0);
+    const hasDuplicates = Array.from(orderCounts.values()).some(count => count > 1);
+    
+    return hasZeroOrders || hasDuplicates;
   };
 
   if (!isOpen) return null;
@@ -390,6 +432,12 @@ const OrderEditDialog = ({
                             : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                         }`}
                       >
+                        <option
+                          value={0}
+                          className={isDuplicateOrder(0) ? 'text-red-600 bg-red-50' : ''}
+                        >
+                          0 (미설정)
+                        </option>
                         {Array.from({ length: products.length }, (_, i) => i + 1).map(num => (
                           <option
                             key={num}
