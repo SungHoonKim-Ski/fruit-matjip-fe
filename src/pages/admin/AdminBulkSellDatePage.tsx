@@ -22,6 +22,10 @@ export default function AdminBulkSellDatePage() {
   const [search, setSearch] = useState('');
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [tempSearch, setTempSearch] = useState('');
+  const [filteredSellDate, setFilteredSellDate] = useState<string | null>(null);
+  
+  // 각 그룹별 확장 상태
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // 상품 목록 로드 및 정렬 (미래~과거순)
   useEffect(() => {
@@ -147,12 +151,6 @@ export default function AdminBulkSellDatePage() {
   }, []);
 
   // 검색 관련 함수들
-  const getFilteredProducts = (searchQuery: string) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (query === '') return products;
-    
-    return products.filter(p => p.name.toLowerCase().includes(query));
-  };
 
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
@@ -175,44 +173,155 @@ export default function AdminBulkSellDatePage() {
   const closeSearchModal = () => {
     setSearchModalOpen(false);
     setTempSearch('');
+    setFilteredSellDate(null);
   };
 
   const applySearch = () => {
     setSearch(tempSearch);
     setSearchModalOpen(false);
+    
+    // 검색 결과가 있는 모든 날짜 그룹을 펼치기
+    if (tempSearch.trim()) {
+      const filteredProducts = getFilteredProducts(tempSearch);
+      const groups = new Set<string>();
+      
+      // 오늘 날짜 계산 (KST)
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const todayStr = kstNow.toISOString().split('T')[0];
+      const sevenDaysAgo = new Date(kstNow);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+      
+      filteredProducts.forEach(product => {
+        let dateKey = product.sellDate || '미설정';
+        
+        // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
+        if (dateKey !== '미설정' && dateKey < sevenDaysAgoStr) {
+          dateKey = '과거 상품';
+        }
+        
+        groups.add(dateKey);
+      });
+      
+      setExpandedGroups(groups);
+    }
   };
 
   const clearSearch = () => {
     setSearch('');
     setTempSearch('');
+    setFilteredSellDate(null);
   };
 
-  // 날짜별로 상품 그룹화 (검색 필터링 포함)
+  // 개별 그룹 토글 핸들러
+  const toggleGroup = (dateKey: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey);
+      } else {
+        newSet.add(dateKey);
+      }
+      return newSet;
+    });
+  };
+
+  // 검색 필터링된 상품 목록
+  const getFilteredProducts = (searchQuery: string) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query === '') return products;
+    
+    return products.filter(p => p.name.toLowerCase().includes(query));
+  };
+
+  // 날짜별로 상품 그룹화 (검색 필터링 포함, 7일 전 상품은 "7일+", 30일 전 상품은 "30일+" 카테고리로)
   const groupedProducts = React.useMemo(() => {
     const filteredProducts = getFilteredProducts(search);
     const groups: { [key: string]: Product[] } = {};
     
+    // 오늘 날짜 계산 (KST)
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = kstNow.toISOString().split('T')[0];
+    const sevenDaysAgo = new Date(kstNow);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(kstNow);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
     filteredProducts.forEach(product => {
-      const dateKey = product.sellDate || '미설정';
+      let dateKey = product.sellDate || '미설정';
+      
+      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      if (dateKey !== '미설정' && dateKey < thirtyDaysAgoStr) {
+        dateKey = '과거 예약+';
+      }
+      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      else if (dateKey !== '미설정' && dateKey < sevenDaysAgoStr) {
+        dateKey = '과거 예약';
+      }
+      
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
       groups[dateKey].push(product);
     });
     
-    // 날짜순으로 정렬 (미래~과거순, 미설정은 마지막)
+    // 날짜순으로 정렬 (미래~과거순, 미설정은 마지막, 과거 예약 다음에 과거 예약+)
     const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
       if (a === '미설정') return 1;
       if (b === '미설정') return -1;
+      if (a === '과거 예약' && b === '과거 예약+') return -1;
+      if (a === '과거 예약+' && b === '과거 예약') return 1;
+      if (a === '과거 예약') return 1;
+      if (b === '과거 예약') return -1;
+      if (a === '과거 예약+') return 1;
+      if (b === '과거 예약+') return -1;
       return b.localeCompare(a);
     });
     
     return sortedGroups;
   }, [products, search]);
 
+  // 필터링된 상품 목록 (날짜 필터 포함)
+  const visibleProducts = React.useMemo(() => {
+    const filteredProducts = getFilteredProducts(search);
+    
+    if (!filteredSellDate) return filteredProducts;
+    
+    // 오늘 날짜 계산 (KST)
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(kstNow);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(kstNow);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    return filteredProducts.filter(product => {
+      let productDateKey = product.sellDate || '미설정';
+      
+      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      if (productDateKey !== '미설정' && productDateKey < thirtyDaysAgoStr) {
+        productDateKey = '과거 예약+';
+      }
+      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      else if (productDateKey !== '미설정' && productDateKey < sevenDaysAgoStr) {
+        productDateKey = '과거 예약';
+      }
+      
+      return productDateKey === filteredSellDate;
+    });
+  }, [products, search, filteredSellDate]);
+
   // 날짜 포맷팅 함수
   const formatDate = (dateStr: string) => {
     if (dateStr === '미설정') return '미설정';
+    if (dateStr === '과거 예약') return '과거 예약';
+    if (dateStr === '과거 예약+') return '과거 예약+';
     
     try {
       const date = new Date(dateStr);
@@ -222,6 +331,25 @@ export default function AdminBulkSellDatePage() {
       return `${year}-${month}-${day}`;
     } catch {
       return dateStr;
+    }
+  };
+
+  // 날짜 상태 가져오기 함수
+  const getDateStatus = (dateStr: string) => {
+    if (dateStr === '미설정') return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
+    if (dateStr === '과거 예약') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
+    if (dateStr === '과거 예약+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
+    
+    try {
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const todayStr = kstNow.toISOString().split('T')[0];
+      
+      if (dateStr > todayStr) return { text: '예정', color: 'bg-blue-100 text-blue-700' };
+      if (dateStr === todayStr) return { text: '당일', color: 'bg-green-100 text-green-700' };
+      return { text: '종료', color: 'bg-red-100 text-red-700' };
+    } catch {
+      return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
     }
   };
 
@@ -236,11 +364,63 @@ export default function AdminBulkSellDatePage() {
         </div>
         
 
-        {/* 상품 목록 - 날짜별 그룹화 */}
-        <div className="space-y-6">
-          {groupedProducts.map(([dateKey, productsInGroup]) => {
+
+        {/* 상품 목록 - 날짜별 그룹화 또는 필터링된 상품 */}
+        <div className={`space-y-6 ${selectedProducts.size > 0 ? 'pb-24' : ''}`}>
+          {filteredSellDate ? (
+            // 필터링된 상품들을 직접 표시
+            <div className="space-y-3">
+              {visibleProducts.map((product) => (
+                <div 
+                  key={product.id} 
+                  className={`bg-white rounded-lg shadow p-3 border-2 transition-all duration-200 cursor-pointer ${
+                    selectedProducts.has(product.id)
+                      ? 'border-orange-500 bg-orange-50' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => handleSelectProduct(product.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* 체크박스 */}
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.has(product.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleSelectProduct(product.id);
+                      }}
+                      className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    />
+                    
+                    {/* 상품 이미지 */}
+                    <img
+                      src={product.imageUrl || ''}
+                      alt={product.name}
+                      className="w-16 h-16 object-cover rounded border flex-shrink-0"
+                    />
+                    
+                    {/* 상품 정보 */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate mb-1">
+                        {highlightSearchTerm(product.name, search)}
+                      </h3>
+                      
+                      <div className="text-xs text-gray-600">
+                        <span>재고: {product.stock}개</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // 기존 날짜별 그룹화 표시
+            groupedProducts.map(([dateKey, productsInGroup]) => {
             const groupSelectedCount = productsInGroup.filter(p => selectedProducts.has(p.id)).length;
             const isGroupAllSelected = groupSelectedCount === productsInGroup.length;
+            const isExpanded = expandedGroups.has(dateKey);
+            const displayProducts = isExpanded ? productsInGroup : [];
+            const remainingCount = productsInGroup.length;
             
             const handleGroupSelectAll = () => {
               if (isGroupAllSelected) {
@@ -248,50 +428,84 @@ export default function AdminBulkSellDatePage() {
                 const newSelected = new Set(selectedProducts);
                 productsInGroup.forEach(p => newSelected.delete(p.id));
                 setSelectedProducts(newSelected);
+                
+                // 해당 그룹을 접기
+                if (isExpanded) {
+                  toggleGroup(dateKey);
+                }
               } else {
                 // 전체 선택
                 const newSelected = new Set(selectedProducts);
                 productsInGroup.forEach(p => newSelected.add(p.id));
                 setSelectedProducts(newSelected);
+                
+                // 해당 그룹을 펼치기
+                if (!isExpanded) {
+                  toggleGroup(dateKey);
+                }
               }
             };
 
             return (
               <div key={dateKey}>
-                {/* 날짜 구분선 및 헤더 */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex-1 h-px bg-gray-300"></div>
-                  <div className="flex items-center gap-3 px-3 py-1 bg-gray-100 rounded-full">
+                {/* 날짜 헤더 */}
+                <div 
+                  className="flex items-center justify-between px-3 py-2 bg-gray-100 rounded-lg mb-3 cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => toggleGroup(dateKey)}
+                >
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleGroup(dateKey);
+                      }}
+                      className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                    >
+                      <svg 
+                        className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                     <span className="text-sm font-semibold text-gray-700">
                       {formatDate(dateKey)}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDateStatus(dateKey).color}`}>
+                      {getDateStatus(dateKey).text}
                     </span>
                     <span className="text-xs text-gray-500">
                       {productsInGroup.length}개 상품
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleGroupSelectAll}
-                      className="px-2 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 rounded hover:bg-orange-50 transition-colors"
-                    >
-                      {isGroupAllSelected ? '전체 해제' : '전체 선택'}
-                    </button>
                   </div>
-                  <div className="flex-1 h-px bg-gray-300"></div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGroupSelectAll();
+                    }}
+                    className="px-2 py-1 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-300 rounded hover:bg-orange-50 transition-colors flex-shrink-0"
+                  >
+                    {isGroupAllSelected ? '전체 해제' : '전체 선택'}
+                  </button>
                 </div>
                 
                 {/* 해당 날짜의 상품들 */}
                 <div className="space-y-3">
-                  {productsInGroup.map((product) => (
+                  {displayProducts.map((product) => (
                     <div 
                       key={product.id} 
-                                      className={`bg-white rounded-lg shadow p-4 border-2 transition-all duration-200 cursor-pointer ${
-                  selectedProducts.has(product.id)
-                    ? 'border-orange-500 bg-orange-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                      className={`bg-white rounded-lg shadow p-3 border-2 transition-all duration-200 cursor-pointer ${
+                        selectedProducts.has(product.id)
+                          ? 'border-orange-500 bg-orange-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
                       onClick={() => handleSelectProduct(product.id)}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         {/* 체크박스 */}
                         <input
                           type="checkbox"
@@ -300,75 +514,35 @@ export default function AdminBulkSellDatePage() {
                             e.stopPropagation();
                             handleSelectProduct(product.id);
                           }}
-                          className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                          className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
                         />
                         
                         {/* 상품 이미지 */}
                         <img
                           src={product.imageUrl || ''}
                           alt={product.name}
-                          className="w-20 h-20 object-cover rounded border flex-shrink-0"
+                          className="w-16 h-16 object-cover rounded border flex-shrink-0"
                         />
                         
                         {/* 상품 정보 */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-semibold text-gray-900 truncate mb-2">
+                          <h3 className="text-sm font-semibold text-gray-900 truncate mb-1">
                             {highlightSearchTerm(product.name, search)}
                           </h3>
                           
-                          {/* 판매일 표시 - yy/mm 형식 */}
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                              {product.sellDate ? (
-                                <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                  (() => {
-                                    // KST 기준으로 오늘 날짜 계산
-                                    const now = new Date();
-                                    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                                    const todayStr = kstNow.toISOString().split('T')[0];
-                                    
-                                    if (product.sellDate > todayStr) return 'bg-blue-100 text-blue-800'; // 미래 - 파란색
-                                    if (product.sellDate === todayStr) return 'bg-red-100 text-red-800'; // 당일 - 빨간색
-                                    return 'bg-yellow-100 text-yellow-800'; // 지난 날 - 노란색
-                                  })()
-                                }`}>
-                                  {(() => {
-                                    // 날짜를 mm/dd 형식으로 변환
-                                    const date = new Date(product.sellDate);
-                                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                                    const day = String(date.getDate()).padStart(2, '0');
-                                    
-                                    // KST 기준으로 오늘 날짜 계산
-                                    const now = new Date();
-                                    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                                    const todayStr = kstNow.toISOString().split('T')[0];
-                                    
-                                    let status = '';
-                                    if (product.sellDate > todayStr) status = '판매예정';
-                                    else if (product.sellDate === todayStr) status = '판매당일';
-                                    else status = '판매종료';
-                                    
-                                    return `${month}/${day} ${status}`;
-                                  })()}
-                                </span>
-                              ) : (
-                                <span className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-600">
-                                  미설정
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              재고: {product.stock}개
-                            </div>
+                          <div className="text-xs text-gray-600">
+                            <span>재고: {product.stock}개</span>
                           </div>
                         </div>
                       </div>
                     </div>
                   ))}
+                  
                 </div>
               </div>
             );
-          })}
+            })
+          )}
         </div>
 
         {products.length === 0 && (
@@ -446,9 +620,9 @@ export default function AdminBulkSellDatePage() {
         {/* FAB 검색 버튼 */}
         <button
           onClick={search ? clearSearch : openSearchModal}
-          className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
+          className={`fixed right-4 z-[60] bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
             search ? 'border border-blue-500' : 'border-2 border-blue-500'
-          }`}
+          } ${selectedProducts.size > 0 ? 'bottom-20' : 'bottom-4'}`}
           aria-label={search ? "필터 초기화" : "상품 검색"}
         >
           {search ? (
@@ -519,16 +693,88 @@ export default function AdminBulkSellDatePage() {
                 </div>
               </div>
               
-              {/* 검색 결과 요약 */}
+              {/* 검색 결과 미리보기 */}
               {tempSearch && (
                 <div className="px-4 pb-4">
-                  <div className="p-3 bg-orange-50 rounded-lg">
-                    <div className="text-sm text-orange-800">
-                      <span className="font-medium">"{tempSearch}"</span> 검색 결과: <span className="font-semibold">{getFilteredProducts(tempSearch).length}개</span>
-                    </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {(() => {
+                      const filteredProducts = getFilteredProducts(tempSearch);
+                      const groups: { [key: string]: Product[] } = {};
+                      
+                      // 오늘 날짜 계산 (KST)
+                      const now = new Date();
+                      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                      const todayStr = kstNow.toISOString().split('T')[0];
+                      const sevenDaysAgo = new Date(kstNow);
+                      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+                      const thirtyDaysAgo = new Date(kstNow);
+                      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+                      
+                      filteredProducts.forEach(product => {
+                        let dateKey = product.sellDate || '미설정';
+                        
+                        // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+                        if (dateKey !== '미설정' && dateKey < thirtyDaysAgoStr) {
+                          dateKey = '과거 예약+';
+                        }
+                        // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+                        else if (dateKey !== '미설정' && dateKey < sevenDaysAgoStr) {
+                          dateKey = '과거 예약';
+                        }
+                        
+                        if (!groups[dateKey]) {
+                          groups[dateKey] = [];
+                        }
+                        groups[dateKey].push(product);
+                      });
+                      
+                      // 날짜순으로 정렬
+                      const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
+                        if (a === '미설정') return 1;
+                        if (b === '미설정') return -1;
+                        if (a === '과거 예약' && b === '과거 예약+') return -1;
+                        if (a === '과거 예약+' && b === '과거 예약') return 1;
+                        if (a === '과거 예약') return 1;
+                        if (b === '과거 예약') return -1;
+                        if (a === '과거 예약+') return 1;
+                        if (b === '과거 예약+') return -1;
+                        return b.localeCompare(a);
+                      });
+                      
+                      return sortedGroups.map(([dateKey, productsInGroup]) => (
+                        <div 
+                          key={dateKey} 
+                          className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={() => {
+                            // 해당 날짜로 필터 적용하고 모달 닫기
+                            setSearch(tempSearch);
+                            setFilteredSellDate(dateKey);
+                            setSearchModalOpen(false);
+                            setTempSearch('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-800">
+                                {formatDate(dateKey)}
+                              </span>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDateStatus(dateKey).color}`}>
+                                {getDateStatus(dateKey).text}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {productsInGroup.length}개
+                            </span>
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
+              
               
               {/* 버튼 영역 */}
               <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
