@@ -37,6 +37,13 @@ export default function AdminHeader() {
   };
 
   const openAdminMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // 기존 메뉴가 있으면 제거하고 함수 종료 (토글 기능)
+    const existingMenu = document.querySelector('.admin-header-menu');
+    if (existingMenu) {
+      existingMenu.remove();
+      return;
+    }
+    
     const button = event.currentTarget as HTMLElement;
     const rect = button.getBoundingClientRect();
     
@@ -106,12 +113,6 @@ export default function AdminHeader() {
     menu.appendChild(productOrderBtn);
     menu.appendChild(reservationsBtn);
     menu.appendChild(salesBtn);
-    
-    // 기존 메뉴가 있으면 제거
-    const existingMenu = document.querySelector('.admin-header-menu');
-    if (existingMenu) {
-      existingMenu.remove();
-    }
     
     menu.classList.add('admin-header-menu');
     document.body.appendChild(menu);
