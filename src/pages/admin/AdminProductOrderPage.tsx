@@ -111,12 +111,15 @@ const ProductGroup = ({
         
         {/* 더 많은 상품이 있을 때 표시 */}
         {remainingCount > 0 && (
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center">
+          <div 
+            className="bg-gray-50 rounded-lg p-4 border border-gray-200 text-center cursor-pointer hover:bg-gray-100 transition-colors"
+            onClick={() => onOpenDialog(dateKey, products)}
+          >
             <p className="text-sm text-gray-600">
               <span className="font-medium text-gray-800">{remainingCount}개</span>의 상품이 더 있습니다
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              순서 변경 버튼을 클릭하여 모든 상품을 확인하세요
+              버튼을 클릭하여 모든 상품을 확인하세요
             </p>
           </div>
         )}
