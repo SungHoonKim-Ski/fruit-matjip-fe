@@ -42,6 +42,9 @@ export default function AdminProductPage() {
     newStatus: 'active' | 'inactive';
   }>({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' });
 
+  // 상세 정보 표시 상태
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
   // 뒤로가기 처리 제어용 플래그 (프로그램적으로 back() 했을 때 popstate 중복 처리 방지)
   const suppressNextPop = useRef(false);
 
@@ -50,10 +53,91 @@ export default function AdminProductPage() {
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [tempSearch, setTempSearch] = useState('');
   
+  // 필터링된 판매일 (검색 결과에서 날짜 클릭 시)
+  const [filteredSellDate, setFilteredSellDate] = useState<string | null>(null);
+  
   const visibleProducts = useMemo(() => {
+    let filtered = products;
+    
+    // 검색어 필터링
     const q = search.trim();
-    return q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase())) : products;
-  }, [products, search]);
+    if (q) {
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
+    }
+    
+    // 판매일 필터링
+    if (filteredSellDate) {
+      filtered = filtered.filter(p => (p.sellDate || '미설정') === filteredSellDate);
+    }
+    
+    return filtered;
+  }, [products, search, filteredSellDate]);
+
+  // 판매일별로 그룹화 (7일 전 상품은 "과거 예약", 30일 전 상품은 "과거 예약+" 카테고리로)
+  const groupedProducts = useMemo(() => {
+    const groups: { [key: string]: Product[] } = {};
+    
+    // 오늘 날짜 계산 (KST)
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = kstNow.toISOString().split('T')[0];
+    const sevenDaysAgo = new Date(kstNow);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(kstNow);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    visibleProducts.forEach(product => {
+      let sellDate = product.sellDate || '미설정';
+      
+      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      if (sellDate !== '미설정' && sellDate < thirtyDaysAgoStr) {
+        sellDate = '과거 예약+';
+      }
+      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      else if (sellDate !== '미설정' && sellDate < sevenDaysAgoStr) {
+        sellDate = '과거 예약';
+      }
+      
+      if (!groups[sellDate]) {
+        groups[sellDate] = [];
+      }
+      groups[sellDate].push(product);
+    });
+    return groups;
+  }, [visibleProducts]);
+
+  // 판매일별 상품 개수
+  const countOf = (sellDate: string) => {
+    return groupedProducts[sellDate]?.length || 0;
+  };
+
+  // 날짜 포맷팅 함수
+  const formatSellDate = (sellDate: string) => {
+    if (sellDate === '미설정') return '미설정';
+    if (sellDate === '과거 예약') return '과거 예약';
+    if (sellDate === '과거 예약+') return '과거 예약+';
+    const date = new Date(sellDate + 'T00:00:00');
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    return `${month}/${day}`;
+  };
+
+  // 판매일 상태 확인
+  const getSellDateStatus = (sellDate: string) => {
+    if (sellDate === '미설정') return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
+    if (sellDate === '과거 예약') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
+    if (sellDate === '과거 예약+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
+    
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayStr = kstNow.toISOString().split('T')[0];
+    
+    if (sellDate > todayStr) return { text: '판매예정', color: 'bg-blue-100 text-blue-700' };
+    if (sellDate === todayStr) return { text: '판매당일', color: 'bg-green-100 text-green-700' };
+    return { text: '판매종료', color: 'bg-red-100 text-red-700' };
+  };
 
   // 검색 관련 함수들
   const highlightSearchTerm = (text: string, searchTerm: string) => {
@@ -82,12 +166,125 @@ export default function AdminProductPage() {
   const applySearch = () => {
     setSearch(tempSearch);
     setSearchModalOpen(false);
+    
+    // 검색 적용 시 모든 그룹을 펼치기
+    if (tempSearch.trim()) {
+      const availableDates = getAvailableDates(tempSearch);
+      setExpandedGroups(new Set(availableDates));
+    }
   };
 
   const clearSearch = () => {
     setSearch('');
     setTempSearch('');
+    setFilteredSellDate(null);
   };
+
+  // 임시 검색어로 필터링된 상품 목록 (검색 모달용)
+  const getFilteredProductsByTempSearch = (searchQuery: string) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (query === '') return products;
+    
+    return products.filter(p => p.name.toLowerCase().includes(query));
+  };
+
+  // 날짜별 필터링된 상품 개수 (검색 모달용)
+  const getFilteredCountByDate = (sellDate: string, searchQuery: string) => {
+    const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
+    
+    // 과거 예약 카테고리 처리
+    if (sellDate === '과거 예약') {
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(kstNow);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+      const thirtyDaysAgo = new Date(kstNow);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      return filteredProducts.filter(p => {
+        const productSellDate = p.sellDate || '미설정';
+        return productSellDate !== '미설정' && productSellDate < sevenDaysAgoStr && productSellDate >= thirtyDaysAgoStr;
+      }).length;
+    }
+    
+    // 과거 예약+ 카테고리 처리
+    if (sellDate === '과거 예약+') {
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const thirtyDaysAgo = new Date(kstNow);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      return filteredProducts.filter(p => {
+        const productSellDate = p.sellDate || '미설정';
+        return productSellDate !== '미설정' && productSellDate < thirtyDaysAgoStr;
+      }).length;
+    }
+    
+    return filteredProducts.filter(p => (p.sellDate || '미설정') === sellDate).length;
+  };
+
+  // 검색 결과가 있는 날짜들 (검색 모달용)
+  const getAvailableDates = (searchQuery: string) => {
+    const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
+    
+    // 7일 전, 30일 전 카테고리 처리
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(kstNow);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(kstNow);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    const dates = new Set<string>();
+    
+    filteredProducts.forEach(p => {
+      const productSellDate = p.sellDate || '미설정';
+      if (productSellDate !== '미설정' && productSellDate < thirtyDaysAgoStr) {
+        dates.add('과거 예약+');
+      } else if (productSellDate !== '미설정' && productSellDate < sevenDaysAgoStr) {
+        dates.add('과거 예약');
+      } else {
+        dates.add(productSellDate);
+      }
+    });
+    
+    return Array.from(dates).sort((a, b) => {
+      if (a === '미설정') return 1;
+      if (b === '미설정') return -1;
+      if (a === '과거 예약' && b === '과거 예약+') return -1;
+      if (a === '과거 예약+' && b === '과거 예약') return 1;
+      if (a === '과거 예약') return 1;
+      if (b === '과거 예약') return -1;
+      if (a === '과거 예약+') return 1;
+      if (b === '과거 예약+') return -1;
+      return a.localeCompare(b);
+    });
+  };
+
+  // 그룹 토글 함수
+  const toggleGroup = (sellDate: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sellDate)) {
+        newSet.delete(sellDate);
+      } else {
+        newSet.add(sellDate);
+      }
+      return newSet;
+    });
+  };
+
+  // 필터링이 적용되었을 때 해당 날짜의 그룹을 자동으로 펼치기
+  useEffect(() => {
+    if (filteredSellDate) {
+      setExpandedGroups(prev => new Set([...prev, filteredSellDate]));
+    }
+  }, [filteredSellDate]);
 
   // --- 다이얼로그 열기: pushState로 히스토리 한 단계 추가 (뒤로가기 시 다이얼로그만 닫힘) ---
   const pushDialogState = () => {
@@ -230,132 +427,142 @@ export default function AdminProductPage() {
 
       </div>
 
-      <div className="space-y-6 max-w-3xl mx-auto">
-        {visibleProducts.map((product) => (
-          <div key={product.id} className="bg-white rounded-lg shadow p-4">
-            <div className="flex flex-row items-stretch gap-4">
-              <img
-                src={(() => {
-                  const url = product.imageUrl || '';
-                  const ts = location?.state?.bustTs;
-                  if (!ts) return url;
-                  return url.includes('?') ? `${url}&ts=${ts}` : `${url}?ts=${ts}`;
-                })()}
-                alt={product.name}
-                className="w-28 h-28 sm:w-28 sm:h-auto sm:aspect-square md:w-32 object-cover rounded border flex-shrink-0"
-              />
-              <div className="flex-1 flex flex-col justify-between min-h-[6rem]">
-                {/* 상단 정보 */}
-                <div className="space-y-1 flex-1">
-                  <h2 className="text-lg font-semibold break-keep">{highlightSearchTerm(product.name, search)}</h2>
-                  <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
-                  <p className="text-sm text-gray-500">
-                    <span className="font-medium">재고: {product.stock.toLocaleString()}개</span>
-                    <span
-                      className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
-                      style={{
-                        backgroundColor: (() => {
-                          if (product.stock === 0) return '#E0F2FE';
-                          if (product.stock < DANGER_STOCK_THRESHOLD) return '#FECACA';
-                          if (product.stock < LOW_STOCK_THRESHOLD) return '#FEF3C7';
-                          return '#DCFCE7';
-                        })(),
-                        borderColor: '#e5e7eb',
-                        color: '#374151'
-                      }}
-                    >
-                      {(() => {
-                        if (product.stock === 0) return '품절';
-                        if (product.stock < DANGER_STOCK_THRESHOLD) return '위험';
-                        if (product.stock < LOW_STOCK_THRESHOLD) return '품절임박';
-                        return '여유';
-                      })()}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
-                  <p className="text-sm text-gray-500">
-                    판매일: {product.sellDate ?? '미설정'}
-                    {product.sellDate && (
-                      <span
-                        className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border "
-                        style={{
-                          backgroundColor: (() => {
-                            const now = new Date();
-                            // KST 시간대로 현재 시간 계산 (UTC+9)
-                            const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                            // 오늘 날짜를 YYYY-MM-DD 형식으로
-                            const todayStr = kstNow.toISOString().split('T')[0];
-                            const ds = product.sellDate! + 'T00:00:00';
-                            const d = new Date(ds);
-                            const t = new Date(todayStr).getTime();
-                            const dd = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-                            if (dd > t) return '#E0F2FE';
-                            if (dd === t) return '#DCFCE7';
-                            return '#FEE2E2';
-                          })(),
-                          borderColor: '#e5e7eb',
-                          color: '#374151'
-                        }}
-                      >
-                        {(() => {
-                          // KST 기준으로 오늘 날짜 계산
-                          const now = new Date();
-                          // KST 시간대로 현재 시간 계산 (UTC+9)
-                          const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-                          // 오늘 날짜를 YYYY-MM-DD 형식으로
-                          const todayStr = kstNow.toISOString().split('T')[0];
-                          // 판매일과 비교
-                          if (product.sellDate! > todayStr) return '예정';
-                          if (product.sellDate! === todayStr) return '당일';
-                          return '종료';
-                        })()}
-                      </span>
-                    )}
-                  </p>
+      <div className="space-y-4 max-w-3xl mx-auto">
+        {Object.keys(groupedProducts).length === 0 && (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            {search ? `"${search}"에 대한 검색 결과가 없습니다.` : '등록된 상품이 없습니다.'}
+          </div>
+        )}
+        
+        {Object.entries(groupedProducts).map(([sellDate, products]) => {
+          const isExpanded = expandedGroups.has(sellDate);
+          const status = getSellDateStatus(sellDate);
+          
+          return (
+            <div key={sellDate} className="bg-white rounded-lg shadow">
+              {/* 그룹 헤더 */}
+              <div 
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                onClick={() => toggleGroup(sellDate)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-lg font-semibold text-gray-800">
+                    {formatSellDate(sellDate)}
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
+                    {status.text}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">
+                    {countOf(sellDate)}개 상품
+                  </span>
+                  <svg 
+                    className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
               </div>
-            </div>
-            {/* 조작 영역: 이미지/텍스트 행 아래 전체 너비 사용 */}
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/products/${product.id}/edit`)}
-                  className="h-10 w-full rounded border border-gray-300 hover:bg-gray-50"
-                >
-                  상세 정보 수정
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openToggleStatusDialog(product.id, product.name, product.status)}
-                  className={`h-10 w-full rounded font-medium transition
-                    ${product.status === 'active'
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
-                >
-                  {product.status === 'active' ? '상품 목록 노출 O' : '상품 목록 노출 X'}
-                </button>
-              </div>
+              
+              {/* 상품 목록 (펼쳐진 경우에만) */}
+              {isExpanded && (
+                <div className="border-t">
+                  {products.map((product) => (
+                    <div key={product.id} className="p-4 border-b last:border-b-0">
+                      <div className="flex flex-row items-stretch gap-4">
+                        <img
+                          src={(() => {
+                            const url = product.imageUrl || '';
+                            const ts = location?.state?.bustTs;
+                            if (!ts) return url;
+                            return url.includes('?') ? `${url}&ts=${ts}` : `${url}?ts=${ts}`;
+                          })()}
+                          alt={product.name}
+                          className="w-20 h-20 object-cover rounded border flex-shrink-0"
+                        />
+                        <div className="flex-1 flex flex-col justify-between min-h-[5rem]">
+                          {/* 상품 정보 */}
+                          <div className="space-y-1 flex-1">
+                            <h3 className="text-base font-semibold break-keep">{highlightSearchTerm(product.name, search)}</h3>
+                            <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
+                            <p className="text-sm text-gray-500">
+                              <span className="font-medium">재고: {product.stock.toLocaleString()}개</span>
+                              <span
+                                className="ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border"
+                                style={{
+                                  backgroundColor: (() => {
+                                    if (product.stock === 0) return '#E0F2FE';
+                                    if (product.stock < DANGER_STOCK_THRESHOLD) return '#FECACA';
+                                    if (product.stock < LOW_STOCK_THRESHOLD) return '#FEF3C7';
+                                    return '#DCFCE7';
+                                  })(),
+                                  borderColor: '#e5e7eb',
+                                  color: '#374151'
+                                }}
+                              >
+                                {(() => {
+                                  if (product.stock === 0) return '품절';
+                                  if (product.stock < DANGER_STOCK_THRESHOLD) return '위험';
+                                  if (product.stock < LOW_STOCK_THRESHOLD) return '품절임박';
+                                  return '여유';
+                                })()}
+                              </span>
+                            </p>
+                            <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 조작 버튼들 */}
+                      <div className="mt-3 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/products/${product.id}/edit`)}
+                            className="h-8 w-full rounded border border-gray-300 hover:bg-gray-50 text-sm"
+                          >
+                            상세 정보 수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openToggleStatusDialog(product.id, product.name, product.status)}
+                            className={`h-8 w-full rounded font-medium transition text-sm
+                              ${product.status === 'active'
+                                ? 'bg-green-500 hover:bg-green-600 text-white'
+                                : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
+                          >
+                            {product.status === 'active' ? '노출 O' : '노출 X'}
+                          </button>
+                        </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => openDeleteStockDialog(product.id, product.name)}
-                  className="h-10 w-full rounded bg-amber-500 text-white hover:bg-amber-600"
-                >
-                  품절 처리
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDeleteProductDialog(product.id, product.name)}
-                  className="h-10 w-full rounded bg-gray-700 text-white hover:bg-gray-800"
-                >
-                  상품 삭제
-                </button>
-              </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openDeleteStockDialog(product.id, product.name)}
+                            className="h-8 w-full rounded bg-amber-500 text-white hover:bg-amber-600 text-sm"
+                          >
+                            품절 처리
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openDeleteProductDialog(product.id, product.name)}
+                            className="h-8 w-full rounded bg-gray-700 text-white hover:bg-gray-800 text-sm"
+                          >
+                            상품 삭제
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* === 다이얼로그 3종 === */}
@@ -468,7 +675,7 @@ export default function AdminProductPage() {
       {/* FAB 검색 버튼 */}
       <button
         onClick={search ? clearSearch : openSearchModal}
-        className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
+        className={`fixed bottom-4 right-4 z-[60] bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
           search ? 'border border-blue-500' : 'border-2 border-blue-500'
         }`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
@@ -541,14 +748,54 @@ export default function AdminProductPage() {
               </div>
             </div>
             
-            {/* 검색 결과 요약 */}
+            {/* 검색 결과 날짜별 미리보기 */}
             {tempSearch && (
               <div className="px-4 pb-4">
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <div className="text-sm text-orange-800">
-                    <span className="font-medium">"{tempSearch}"</span> 검색 결과: <span className="font-semibold">{products.filter(p => p.name.toLowerCase().includes(tempSearch.toLowerCase())).length}개</span>
-                  </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {getAvailableDates(tempSearch).map(sellDate => {
+                    const count = getFilteredCountByDate(sellDate, tempSearch);
+                    if (count === 0) return null;
+                    
+                    const status = getSellDateStatus(sellDate);
+                    
+                    return (
+                      <div 
+                        key={sellDate} 
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => {
+                          setSearch(tempSearch);
+                          setFilteredSellDate(sellDate);
+                          setSearchModalOpen(false);
+                          setTempSearch('');
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm font-medium text-gray-800">
+                            {formatSellDate(sellDate)}
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
+                            {status.text}
+                          </span>
+                        </div>
+                        <div className="text-sm text-orange-600 font-semibold">
+                          {count}개 상품
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+                
+                {/* 검색 결과 없음 */}
+                {getAvailableDates(tempSearch).every(sellDate => getFilteredCountByDate(sellDate, tempSearch) === 0) && (
+                  <div className="text-center text-gray-500 py-6">
+                    <div className="text-sm">
+                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      다른 검색어를 시도해보세요.
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             
