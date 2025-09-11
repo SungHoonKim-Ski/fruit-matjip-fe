@@ -73,7 +73,7 @@ export default function AdminProductPage() {
     return filtered;
   }, [products, search, filteredSellDate]);
 
-  // 판매일별로 그룹화 (7일 전 상품은 "과거 예약", 30일 전 상품은 "과거 예약+" 카테고리로)
+  // 판매일별로 그룹화 (7일 전 상품은 "과거 상품", 30일 전 상품은 "과거 상품+" 카테고리로)
   const groupedProducts = useMemo(() => {
     const groups: { [key: string]: Product[] } = {};
     
@@ -91,13 +91,13 @@ export default function AdminProductPage() {
     visibleProducts.forEach(product => {
       let sellDate = product.sellDate || '미설정';
       
-      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
       if (sellDate !== '미설정' && sellDate < thirtyDaysAgoStr) {
-        sellDate = '과거 예약+';
+        sellDate = '과거 상품+';
       }
-      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
       else if (sellDate !== '미설정' && sellDate < sevenDaysAgoStr) {
-        sellDate = '과거 예약';
+        sellDate = '과거 상품';
       }
       
       if (!groups[sellDate]) {
@@ -116,8 +116,8 @@ export default function AdminProductPage() {
   // 날짜 포맷팅 함수
   const formatSellDate = (sellDate: string) => {
     if (sellDate === '미설정') return '미설정';
-    if (sellDate === '과거 예약') return '과거 예약';
-    if (sellDate === '과거 예약+') return '과거 예약+';
+    if (sellDate === '과거 상품') return '과거 상품';
+    if (sellDate === '과거 상품+') return '과거 상품+';
     const date = new Date(sellDate + 'T00:00:00');
     const month = date.getMonth() + 1;
     const day = date.getDate();
@@ -127,8 +127,8 @@ export default function AdminProductPage() {
   // 판매일 상태 확인
   const getSellDateStatus = (sellDate: string) => {
     if (sellDate === '미설정') return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
-    if (sellDate === '과거 예약') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
-    if (sellDate === '과거 예약+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
+    if (sellDate === '과거 상품') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
+    if (sellDate === '과거 상품+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
     
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -192,8 +192,8 @@ export default function AdminProductPage() {
   const getFilteredCountByDate = (sellDate: string, searchQuery: string) => {
     const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
     
-    // 과거 예약 카테고리 처리
-    if (sellDate === '과거 예약') {
+    // 과거 상품 카테고리 처리
+    if (sellDate === '과거 상품') {
       const now = new Date();
       const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(kstNow);
@@ -209,8 +209,8 @@ export default function AdminProductPage() {
       }).length;
     }
     
-    // 과거 예약+ 카테고리 처리
-    if (sellDate === '과거 예약+') {
+    // 과거 상품+ 카테고리 처리
+    if (sellDate === '과거 상품+') {
       const now = new Date();
       const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
       const thirtyDaysAgo = new Date(kstNow);
@@ -245,9 +245,9 @@ export default function AdminProductPage() {
     filteredProducts.forEach(p => {
       const productSellDate = p.sellDate || '미설정';
       if (productSellDate !== '미설정' && productSellDate < thirtyDaysAgoStr) {
-        dates.add('과거 예약+');
+        dates.add('과거 상품+');
       } else if (productSellDate !== '미설정' && productSellDate < sevenDaysAgoStr) {
-        dates.add('과거 예약');
+        dates.add('과거 상품');
       } else {
         dates.add(productSellDate);
       }
@@ -256,12 +256,12 @@ export default function AdminProductPage() {
     return Array.from(dates).sort((a, b) => {
       if (a === '미설정') return 1;
       if (b === '미설정') return -1;
-      if (a === '과거 예약' && b === '과거 예약+') return -1;
-      if (a === '과거 예약+' && b === '과거 예약') return 1;
-      if (a === '과거 예약') return 1;
-      if (b === '과거 예약') return -1;
-      if (a === '과거 예약+') return 1;
-      if (b === '과거 예약+') return -1;
+      if (a === '과거 상품' && b === '과거 상품+') return -1;
+      if (a === '과거 상품+' && b === '과거 상품') return 1;
+      if (a === '과거 상품') return 1;
+      if (b === '과거 상품') return -1;
+      if (a === '과거 상품+') return 1;
+      if (b === '과거 상품+') return -1;
       return a.localeCompare(b);
     });
   };

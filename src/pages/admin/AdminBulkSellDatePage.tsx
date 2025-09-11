@@ -254,13 +254,13 @@ export default function AdminBulkSellDatePage() {
     filteredProducts.forEach(product => {
       let dateKey = product.sellDate || '미설정';
       
-      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
       if (dateKey !== '미설정' && dateKey < thirtyDaysAgoStr) {
-        dateKey = '과거 예약+';
+        dateKey = '과거 상품+';
       }
-      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
       else if (dateKey !== '미설정' && dateKey < sevenDaysAgoStr) {
-        dateKey = '과거 예약';
+        dateKey = '과거 상품';
       }
       
       if (!groups[dateKey]) {
@@ -269,16 +269,16 @@ export default function AdminBulkSellDatePage() {
       groups[dateKey].push(product);
     });
     
-    // 날짜순으로 정렬 (미래~과거순, 미설정은 마지막, 과거 예약 다음에 과거 예약+)
+    // 날짜순으로 정렬 (미래~과거순, 미설정은 마지막, 과거 상품 다음에 과거 상품+)
     const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
       if (a === '미설정') return 1;
       if (b === '미설정') return -1;
-      if (a === '과거 예약' && b === '과거 예약+') return -1;
-      if (a === '과거 예약+' && b === '과거 예약') return 1;
-      if (a === '과거 예약') return 1;
-      if (b === '과거 예약') return -1;
-      if (a === '과거 예약+') return 1;
-      if (b === '과거 예약+') return -1;
+      if (a === '과거 상품' && b === '과거 상품+') return -1;
+      if (a === '과거 상품+' && b === '과거 상품') return 1;
+      if (a === '과거 상품') return 1;
+      if (b === '과거 상품') return -1;
+      if (a === '과거 상품+') return 1;
+      if (b === '과거 상품+') return -1;
       return b.localeCompare(a);
     });
     
@@ -304,13 +304,13 @@ export default function AdminBulkSellDatePage() {
     return filteredProducts.filter(product => {
       let productDateKey = product.sellDate || '미설정';
       
-      // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+      // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
       if (productDateKey !== '미설정' && productDateKey < thirtyDaysAgoStr) {
-        productDateKey = '과거 예약+';
+        productDateKey = '과거 상품+';
       }
-      // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+      // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
       else if (productDateKey !== '미설정' && productDateKey < sevenDaysAgoStr) {
-        productDateKey = '과거 예약';
+        productDateKey = '과거 상품';
       }
       
       return productDateKey === filteredSellDate;
@@ -320,8 +320,8 @@ export default function AdminBulkSellDatePage() {
   // 날짜 포맷팅 함수
   const formatDate = (dateStr: string) => {
     if (dateStr === '미설정') return '미설정';
-    if (dateStr === '과거 예약') return '과거 예약';
-    if (dateStr === '과거 예약+') return '과거 예약+';
+    if (dateStr === '과거 상품') return '과거 상품';
+    if (dateStr === '과거 상품+') return '과거 상품+';
     
     try {
       const date = new Date(dateStr);
@@ -337,8 +337,8 @@ export default function AdminBulkSellDatePage() {
   // 날짜 상태 가져오기 함수
   const getDateStatus = (dateStr: string) => {
     if (dateStr === '미설정') return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
-    if (dateStr === '과거 예약') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
-    if (dateStr === '과거 예약+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
+    if (dateStr === '과거 상품') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
+    if (dateStr === '과거 상품+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
     
     try {
       const now = new Date();
@@ -715,13 +715,13 @@ export default function AdminBulkSellDatePage() {
                       filteredProducts.forEach(product => {
                         let dateKey = product.sellDate || '미설정';
                         
-                        // 30일 전 이전의 상품들은 "과거 예약+" 카테고리로
+                        // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
                         if (dateKey !== '미설정' && dateKey < thirtyDaysAgoStr) {
-                          dateKey = '과거 예약+';
+                          dateKey = '과거 상품+';
                         }
-                        // 7일 전 이전의 상품들은 "과거 예약" 카테고리로
+                        // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
                         else if (dateKey !== '미설정' && dateKey < sevenDaysAgoStr) {
-                          dateKey = '과거 예약';
+                          dateKey = '과거 상품';
                         }
                         
                         if (!groups[dateKey]) {
@@ -734,12 +734,12 @@ export default function AdminBulkSellDatePage() {
                       const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
                         if (a === '미설정') return 1;
                         if (b === '미설정') return -1;
-                        if (a === '과거 예약' && b === '과거 예약+') return -1;
-                        if (a === '과거 예약+' && b === '과거 예약') return 1;
-                        if (a === '과거 예약') return 1;
-                        if (b === '과거 예약') return -1;
-                        if (a === '과거 예약+') return 1;
-                        if (b === '과거 예약+') return -1;
+                        if (a === '과거 상품' && b === '과거 상품+') return -1;
+                        if (a === '과거 상품+' && b === '과거 상품') return 1;
+                        if (a === '과거 상품') return 1;
+                        if (b === '과거 상품') return -1;
+                        if (a === '과거 상품+') return 1;
+                        if (b === '과거 상품+') return -1;
                         return b.localeCompare(a);
                       });
                       
