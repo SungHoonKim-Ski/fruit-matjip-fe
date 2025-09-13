@@ -9,20 +9,30 @@ import AdminHeader from '../../components/AdminHeader';
 
 type Product = AdminProductListItem;
 
+// 시간을 12시간 형식으로 변환 (HH:mm -> 오전/오후 h:mm)
+const formatTime12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const period = hours >= 12 ? '오후' : '오전';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${period} ${hours12}:${minutes.toString().padStart(2, '0')}`;
+};
+
 // 상품 아이템 컴포넌트
 const ProductItem = ({ 
   product, 
-  index
+  index,
+  normalizedOrder
 }: { 
   product: Product; 
-  index: number; 
+  index: number;
+  normalizedOrder?: number;
 }) => {
   return (
     <div className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200">
       <div className="flex items-center gap-3">
         {/* 순서 번호 */}
         <div className="flex-shrink-0 w-6 h-6 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-          {product.orderIndex || index + 1}
+          {normalizedOrder || index + 1}
         </div>
         
         {/* 상품 이미지 */}
@@ -60,6 +70,40 @@ const ProductItem = ({
   );
 };
 
+// orderIndex 정규화 함수 (중복 제거 및 순차 재배치)
+const normalizeOrderIndexes = (products: Product[]): Map<number, number> => {
+  const normalizedOrders = new Map<number, number>();
+  
+  // 1. orderIndex별로 그룹화 (중복 처리)
+  const orderGroups = new Map<number, Product[]>();
+  products.forEach(product => {
+    const orderIndex = product.orderIndex || 0;
+    if (!orderGroups.has(orderIndex)) {
+      orderGroups.set(orderIndex, []);
+    }
+    orderGroups.get(orderIndex)!.push(product);
+  });
+  
+  // 2. orderIndex 순으로 정렬 (0은 맨 뒤로)
+  const sortedOrders = Array.from(orderGroups.keys()).sort((a, b) => {
+    if (a === 0) return 1;
+    if (b === 0) return -1;
+    return a - b;
+  });
+  
+  // 3. 순차적으로 1~n 할당
+  let currentOrder = 1;
+  sortedOrders.forEach(orderIndex => {
+    const productsInGroup = orderGroups.get(orderIndex)!;
+    productsInGroup.forEach(product => {
+      normalizedOrders.set(product.id, currentOrder);
+      currentOrder++;
+    });
+  });
+  
+  return normalizedOrders;
+};
+
 // 날짜별 상품 그룹 컴포넌트
 const ProductGroup = ({ 
   dateKey, 
@@ -70,14 +114,13 @@ const ProductGroup = ({
   products: Product[]; 
   onOpenDialog: (date: string, products: Product[]) => void;
 }) => {
+  // orderIndex 정규화
+  const normalizedOrders = normalizeOrderIndexes(products);
+  
   const sortedProducts = products.sort((a, b) => {
-    // orderIndex로 정렬 (오름차순)
-    if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
-      return a.orderIndex - b.orderIndex;
-    }
-    if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
-    if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
-    return 0;
+    const orderA = normalizedOrders.get(a.id) || 0;
+    const orderB = normalizedOrders.get(b.id) || 0;
+    return orderA - orderB;
   });
 
   const displayProducts = sortedProducts.slice(0, 5);
@@ -113,6 +156,7 @@ const ProductGroup = ({
             key={product.id} 
             product={product} 
             index={index}
+            normalizedOrder={normalizedOrders.get(product.id)}
           />
         ))}
         
@@ -172,54 +216,24 @@ const OrderEditDialog = ({
   // 다이얼로그가 열릴 때 초기화
   useEffect(() => {
     if (isOpen && products.length > 0) {
-      // 초기 순서 설정: 0이나 충돌하는 값들을 위치에 따라 1~n으로 배치
-      const initialOrders = new Map<number, number>();
-      const initialUsedOrders = new Set<number>();
+      // orderIndex 정규화
+      const normalizedOrders = normalizeOrderIndexes(products);
       
-      // 먼저 기존 orderIndex를 그대로 설정 (0이나 충돌 값도 포함)
-      products.forEach(product => {
-        const orderIndex = product.orderIndex !== undefined ? product.orderIndex : 0;
-        initialOrders.set(product.id, orderIndex);
-        if (orderIndex > 0) {
-          initialUsedOrders.add(orderIndex);
+      // 사용 중인 순서들
+      const usedOrders = new Set<number>();
+      normalizedOrders.forEach(order => {
+        if (order > 0) {
+          usedOrders.add(order);
         }
       });
       
-      // 0이나 충돌하는 값들을 찾아서 위치에 따라 1~n으로 재배치
-      const orderCounts = new Map<number, number>();
-      products.forEach(p => {
-        const order = initialOrders.get(p.id) || 0;
-        orderCounts.set(order, (orderCounts.get(order) || 0) + 1);
-      });
-      
-      // 0이거나 중복되는 제품들을 찾기
-      const problematicProducts: number[] = [];
-      products.forEach(p => {
-        const order = initialOrders.get(p.id) || 0;
-        if (order === 0 || orderCounts.get(order)! > 1) {
-          problematicProducts.push(p.id);
-        }
-      });
-      
-      // 문제가 있는 제품들을 위치에 따라 1~n으로 재배치
-      let nextOrder = 1;
-      problematicProducts.forEach(productId => {
-        // 이미 사용된 순서는 건너뛰기
-        while (initialUsedOrders.has(nextOrder)) {
-          nextOrder++;
-        }
-        initialOrders.set(productId, nextOrder);
-        initialUsedOrders.add(nextOrder);
-        nextOrder++;
-      });
-      
-      setProductOrders(initialOrders);
-      setUsedOrders(initialUsedOrders);
+      setProductOrders(normalizedOrders);
+      setUsedOrders(usedOrders);
       
       // orderIndex 순으로 정렬된 제품 목록
       const sorted = [...products].sort((a, b) => {
-        const orderA = initialOrders.get(a.id) || 0;
-        const orderB = initialOrders.get(b.id) || 0;
+        const orderA = normalizedOrders.get(a.id) || 0;
+        const orderB = normalizedOrders.get(b.id) || 0;
         return orderA - orderB;
       });
       
@@ -348,7 +362,10 @@ const OrderEditDialog = ({
                         <div>
                           <div className="font-medium text-sm text-gray-900">{product.name}</div>
                           <div className="text-xs text-gray-500">
-                            {product.price.toLocaleString()}원 · 재고 {product.stock}개
+                            <div>{product.price.toLocaleString()}원 · 재고 {product.stock}개</div>
+                            {product.sellTime && (
+                              <div className="mt-1">판매 개시: {formatTime12Hour(product.sellTime.substring(0, 5))}</div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -416,10 +433,10 @@ const AdminProductOrderPage = () => {
             name: p.name,
             price: p.price,
             stock: p.stock,
-            totalSold: p.totalSold ?? 0,
             status: p.stock > 0 ? 'active' : 'inactive',
             imageUrl: p.imageUrl,
             sellDate: p.sellDate,
+            sellTime: p.sellTime,
             orderIndex: p.orderIndex,
           }));
           
@@ -572,6 +589,20 @@ const AdminProductOrderPage = () => {
     }
   };
 
+  // 스크롤 투 탑 관련 상태
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowScrollToTop(scrollTop > 160);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -629,6 +660,20 @@ const AdminProductOrderPage = () => {
           setIsDialogOpen(false);
         }}
       />
+      {/* 스크롤 투 탑 버튼 (FloatingActions 스타일) */}
+      <button
+        type="button"
+        aria-label="맨 위로"
+        onClick={scrollToTop}
+        className={`fixed left-4 bottom-4 z-50 rounded-full
+                    bg-gradient-to-br from-white to-gray-50 text-gray-900
+                    border-2 border-gray-300 shadow-2xl h-12 w-12 grid place-items-center
+                    hover:from-white hover:to-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
+                    active:scale-[0.98] transition
+                    ${showScrollToTop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
+        <span className="text-lg font-bold">↑</span>
+      </button>
     </main>
   );
 };
