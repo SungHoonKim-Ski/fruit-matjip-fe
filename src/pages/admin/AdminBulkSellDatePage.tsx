@@ -361,6 +361,20 @@ export default function AdminBulkSellDatePage() {
     }
   };
 
+  // 스크롤 투 탑 관련 상태
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowScrollToTop(scrollTop > 160);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
       <div className="max-w-4xl mx-auto">
@@ -810,6 +824,20 @@ export default function AdminBulkSellDatePage() {
         )}
 
       </div>
+      {/* 스크롤 투 탑 버튼 (FloatingActions 스타일) */}
+      <button
+        type="button"
+        aria-label="맨 위로"
+        onClick={scrollToTop}
+        className={`fixed left-4 bottom-4 z-50 rounded-full
+                    bg-gradient-to-br from-white to-gray-50 text-gray-900
+                    border-2 border-gray-300 shadow-2xl h-12 w-12 grid place-items-center
+                    hover:from-white hover:to-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
+                    active:scale-[0.98] transition
+                    ${showScrollToTop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
+        <span className="text-lg font-bold">↑</span>
+      </button>
     </main>
   );
 }

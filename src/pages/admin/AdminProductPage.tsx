@@ -18,9 +18,38 @@ export default function AdminProductPage() {
   const DANGER_STOCK_THRESHOLD = 5;  // 위험 재고 기준
 
   const { show } = useSnackbar();
+
+  // 시간을 12시간 형식으로 변환 (HH:mm -> 오전/오후 h:mm)
+  const formatTime12Hour = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? '오후' : '오전';
+    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${period} ${hours12}:${minutes.toString().padStart(2, '0')}`;
+  };
   const [products, setProducts] = useState<Product[]>([]);
   const navigate = useNavigate();
 
+  // 스크롤 투 탑 관련 상태
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // 스크롤 이벤트 핸들러
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowScrollToTop(scrollTop > 160); // 160px 이상 스크롤하면 버튼 표시 (FloatingActions와 동일)
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // 맨 위로 스크롤하는 함수
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
   // --- Dialog 상태들 ---
   const [deleteStockDialog, setDeleteStockDialog] = useState<{
@@ -393,10 +422,10 @@ export default function AdminProductPage() {
           name: p.name,
           price: p.price,
           stock: p.stock,
-          totalSold: p.totalSold ?? 0,
           status: p.stock > 0 ? 'active' : 'inactive',
           imageUrl: p.imageUrl,
           sellDate: p.sellDate,
+          sellTime: p.sellTime,
         }));
         setProducts(mapped);
       } else {
@@ -487,7 +516,7 @@ export default function AdminProductPage() {
                         <div className="flex-1 flex flex-col justify-between min-h-[5rem]">
                           {/* 상품 정보 */}
                           <div className="space-y-1 flex-1">
-                            <h3 className="text-base font-semibold break-keep">{highlightSearchTerm(product.name, search)}</h3>
+                            <h3 className="text-sm font-semibold break-keep">{highlightSearchTerm(product.name, search)}</h3>
                             <p className="text-sm text-gray-500">가격: {product.price.toLocaleString()}원</p>
                             <p className="text-sm text-gray-500">
                               <span className="font-medium">재고: {product.stock.toLocaleString()}개</span>
@@ -512,7 +541,9 @@ export default function AdminProductPage() {
                                 })()}
                               </span>
                             </p>
-                            <p className="text-sm text-gray-500">누적 판매량: {product.totalSold}개</p>
+                            {product.sellTime && (
+                              <p className="text-sm text-gray-500">판매 개시: <b>{formatTime12Hour(product.sellTime.substring(0, 5))}</b></p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -817,6 +848,21 @@ export default function AdminProductPage() {
           </div>
         </div>
       )}
+
+      {/* 스크롤 투 탑 버튼 (FloatingActions 스타일) */}
+      <button
+        type="button"
+        aria-label="맨 위로"
+        onClick={scrollToTop}
+        className={`fixed left-4 bottom-4 z-50 rounded-full
+                    bg-gradient-to-br from-white to-gray-50 text-gray-900
+                    border-2 border-gray-300 shadow-2xl h-12 w-12 grid place-items-center
+                    hover:from-white hover:to-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
+                    active:scale-[0.98] transition
+                    ${showScrollToTop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      >
+        <span className="text-lg font-bold">↑</span>
+      </button>
     </main>
   );
 }
