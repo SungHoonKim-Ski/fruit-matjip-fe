@@ -42,6 +42,12 @@ function formatKstYmd(kstDate: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+const formatTime12Hour = (time24: string): string => {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${period} ${hours12}:${minutes.toString().padStart(2, '0')}`;
+};
 // 오후 6시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
 function getNext3Days(): string[] {
   const arr: string[] = [];
@@ -1113,7 +1119,7 @@ export default function ReservePage() {
                         ? '품절'
                         : (isReservationTimeOpen(item, timeOffsetMs)
                             ? '예약하기'
-                            : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`)}
+                            : `${formatTime12Hour(item.sellTime || '00:00')} OPEN`)}
                     </button>
                   </div>
                 </div>
