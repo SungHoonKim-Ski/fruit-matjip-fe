@@ -720,10 +720,10 @@ export type AdminProductListItem = {
   name: string;
   price: number;
   stock: number;
-  totalSold: number;
   status: 'active' | 'inactive';
   imageUrl: string;
   sellDate?: string;
+  sellTime?: string;
   orderIndex?: number;
 };
 
@@ -749,10 +749,10 @@ const mapAdminListItem = (p: any): AdminProductListItem => {
     name: String(p.name ?? ''),
     price: Number(p.price ?? 0),
     stock: stockNum,
-    totalSold: Number((p.totalSold ?? p.total_sold) ?? 0),
     status: visible ? 'active' : 'inactive',
     imageUrl: addImgPrefix(p.productUrl ?? p.product_url ?? p.imageUrl ?? ''),
     sellDate: (p.sellDate ?? p.sell_date) || undefined,
+    sellTime: (p.sellTime ?? p.sell_time) || undefined,
     orderIndex: p.order_index ? Number(p.order_index) : undefined,
   };
 };
@@ -905,4 +905,37 @@ export const updateProductOrder = async (product_ids: number[]) => {
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 서버 시간 조회 (KST 기준 epoch milliseconds)
+export const getServerTime = async (): Promise<number> => {
+  const key = 'getServerTime';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await fetch(`${API_BASE}/api/time`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    
+    // LocalDateTime 문자열 응답을 받아서 epoch milliseconds로 변환
+    const localDateTimeStr = await res.text();
+    const cleanedDateTimeStr = localDateTimeStr
+      .replace(/^"|"$/g, '') // 앞뒤 따옴표 제거
+      .replace(/\.(\d{3})\d+/, '.$1'); // 마이크로초를 밀리초로 제한
+    
+    
+    // LocalDateTime을 Date 객체로 변환 (KST 기준)
+    const date = new Date(cleanedDateTimeStr + '+09:00'); // KST 타임존 추가
+    const epochMs = date.getTime();
+    
+    if (isNaN(epochMs)) {
+      throw new Error(`LocalDateTime 파싱 실패: ${localDateTimeStr}`);
+    }
+    
+    if (res.ok) resetApiRetryCount(key);
+    return epochMs;
+  } catch (e) { 
+    incrementApiRetryCount(key); 
+    throw e; 
+  }
 };

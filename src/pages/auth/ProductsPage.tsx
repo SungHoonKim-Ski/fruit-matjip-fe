@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick, getServerTime } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 type Product = {
@@ -19,6 +19,7 @@ type Product = {
   totalSold?: number;
   reservationId?: number; // 예약 ID (셀프 수령 신청 시 사용)
   orderIndex?: number; // 노출 순서
+  sellTime?: string; // 예약 시작 시간 (HH:mm, KST) - 선택값
 };
 
 const formatPrice = (price: number) =>
@@ -62,6 +63,50 @@ function getNext3Days(): string[] {
 
 const storeTitle = '과일맛집 1995';
 const branchName = '';
+
+// KST 기준 현재 날짜/시간 문자열 계산 (서버 시간 동기화 적용)
+function getKstNowStrings(offsetMs: number = 0): { dateStr: string; timeStr: string } {
+  const now = new Date(Date.now() + offsetMs);
+  const kst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const y = kst.getFullYear();
+  const m = String(kst.getMonth() + 1).padStart(2, '0');
+  const d = String(kst.getDate()).padStart(2, '0');
+  const hh = String(kst.getHours()).padStart(2, '0');
+  const mm = String(kst.getMinutes()).padStart(2, '0');
+  return { dateStr: `${y}-${m}-${d}`, timeStr: `${hh}:${mm}` };
+}
+
+// 예약 버튼 활성화 여부 (KST 기준, 서버 시간 동기화 적용)
+function isReservationTimeOpen(product: Product, offsetMs: number = 0): boolean {
+  if (!product.sellTime) return true; // 시간 제약이 없으면 항상 가능
+  const { dateStr, timeStr } = getKstNowStrings(offsetMs);
+  if (dateStr < product.sellDate) return false;
+  if (dateStr > product.sellDate) return true;
+  // 같은 날짜: HH:mm 비교 (초 무시)
+  const target = product.sellTime.slice(0, 5);
+  return timeStr >= target;
+}
+
+// KST 기준 현재 Date 객체 (서버 시간 동기화 적용)
+function getKstNowDate(offsetMs: number = 0): Date {
+  const now = new Date(Date.now() + offsetMs);
+  return new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+}
+
+// 남은 시간 hh:mm 포맷 반환 (오픈 전인 경우만). 오픈 시간이 없으면 null (서버 시간 동기화 적용)
+function getOpenCountdown(product: Product, offsetMs: number = 0): string | null {
+  if (!product.sellTime) return null;
+  // 대상 시간을 KST 기준으로 생성
+  const iso = `${product.sellDate}T${product.sellTime.slice(0, 5)}:00+09:00`;
+  const target = new Date(iso);
+  const now = getKstNowDate(offsetMs);
+  const diffMs = target.getTime() - now.getTime();
+  if (diffMs <= 0) return null;
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+  const mm = String(totalMinutes % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
 
 export default function ReservePage() {
   // 재고 상태 기준값 (static 변수)
@@ -154,6 +199,39 @@ export default function ReservePage() {
   
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
+
+  // 실시간 카운트다운 갱신용 틱 (1초 간격)
+  const [nowTick, setNowTick] = useState<number>(() => Date.now());
+  // 서버 시간 동기화 오프셋 (ms)
+  const [timeOffsetMs, setTimeOffsetMs] = useState<number>(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // 서버 시간 동기화
+  useEffect(() => {
+    const syncServerTime = async () => {
+      try {
+        const serverTime = await getServerTime();
+        
+        const offset = serverTime - Date.now();
+        
+        setTimeOffsetMs(offset);
+      } catch (e) {
+        console.error('서버 시간 동기화 실패:', e);
+        setTimeOffsetMs(0);
+      }
+    };
+    
+    // 초기 동기화
+    syncServerTime();
+    
+    // 5분마다 재동기화
+    const interval = setInterval(syncServerTime, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Load data from mock or API
   useEffect(() => {
@@ -221,6 +299,7 @@ export default function ReservePage() {
             // 누적 판매량 필드명: total_sold
             totalSold: p.total_sold ?? 0,
             orderIndex: p.order_index ?? 0,
+            sellTime: p.sell_time || p.sellTime, // 선택적 시간 필드 매핑
           })));
         } catch (e: any) {
           safeErrorLog(e, 'ShopPage - loadProducts');
@@ -241,44 +320,54 @@ export default function ReservePage() {
       const searchFiltered = searchQuery === '' ? filtered : 
         filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
       
-      // 정렬: 품절이 아닌 상품 우선 → orderIndex 오름차순 → 누적 판매량 높은 순 → 재고 많은 순
+      // 정렬 우선순위: 판매 가능 > 오픈예정(가까운 시간순) > 품절
       return searchFiltered.sort((a, b) => {
-        // 1순위: 품절이 아닌 상품이 우선 (stock > 0)
-        if (a.stock > 0 && b.stock === 0) return -1;
-        if (a.stock === 0 && b.stock > 0) return 1;
-        
-        // 2순위: 같은 그룹 내에서 orderIndex가 있는 경우 오름차순 정렬
-        if (a.stock > 0 && b.stock > 0) {
-          // 둘 다 품절이 아닌 경우
+        const rank = (p: Product) => {
+          if (p.stock === 0) return 2; // 품절
+          return isReservationTimeOpen(p, timeOffsetMs) ? 0 : 1; // 판매 가능:0, 오픈예정:1
+        };
+
+        const rankA = rank(a);
+        const rankB = rank(b);
+        if (rankA !== rankB) return rankA - rankB;
+
+        // 동순위 세부 정렬
+        if (rankA === 0) {
+          // 판매 가능: 기존 로직 유지
           if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
-            return a.orderIndex - b.orderIndex; // 오름차순
+            if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex; // asc
+          } else if (a.orderIndex !== undefined || b.orderIndex !== undefined) {
+            return a.orderIndex !== undefined ? -1 : 1;
           }
-          if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
-          if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
-        } else if (a.stock === 0 && b.stock === 0) {
-          // 둘 다 품절인 경우
+          if ((a.totalSold || 0) !== (b.totalSold || 0)) {
+            return (b.totalSold || 0) - (a.totalSold || 0); // desc
+          }
+          return (b.stock - b.quantity) - (a.stock - a.quantity); // 남은 재고 desc
+        }
+
+        if (rankA === 1) {
+          // 오픈예정: 시간 가까운 순
+          const timeA = (a.sellTime || '99:99').slice(0, 5);
+          const timeB = (b.sellTime || '99:99').slice(0, 5);
+          if (timeA !== timeB) return timeA.localeCompare(timeB);
+          // 보조 기준: orderIndex asc
           if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
-            return a.orderIndex - b.orderIndex; // 오름차순
+            if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex;
+          } else if (a.orderIndex !== undefined || b.orderIndex !== undefined) {
+            return a.orderIndex !== undefined ? -1 : 1;
           }
-          if (a.orderIndex !== undefined && b.orderIndex === undefined) return -1;
-          if (a.orderIndex === undefined && b.orderIndex !== undefined) return 1;
+          return 0;
         }
-        
-        // 3순위: 품절이 아닌 상품들 중에서 누적 판매량이 높은 순
-        if (a.stock > 0 && b.stock > 0) {
-          if (a.totalSold !== b.totalSold) {
-            return (b.totalSold || 0) - (a.totalSold || 0); // 내림차순
-          }
-          
-          // 4순위: 누적 판매량이 같다면 재고가 많은 순
-          return (b.stock - b.quantity) - (a.stock - a.quantity); // 내림차순
+
+        // 품절끼리: orderIndex asc, 그다음 누적 판매량 desc
+        if (a.orderIndex !== undefined && b.orderIndex !== undefined) {
+          if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex;
+        } else if (a.orderIndex !== undefined || b.orderIndex !== undefined) {
+          return a.orderIndex !== undefined ? -1 : 1;
         }
-        
-        // 둘 다 품절인 경우 누적 판매량 순
-        if (a.totalSold !== b.totalSold) {
-          return (b.totalSold || 0) - (a.totalSold || 0); // 내림차순
+        if ((a.totalSold || 0) !== (b.totalSold || 0)) {
+          return (b.totalSold || 0) - (a.totalSold || 0);
         }
-        
         return 0;
       });
     },
@@ -1017,10 +1106,14 @@ export default function ReservePage() {
                     </button>
                     <button
                       onClick={() => handleReserve(item)}
-                      disabled={item.stock === 0}
-                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                      disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs)}
+                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                     >
-                      {item.stock === 0 ? '품절' : '예약하기'}
+                      {item.stock === 0
+                        ? '품절'
+                        : (isReservationTimeOpen(item, timeOffsetMs)
+                            ? '예약하기'
+                            : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`)}
                     </button>
                   </div>
                 </div>

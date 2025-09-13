@@ -33,6 +33,7 @@ type ProductEdit = {
   stock: number;
   imageUrl: string;
   sellDate?: string; // YYYY-MM-DD
+  sellTime?: string; // HH:mm
   description?: string;
   images?: string[];
 };
@@ -342,6 +343,7 @@ export default function AdminEditProductPage() {
             imageUrl: addPrefix(raw.product_url),
             images: detailList.map((u: string) => addPrefix(u)),
             sellDate: raw.sell_date,
+            sellTime: raw.sell_time || undefined,
             description: raw.description || '',
           };
           if (!alive) return;
@@ -466,6 +468,14 @@ export default function AdminEditProductPage() {
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) return;
       setForm({ ...form, stock: n });
+      return;
+    }
+    if (name === 'sellTime') {
+      // 시간 형식 검증 (HH:mm)
+      if (value && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
+        return; // 잘못된 형식이면 무시
+      }
+      setForm({ ...form, sellTime: value || undefined });
       return;
     }
     setForm({ ...form, [name]: value });
@@ -630,6 +640,7 @@ export default function AdminEditProductPage() {
       const stockChanged = form.stock !== (initial?.stock ?? 0);
       const productUrlChanged = toS3Key(newMainKey ?? form.imageUrl) !== toS3Key(initial?.imageUrl || '');
       const sellDateChanged = (form.sellDate || '').trim() !== (initial?.sellDate || '').trim();
+      const sellTimeChanged = (form.sellTime || '') !== (initial?.sellTime || '');
 
       const normalizeHtml = (s: string) => s.replace(/\s+/g, ' ').trim();
       const descriptionChanged = normalizeHtml(form.description || '') !== normalizeHtml(initial?.description || '');
@@ -641,7 +652,7 @@ export default function AdminEditProductPage() {
       const detailChanged = !arraysEqual(currentDetailKeys, initialDetailKeys);
 
       const hasAnyChange =
-        nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || descriptionChanged || detailChanged;
+        nameChanged || priceChanged || stockChanged || productUrlChanged || sellDateChanged || sellTimeChanged || descriptionChanged || detailChanged;
 
       if (!hasAnyChange) {
         show('변경 사항이 없습니다.', { variant: 'info' });
@@ -657,6 +668,8 @@ export default function AdminEditProductPage() {
         stock: stockChanged ? form.stock : null,
         product_url: productUrlChanged ? toS3Key(newMainKey ?? form.imageUrl) : null, // key만
         sell_date: sellDateChanged ? (form.sellDate || '').trim() : null,
+        sell_time: sellTimeChanged ? (form.sellTime || null) : null,
+        update_sell_time: sellTimeChanged,
         description: descriptionChanged ? (form.description || '') : null,
         detail_urls: detailChanged ? currentDetailKeys : null,
       };
@@ -810,6 +823,32 @@ export default function AdminEditProductPage() {
               onChange={onChange}
               className="mt-1 w-full h-10 border rounded px-3"
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">판매 개시 시간</label>
+            <div className="mt-1 flex gap-2">
+              <input
+                name="sellTime"
+                type="time"
+                value={form.sellTime || ''}
+                onChange={onChange}
+                className="flex-1 h-10 border rounded px-3"
+                placeholder="HH:mm"
+              />
+              {form.sellTime && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, sellTime: undefined })}
+                  className="px-3 h-10 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+                >
+                  판매 개시 제거
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              판매 개시 제거 버튼으로 <br /> <b>상품 구매 가능 시간 제한을 제거할</b> 수 있습니다.
+            </p>
           </div>
 
           {/* 설명 에디터 */}

@@ -39,13 +39,20 @@ const ProductItem = ({
           <h3 className="text-sm font-medium text-gray-900 truncate">
             {product.name}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm font-semibold text-orange-600">
-              {product.price.toLocaleString()}원
-            </span>
-            <span className="text-xs text-gray-500">
-              재고 {product.stock}개
-            </span>
+          <div className="mt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-orange-600">
+                {product.price.toLocaleString()}원
+              </span>
+              <span className="text-xs text-gray-500">
+                재고 <b>{product.stock}</b>개
+              </span>
+            </div>
+            {product.sellTime && (
+              <div className="text-xs text-gray-500 mt-1">
+                판매 개시: <b>{formatTime12Hour(product.sellTime.substring(0, 5))}</b>
+              </div>
+            )}
           </div>
         </div>
       </div>

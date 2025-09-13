@@ -18,6 +18,14 @@ export default function AdminBulkSellDatePage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const navigate = useNavigate();
 
+  // 시간을 12시간 형식으로 변환 (HH:mm -> 오전/오후 h:mm)
+  const formatTime12Hour = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? '오후' : '오전';
+    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${period} ${hours12}:${minutes.toString().padStart(2, '0')}`;
+  };
+
   // 검색 관련 상태
   const [search, setSearch] = useState('');
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -406,7 +414,10 @@ export default function AdminBulkSellDatePage() {
                       </h3>
                       
                       <div className="text-xs text-gray-600">
-                        <span>재고: {product.stock}개</span>
+                        <div>재고: {product.stock}개</div>
+                        {product.sellTime && (
+                          <div>판매 개시: <b>{formatTime12Hour(product.sellTime.substring(0, 5))}</b></div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -531,7 +542,10 @@ export default function AdminBulkSellDatePage() {
                           </h3>
                           
                           <div className="text-xs text-gray-600">
-                            <span>재고: {product.stock}개</span>
+                            <div>재고: {product.stock}개</div>
+                            {product.sellTime && (
+                              <div>판매 개시: <b>{formatTime12Hour(product.sellTime.substring(0, 5))}</b></div>
+                            )}
                           </div>
                         </div>
                       </div>
