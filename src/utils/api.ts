@@ -547,11 +547,22 @@ export const setSoldOut = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const toggleVisible = async (id: number, visible: boolean) => {
+export const toggleVisible = async (id: number) => {
   const key = 'toggleVisible';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/visible/${id}?visible=${visible}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/products/visible/${id}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 상품 셀프 수령 가능 여부 토글
+export const toggleSelfPickAvailable = async (id: number) => {
+  const key = 'toggleSelfPickAvailable';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/self-pick/${id}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -725,6 +736,7 @@ export type AdminProductListItem = {
   sellDate?: string;
   sellTime?: string;
   orderIndex?: number;
+  selfPickAllowed?: boolean; // server: self_pick
 };
 
 const addImgPrefix = (url?: string) => {
@@ -754,6 +766,7 @@ const mapAdminListItem = (p: any): AdminProductListItem => {
     sellDate: (p.sellDate ?? p.sell_date) || undefined,
     sellTime: (p.sellTime ?? p.sell_time) || undefined,
     orderIndex: p.order_index ? Number(p.order_index) : undefined,
+    selfPickAllowed: typeof p.self_pick === 'boolean' ? Boolean(p.self_pick) : undefined,
   };
 };
 

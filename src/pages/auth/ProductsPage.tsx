@@ -20,6 +20,7 @@ type Product = {
   reservationId?: number; // 예약 ID (셀프 수령 신청 시 사용)
   orderIndex?: number; // 노출 순서
   sellTime?: string; // 예약 시작 시간 (HH:mm, KST) - 선택값
+  selfPickAllowed?: boolean; // 서버 self_pick
 };
 
 const formatPrice = (price: number) =>
@@ -42,12 +43,6 @@ function formatKstYmd(kstDate: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-const formatTime12Hour = (time24: string): string => {
-  const [hours, minutes] = time24.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  return `${period} ${hours12}:${minutes.toString().padStart(2, '0')}`;
-};
 // 오후 6시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
 function getNext3Days(): string[] {
   const arr: string[] = [];
@@ -306,6 +301,7 @@ export default function ReservePage() {
             totalSold: p.total_sold ?? 0,
             orderIndex: p.order_index ?? 0,
             sellTime: p.sell_time || p.sellTime, // 선택적 시간 필드 매핑
+            selfPickAllowed: typeof p.self_pick === 'boolean' ? Boolean(p.self_pick) : undefined,
           })));
         } catch (e: any) {
           safeErrorLog(e, 'ShopPage - loadProducts');
@@ -803,11 +799,10 @@ export default function ReservePage() {
     }
 
     try {
-
+      // 전역 허용 + 상품 자체 허용 둘 다 필요
       const canPick = await checkCanSelfPick();
-
-      if (!canPick) {
-        show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
+      if (!canPick || product.selfPickAllowed !== true) {
+        show('셀프 수령 불가 상품이거나, 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
         setSelfPickDialog({ isOpen: false, product: null });
         return;
       }
@@ -825,6 +820,7 @@ export default function ReservePage() {
     } catch (e: any) {
       safeErrorLog(e, 'ProductsPage - handleSelfPick');
       show(getSafeErrorMessage(e, '셀프 수령 신청 중 오류가 발생했습니다.'), { variant: 'error' });
+      setSelfPickDialog({ isOpen: false, product: null });
     }
   };
 
@@ -1070,8 +1066,8 @@ export default function ReservePage() {
                 {item.stock > 0 && (
                   <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
                     <div>
-                      {(item.stock - item.quantity) < LOW_STOCK_THRESHOLD && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">품절임박</span>
+                      {item.selfPickAllowed === false && (
+                        <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">19시 이후 수령 불가</span>
                       )}
                     </div>
                     <span className="text-l">
@@ -1119,7 +1115,7 @@ export default function ReservePage() {
                         ? '품절'
                         : (isReservationTimeOpen(item, timeOffsetMs)
                             ? '예약하기'
-                            : `${formatTime12Hour(item.sellTime || '00:00')} OPEN`)}
+                            : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`)}
                     </button>
                   </div>
                 </div>
@@ -1175,41 +1171,32 @@ export default function ReservePage() {
               </p>
             </div>
             
-            <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
-              <p className="text-sm text-orange-800">
-                <strong>셀프 수령</strong>을 원하시나요?<br />
-                19:00까지는 매장 내 직원이 상주합니다.<br />
-                오셔서 닉네임을 말씀해주시면 <br />
-                예약가격으로 준비해드립니다.
-              </p>
-              <p className="text-sm text-orange-800 mt-2">
-                혹시 매장 오시는 시간이 <strong>19:00 이후</strong>이실 경우<br />
-                <strong>'셀프수령'</strong>을 신청해주세요.<br />
-              </p>
-              <p className="text-sm text-orange-800 mt-2">
-              저희가 매장 한편에 닉네임을 적어서 준비해놓습니다.<br />
-                <span className="text-xs text-orange-600">
-                  (단, 1달 2회 이상 미수령시 셀프수령 기능이 비활성화됩니다)
-                </span>
-              </p>
-              
-            </div>
             
             <div className="flex gap-3">
+              
+              <button
+                onClick={() => handleSelfPick(selfPickDialog.product!)}
+                disabled={selfPickDialog.product?.selfPickAllowed === false}
+                className={`flex-1 h-12 rounded-lg font-medium text-sm ${
+                  selfPickDialog.product?.selfPickAllowed === false
+                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
+              >
+                <span className="whitespace-pre-line">
+                  {selfPickDialog.product?.selfPickAllowed === false
+                    ? '셀프 수령 불가'
+                    : '19시 이후 방문\n(셀프수령)'}
+                </span>
+              </button>
               <button
                 onClick={() => {
                   setSelfPickDialog({ isOpen: false, product: null });
-                  show('주문 내역에서 셀프 수령을 신청할 수 있습니다.');
+                  // show('우측 하단 주문 내역에서 변경할 수 있습니다.');
                 }}
                 className="flex-1 h-12 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
               >
-                나중에 하기
-              </button>
-              <button
-                onClick={() => handleSelfPick(selfPickDialog.product!)}
-                className="flex-1 h-12 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
-              >
-                셀프 수령 신청
+                닫기
               </button>
             </div>
           </div>

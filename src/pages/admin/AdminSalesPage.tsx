@@ -201,20 +201,12 @@ export default function AdminSalesPage() {
     }
   }, [summaryByDate, selectedDate]);
 
-  // 판매량/판매액 정렬 기준
-  const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
-
   // 검색은 상세 rows(선택 날짜)에만 적용; 월 단위 필드는 제거
   const filtered = useMemo(() => {
     const v = term.trim();
-    let arr = !v ? rows : rows.filter(r => (r.productName || '').includes(v));
-    if (sortType === 'quantity') {
-      arr = [...arr].sort((a, b) => b.quantity - a.quantity);
-    } else {
-      arr = [...arr].sort((a, b) => b.revenue - a.revenue);
-    }
-    return arr;
-  }, [term, rows, sortType]);
+    if (!v) return rows;
+    return rows.filter(r => (r.productName || '').includes(v));
+  }, [term, rows]);
 
   const totalQty = monthTotalQty;
   const totalRev = monthTotalRev;
@@ -337,29 +329,6 @@ export default function AdminSalesPage() {
     } finally {
       setLoadingDetails(false);
     }
-  };
-
-  // 스크롤 투 탑 관련 상태
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      setShowScrollToTop(scrollTop > 160);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // 검색 모달 관련 상태 및 함수
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const openSearchModal = () => {
-    setIsSearchModalOpen(true);
-  };
-  const closeSearchModal = () => {
-    setIsSearchModalOpen(false);
   };
 
   return (
@@ -488,7 +457,7 @@ export default function AdminSalesPage() {
         </div>
       </div>
 
-      {/* 일별 요약 카드 */}
+      {/* 선택 일 요약 (품목 하단) */}
       <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mt-3 mb-">
 
       <div className="rounded border bg-white p-2 text-center">
@@ -516,34 +485,9 @@ export default function AdminSalesPage() {
           </p>
         </div>
       </div>
-
-      {/* 검색 아이콘 버튼 (돋보기) 제거됨 */}
-
       {/* 검색 입력: 달력 아래, 상세 위 */}
       {/* 기존 검색 input 영역 완전히 삭제됨 */}
-      {/* 정렬 필터 버튼 */}
-      <div className="max-w-4xl mx-auto flex justify-end gap-3 mt-2 mb-4">
-      <button
-         className={`px-2 py-2.5 rounded-full border text-sm font-semibold transition-colors ${
-           sortType === 'quantity'
-             ? 'bg-orange-500 text-white border-orange-500'
-             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-         }`}
-         onClick={() => setSortType('quantity')}
-       >
-         판매량순
-       </button>
-       <button
-         className={`px-2 py-2.5 rounded-full border text-sm font-semibold transition-colors ${
-           sortType === 'revenue'
-             ? 'bg-orange-500 text-white border-orange-500'
-             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
-         }`}
-         onClick={() => setSortType('revenue')}
-       >
-         판매액순
-       </button>
-     </div>
+
       {/* 테이블 (선택 날짜 상세) */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         <div className="hidden sm:block overflow-x-auto">
@@ -592,20 +536,6 @@ export default function AdminSalesPage() {
           ))}
         </div>
       </div>
-      {/* 스크롤 투 탑 버튼 (FloatingActions 스타일) */}
-      <button
-        type="button"
-        aria-label="맨 위로"
-        onClick={scrollToTop}
-        className={`fixed left-4 bottom-4 z-50 rounded-full
-                    bg-gradient-to-br from-white to-gray-50 text-gray-900
-                    border-2 border-gray-300 shadow-2xl h-12 w-12 grid place-items-center
-                    hover:from-white hover:to-gray-100 hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)]
-                    active:scale-[0.98] transition
-                    ${showScrollToTop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-      >
-        <span className="text-lg font-bold">↑</span>
-      </button>
     </main>
   );
 }

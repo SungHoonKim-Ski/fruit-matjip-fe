@@ -98,12 +98,12 @@ export const SnackbarProvider: React.FC<{
               className={`pointer-events-auto mx-4 max-w-md rounded-full text-white shadow-lg ${colorByVariant[current.variant]}`}
               onClick={hide}
             >
-              <div className="px-4 py-2 text-sm flex items-center gap-2">
+              <div className="px-4 py-2 text-sm flex items-start gap-2">
                 {/* 상태 아이콘(간단) */}
                 <span className="text-white/90">
                   {current.variant === 'success' ? '✅' : current.variant === 'error' ? '⚠️' : 'ℹ️'}
                 </span>
-                <span className="truncate">{current.message}</span>
+                <span className="whitespace-pre-line break-words">{current.message}</span>
               </div>
             </div>
           )}

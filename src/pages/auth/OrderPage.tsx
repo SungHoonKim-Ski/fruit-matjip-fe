@@ -64,6 +64,9 @@ export default function OrdersPage() {
     newStatus: 'canceled'
   });
 
+  // Dialog 오픈 시점의 셀프 수령 가능 여부(전역 API && 해당 상품 플래그)
+  const [dialogSelfPickEligible, setDialogSelfPickEligible] = useState<boolean | null>(null);
+
   // 검색 관련 상태
   const [search, setSearch] = useState('');
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -146,7 +149,10 @@ export default function OrdersPage() {
                   name: r.product_name, 
                   quantity: qty,
                   price: unit,
-                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : ''
+                  imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '',
+                  productId: r.product_id,
+                  // 서버에서 self_pick 정보가 포함될 경우 반영(예약 상세에 포함되는 경우 대비)
+                  selfPickAllowed: typeof r.self_pick === 'boolean' ? Boolean(r.self_pick) : undefined,
                 }]
               };
             });
@@ -253,6 +259,28 @@ export default function OrdersPage() {
     });
   };
 
+  // Dialog 오픈 시 최신 조건으로 셀프 수령 가능 여부 계산 (API + 상품 self_pick)
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!statusDialog.isOpen || statusDialog.currentStatus !== 'pending') {
+        setDialogSelfPickEligible(null);
+        return;
+      }
+      try {
+        const order = orders.find(o => o.id === statusDialog.orderId);
+        const firstItem: any = (order?.items || [])[0];
+        const productAllows = !!(firstItem && firstItem.selfPickAllowed === true);
+        const apiAllows = await checkCanSelfPick();
+        if (alive) setDialogSelfPickEligible(Boolean(apiAllows && productAllows));
+      } catch (e) {
+        if (alive) setDialogSelfPickEligible(false);
+      }
+    };
+    run();
+    return () => { alive = false; };
+  }, [statusDialog.isOpen, statusDialog.orderId, statusDialog.currentStatus, orders]);
+
   // 검색 모달 열기/닫기
   const openSearchModal = () => {
     setTempSearch(search);
@@ -320,7 +348,20 @@ export default function OrdersPage() {
             }
           }
           
-          // 셀프 수령 가능 여부는 이미 페이지 진입 시 체크됨
+          // 셀프 수령 가능 여부 추가 체크: 전역 허용 + 상품 자체 허용 둘 다 필요
+          if (canSelfPick !== true) {
+            show('셀프 수령 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
+            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+            return;
+          }
+          // 해당 주문의 상품(selfPickAllowed)이 true인 경우에만 허용 (대표 아이템 기준)
+          const firstItem = (targetOrder.items || [])[0] as any;
+          const productAllows = !!(firstItem && firstItem.selfPickAllowed === true);
+          if (!productAllows) {
+            show('해당 상품은 셀프 수령이 불가합니다.', { variant: 'error' });
+            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+            return;
+          }
           
           // 미래 주문인 경우: 신청 가능 (시간 제한 없음)
         }
@@ -382,6 +423,7 @@ export default function OrdersPage() {
     } catch (e: any) {
       safeErrorLog(e, 'OrderPage - handleStatusChange');
       show(getSafeErrorMessage(e, '상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+      setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
     }
   };
 
@@ -601,7 +643,7 @@ export default function OrdersPage() {
               >
                 예약 취소
               </button>
-              {statusDialog.currentStatus === 'pending' && canSelfPick === true && (() => {
+              {statusDialog.currentStatus === 'pending' && dialogSelfPickEligible === true && (() => {
                 // 주문일 기준으로 18시 체크
                 const targetOrder = orders.find(o => o.id === statusDialog.orderId);
                 if (!targetOrder) return false;
@@ -625,9 +667,9 @@ export default function OrdersPage() {
                     // pending -> self_pick
                     handleStatusChange('self_pick');
                   }}
-                  className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium"
+                  className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm"
                 >
-                  셀프 수령
+                  <span className="whitespace-pre-line">{"19시 이후\n셀프 수령"}</span>
                 </button>
               )}
               <button
