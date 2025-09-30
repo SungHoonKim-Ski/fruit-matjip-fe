@@ -38,8 +38,13 @@ export default function AdminSalesPage() {
   const monthStart = toKstYMD(new Date(kstNow.getFullYear(), kstNow.getMonth(), 1));
   const todayKst   = toKstYMD(kstNow);
   const kstYesterday = (() => { const d = new Date(kstNow); d.setDate(d.getDate() - 1); return toKstYMD(d); })();
-  const [from, setFrom] = useState<string>(monthStart);
-  const [to, setTo]     = useState<string>(kstYesterday);
+
+  // ✅ 기본 범위: 이번 달 1일 ~ 어제(단, 매달 1일에는 1일~1일로 클램프)
+  const defaultFrom = monthStart;
+  const defaultTo = (kstNow.getDate() === 1) ? monthStart : kstYesterday;
+
+  const [from, setFrom] = useState<string>(defaultFrom);
+  const [to, setTo]     = useState<string>(defaultTo);
   const [monthValue, setMonthValue] = useState<string>(() => `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,'0')}`);
   const currentMonthStr = `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,'0')}`;
 
@@ -76,11 +81,78 @@ export default function AdminSalesPage() {
   // 요약 데이터 로드(집계 테이블) - 이번달 1일~어제 + 오늘 합쳐서
   const loadSummary = async (rangeFrom: string, rangeTo: string) => {
     setLoadingSummary(true);
+    // 로컬 변수로 복사하여 정규화
+    let fromYmd = rangeFrom;
+    let toYmd = rangeTo;
+
+    // 방어 로직: 잘못된 범위(from > to)일 경우 from으로 클램프
+    if (new Date(fromYmd) > new Date(toYmd)) {
+      toYmd = fromYmd;
+    }
     // 현재 월 범위인지 확인
     const isCurrentMonthRange = (() => {
-      const f = new Date(rangeFrom);
+      const f = new Date(fromYmd);
       return f.getFullYear() === kstNow.getFullYear() && f.getMonth() === kstNow.getMonth();
     })();
+    // 🛡️ 1일 방어 로직: 오늘이 해당 월의 1일이고(from/to가 1일~1일)이라면 summary API를 호출하지 않는다.
+    if (isCurrentMonthRange && fromYmd === monthStart && toYmd === monthStart) {
+      try {
+        const todayStr = toKstYMD(kstNow);
+
+        if (USE_MOCKS) {
+          const map: Record<string, number> = {};
+          const todayRows = mockSales.filter(r => r.date === todayStr);
+          todayRows.forEach(r => { map[todayStr] = (map[todayStr] || 0) + Number(r.revenue ?? 0); });
+          const qtySum = todayRows.reduce((s, r) => s + Number(r.quantity ?? 0), 0);
+          const revSum = Object.values(map).reduce((s, v) => s + Number(v), 0);
+          setSummaryByDate(map);
+          setMonthTotalQty(qtySum);
+          setMonthTotalRev(revSum);
+          return; // 🔚 summary 호출 생략
+        }
+
+        const resToday = await getTodaySales(todayStr);
+        if (!resToday.ok) {
+          if (resToday.status === 401 || resToday.status === 403) {
+            // 권한 문제는 조용히 무시하고 빈 상태로
+            setSummaryByDate({});
+            setMonthTotalQty(0);
+            setMonthTotalRev(0);
+            return;
+          }
+          const err = await resToday.clone().json().catch(() => ({}));
+          throw new Error(err.message || '오늘 매출을 불러오지 못했습니다.');
+        }
+
+        const bodyToday = await resToday.json();
+        const listToday = Array.isArray(bodyToday) ? bodyToday : (bodyToday?.response || []);
+
+        const map: Record<string, number> = {};
+        let qtySum = 0;
+        let revSum = 0;
+        listToday.forEach((r: any) => {
+          const qty = Number(r.quantity ?? 0);
+          const rev = Number(r.revenue ?? r.amount ?? 0);
+          map[todayStr] = (map[todayStr] || 0) + rev;
+          qtySum += qty;
+          revSum += rev;
+        });
+
+        setSummaryByDate(map);
+        setMonthTotalQty(qtySum);
+        setMonthTotalRev(revSum);
+        return; // 🔚 summary 호출 생략
+      } catch (e: any) {
+        safeErrorLog(e, 'AdminSalesPage - loadSummary(1st-day-guard)');
+        show(getSafeErrorMessage(e, '오늘 매출을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+        setSummaryByDate({});
+        setMonthTotalQty(0);
+        setMonthTotalRev(0);
+        return;
+      } finally {
+        setLoadingSummary(false);
+      }
+    }
     try {
       if (USE_MOCKS) {
         const map: Record<string, number> = {};
@@ -95,7 +167,7 @@ export default function AdminSalesPage() {
       }
 
       // 1. 이번달 1일~어제 데이터
-      const res1 = await getSalesSummary(rangeFrom, rangeTo);
+      const res1 = await getSalesSummary(fromYmd, toYmd);
       if (!res1.ok) {
         if (res1.status === 401 || res1.status === 403) return;
         const err = await res1.clone().json().catch(() => ({}));
