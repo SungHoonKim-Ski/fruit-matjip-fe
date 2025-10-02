@@ -204,7 +204,7 @@ export default function AdminSalesPage() {
     setMonthTotalRev(0);
     loadSummary(from, to);
   }, [from, to, show]);
-
+const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
   // 페이지 진입 시 오늘 데이터도 함께 로드
   useEffect(() => {
     const loadInitialData = async () => {
@@ -247,9 +247,14 @@ export default function AdminSalesPage() {
   // 검색은 상세 rows(선택 날짜)에만 적용; 월 단위 필드는 제거
   const filtered = useMemo(() => {
     const v = term.trim();
-    if (!v) return rows;
-    return rows.filter(r => (r.productName || '').includes(v));
-  }, [term, rows]);
+    let arr = !v ? rows : rows.filter(r => (r.productName || '').includes(v));
+    if (sortType === 'quantity') {
+      arr = [...arr].sort((a, b) => b.quantity - a.quantity);
+    } else {
+      arr = [...arr].sort((a, b) => b.revenue - a.revenue);
+    }
+    return arr;
+  }, [term, rows, sortType]);
 
   const totalQty = monthTotalQty;
   const totalRev = monthTotalRev;
@@ -499,7 +504,6 @@ export default function AdminSalesPage() {
           })}
         </div>
       </div>
-
       {/* 선택 일 요약 (품목 하단) */}
       <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mt-3 mb-">
 
@@ -529,7 +533,29 @@ export default function AdminSalesPage() {
         </div>
       </div>
       {/* 검색 입력: 달력 아래, 상세 위 */}
-      {/* 기존 검색 input 영역 완전히 삭제됨 */}
+      {/* 정렬 필터 버튼 */}
+      <div className="max-w-4xl mx-auto flex justify-end gap-3 mt-2 mb-4">
+      <button
+         className={`px-2 py-2.5 rounded-full border text-sm font-semibold transition-colors ${
+           sortType === 'quantity'
+             ? 'bg-orange-500 text-white border-orange-500'
+             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+         }`}
+         onClick={() => setSortType('quantity')}
+       >
+         판매량순
+       </button>
+       <button
+         className={`px-2 py-2.5 rounded-full border text-sm font-semibold transition-colors ${
+           sortType === 'revenue'
+             ? 'bg-orange-500 text-white border-orange-500'
+             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+         }`}
+         onClick={() => setSortType('revenue')}
+       >
+         판매액순
+       </button>
+     </div>
 
       {/* 테이블 (선택 날짜 상세) */}
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow overflow-hidden">
