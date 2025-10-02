@@ -84,89 +84,31 @@ export default function AdminSalesPage() {
     // 로컬 변수로 복사하여 정규화
     let fromYmd = rangeFrom;
     let toYmd = rangeTo;
-
+  
     // 방어 로직: 잘못된 범위(from > to)일 경우 from으로 클램프
     if (new Date(fromYmd) > new Date(toYmd)) {
       toYmd = fromYmd;
     }
+  
     // 현재 월 범위인지 확인
     const isCurrentMonthRange = (() => {
       const f = new Date(fromYmd);
       return f.getFullYear() === kstNow.getFullYear() && f.getMonth() === kstNow.getMonth();
     })();
-    // 🛡️ 1일 방어 로직: 오늘이 해당 월의 1일이고(from/to가 1일~1일)이라면 summary API를 호출하지 않는다.
-    if (isCurrentMonthRange && fromYmd === monthStart && toYmd === monthStart) {
-      try {
-        const todayStr = toKstYMD(kstNow);
-
-        if (USE_MOCKS) {
-          const map: Record<string, number> = {};
-          const todayRows = mockSales.filter(r => r.date === todayStr);
-          todayRows.forEach(r => { map[todayStr] = (map[todayStr] || 0) + Number(r.revenue ?? 0); });
-          const qtySum = todayRows.reduce((s, r) => s + Number(r.quantity ?? 0), 0);
-          const revSum = Object.values(map).reduce((s, v) => s + Number(v), 0);
-          setSummaryByDate(map);
-          setMonthTotalQty(qtySum);
-          setMonthTotalRev(revSum);
-          return; // 🔚 summary 호출 생략
-        }
-
-        const resToday = await getTodaySales(todayStr);
-        if (!resToday.ok) {
-          if (resToday.status === 401 || resToday.status === 403) {
-            // 권한 문제는 조용히 무시하고 빈 상태로
-            setSummaryByDate({});
-            setMonthTotalQty(0);
-            setMonthTotalRev(0);
-            return;
-          }
-          const err = await resToday.clone().json().catch(() => ({}));
-          throw new Error(err.message || '오늘 매출을 불러오지 못했습니다.');
-        }
-
-        const bodyToday = await resToday.json();
-        const listToday = Array.isArray(bodyToday) ? bodyToday : (bodyToday?.response || []);
-
-        const map: Record<string, number> = {};
-        let qtySum = 0;
-        let revSum = 0;
-        listToday.forEach((r: any) => {
-          const qty = Number(r.quantity ?? 0);
-          const rev = Number(r.revenue ?? r.amount ?? 0);
-          map[todayStr] = (map[todayStr] || 0) + rev;
-          qtySum += qty;
-          revSum += rev;
-        });
-
-        setSummaryByDate(map);
-        setMonthTotalQty(qtySum);
-        setMonthTotalRev(revSum);
-        return; // 🔚 summary 호출 생략
-      } catch (e: any) {
-        safeErrorLog(e, 'AdminSalesPage - loadSummary(1st-day-guard)');
-        show(getSafeErrorMessage(e, '오늘 매출을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
-        setSummaryByDate({});
-        setMonthTotalQty(0);
-        setMonthTotalRev(0);
-        return;
-      } finally {
-        setLoadingSummary(false);
-      }
-    }
+  
     try {
       if (USE_MOCKS) {
         const map: Record<string, number> = {};
         mockSales.forEach((r) => { map[r.date] = (map[r.date] || 0) + r.revenue; });
         setSummaryByDate(map);
-        // mock 합계도 세팅
         const mockQty = mockSales.reduce((s, r) => s + Number(r.quantity ?? 0), 0);
         const mockRev = mockSales.reduce((s, r) => s + Number(r.revenue ?? 0), 0);
         setMonthTotalQty(mockQty);
         setMonthTotalRev(mockRev);
         return;
       }
-
-      // 1. 이번달 1일~어제 데이터
+  
+      // 1. 범위 요약 호출(1일에도 스킵하지 않음)
       const res1 = await getSalesSummary(fromYmd, toYmd);
       if (!res1.ok) {
         if (res1.status === 401 || res1.status === 403) return;
@@ -175,12 +117,11 @@ export default function AdminSalesPage() {
       }
       const body1 = await res1.json();
       const list1 = Array.isArray(body1.summary) ? body1.summary : [];
-
-      // 3. 두 결과 합치기 (+ 월합계 산출)
+  
       const map: Record<string, number> = {};
       let mQty = 0;
       let mRev = 0;
-
+  
       // 이번달 1일~어제 데이터(집계 테이블)
       list1.forEach((r: any) => {
         const date = r.date || r.sell_date || r.sellDate || r.pickup_date || r.pickupDate || '';
@@ -190,15 +131,45 @@ export default function AdminSalesPage() {
         mQty += qty;
         mRev += rev;
       });
-
+  
+      // 🔁 폴백: 2일 이후인데 1일 요약이 비어있다면 상세로 보강
+      if (
+        isCurrentMonthRange &&
+        kstNow.getDate() >= 2 &&
+        fromYmd === monthStart &&
+        toYmd === monthStart &&
+        !map[monthStart]
+      ) {
+        try {
+          const resD1 = await getSalesDetails(monthStart);
+          if (resD1.ok) {
+            const bodyD1 = await resD1.json();
+            const listD1 = Array.isArray(bodyD1) ? bodyD1 : (bodyD1?.response || []);
+            let qtySum = 0, revSum = 0;
+            listD1.forEach((r: any) => {
+              const qty = Number(r.quantity ?? 0);
+              const rev = Number(r.revenue ?? r.amount ?? 0);
+              qtySum += qty;
+              revSum += rev;
+            });
+            if (revSum > 0) {
+              map[monthStart] = (map[monthStart] || 0) + revSum;
+              mQty += qtySum;
+              mRev += revSum;
+            }
+          }
+        } catch (e) {
+          // 폴백 실패는 치명적이지 않음: 로그만
+          safeErrorLog(e, 'AdminSalesPage - fallback details for 1st day');
+        }
+      }
+  
       // 2. 오늘 데이터 (현재 월일 때만 추가)
       if (isCurrentMonthRange) {
         const todayStr = toKstYMD(kstNow);
         const res2 = await getTodaySales(todayStr);
         if (!res2.ok) {
-          if (res2.status === 401 || res2.status === 403) {
-            // 권한 문제는 조용히 무시
-          } else {
+          if (res2.status !== 401 && res2.status !== 403) {
             const err = await res2.clone().json().catch(() => ({}));
             throw new Error(err.message || '오늘 매출을 불러오지 못했습니다.');
           }
@@ -215,7 +186,7 @@ export default function AdminSalesPage() {
           });
         }
       }
-
+  
       setSummaryByDate(map);
       setMonthTotalQty(mQty);
       setMonthTotalRev(mRev);
