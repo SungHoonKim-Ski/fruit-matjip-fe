@@ -34,12 +34,8 @@ export default function OrdersPage() {
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().split('T')[0];
   })();
-  const dayAfterTomorrow = formatDateKR(new Date(now.getTime() + (2 * 24 * 60 * 60 * 1000)));
-  // dayAfterTomorrow = today + 6;
-
-  // 필터 - 기본값: 오늘 ~ 이틀 뒤
+  // 필터 - 기본값: 시작일(오늘)만 사용
   const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(dayAfterTomorrow);
   const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled'>('all');
 
   // 데이터
@@ -89,7 +85,7 @@ export default function OrdersPage() {
         } else {
           try {
             // 선택된 필터 날짜 범위로 요청
-            const res = await getReservations(from, to);
+            const res = await getReservations(from, from);
             if (!res.ok) {
               // 401, 403 에러는 통합 에러 처리로 위임
               if (res.status === 401 || res.status === 403) {
@@ -171,7 +167,7 @@ export default function OrdersPage() {
       }
     })();
     return () => { alive = false; };
-  }, [page, show, from, to]);
+  }, [page, show, from]);
 
   // 셀프 수령 가능 여부 체크 (페이지 진입 시 한 번만)
   useEffect(() => {
@@ -219,22 +215,24 @@ export default function OrdersPage() {
 
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
-    const t = to ? new Date(to) : null;
     const searchQuery = search.trim().toLowerCase();
     
     return orders.filter(o => {
       const d = new Date(o.date);
-      const inFrom = f ? d >= f : true;
-      const inTo = t ? d <= t : true;
+      const sameDay = f ? (
+        d.getFullYear() === f.getFullYear() &&
+        d.getMonth() === f.getMonth() &&
+        d.getDate() === f.getDate()
+      ) : true;
       const s = status === 'all' ? true : o.status === status;
       
       // 제품명 검색 필터링
       const matchesSearch = searchQuery === '' || 
         o.items.some(item => item.name.toLowerCase().includes(searchQuery));
       
-      return inFrom && inTo && s && matchesSearch;
+      return sameDay && s && matchesSearch;
     });
-  }, [orders, from, to, status, search]);
+  }, [orders, from, status, search]);
 
   const totalPrice = (o: OrderRow) =>
     o.items.reduce((sum, it) => sum + it.price * it.quantity, 0);
@@ -440,24 +438,20 @@ export default function OrdersPage() {
 
       {/* 필터 */}
       <section className="max-w-4xl mx-auto bg-white rounded-lg shadow p-4 mt-4">
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
-            <label className="text-xs text-gray-500">시작일</label>
+            <label className="text-xs text-gray-500">상품 수령일</label>
             <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
           </div>
-          <div>
-            <label className="text-xs text-gray-500">종료일</label>
-            <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
-          </div>
           <div className="sm:col-span-2">
-            <label className="text-xs text-gray-500">상태</label>
+            <label className="text-xs text-gray-500">수령 상태</label>
             <select
               value={status}
               onChange={e=>setStatus(e.target.value as any)}
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
-              <option value="pending">수령 대기</option>
+              <option value="pending">예약 완료</option>
               <option value="picked">수령 완료</option>
               {canSelfPick && <option value="self_pick">셀프 수령(19시 이후)</option>}
               <option value="canceled">예약 취소</option>
@@ -466,7 +460,7 @@ export default function OrdersPage() {
           <div className="flex items-end">
             <button
               type="button"
-              onClick={() => { setFrom(today); setTo(dayAfterTomorrow); setStatus('all'); }}
+              onClick={() => { setFrom(today); setStatus('all'); }}
               className="w-full h-10 rounded border hover:bg-gray-50"
             >
               초기화
@@ -533,7 +527,7 @@ export default function OrdersPage() {
                       className={`${statusBadge(o.status)} ${(o.status === 'pending' || o.status === 'self_pick') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
                       title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
                     >
-                      {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
+                      {o.status === 'pending' ? '예약 완료(클릭 시 변경)' : 
                        o.status === 'picked' ? '수령 완료' : 
                        o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
                        o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
@@ -577,7 +571,7 @@ export default function OrdersPage() {
                   title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
                   disabled={!(o.status === 'pending' || o.status === 'self_pick')}
                 >
-                  {o.status === 'pending' ? '수령 대기(클릭 시 변경)' : 
+                  {o.status === 'pending' ? '예약 완료(클릭 시 변경)' : 
                    o.status === 'picked' ? '수령 완료' : 
                    o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
                    o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
@@ -768,17 +762,16 @@ export default function OrdersPage() {
                       item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
                     )
                   ).map(order => (
-                    <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                         onClick={() => {
-                           // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
-                           const firstProductName = order.items[0]?.name || '';
-                           setSearch(firstProductName);
-                           setFrom(today);
-                           setTo(dayAfterTomorrow);
-                           setStatus('all');
-                           setSearchModalOpen(false);
-                           setTempSearch('');
-                         }}>
+                  <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                       onClick={() => {
+                         // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
+                         const firstProductName = order.items[0]?.name || '';
+                         setSearch(firstProductName);
+                         setFrom(today);
+                         setStatus('all');
+                         setSearchModalOpen(false);
+                         setTempSearch('');
+                       }}>
                       <div className="text-sm font-medium text-gray-800 mb-1">
                         {order.date}
                       </div>
