@@ -291,7 +291,7 @@ export default function ReservePage() {
           setProducts(productsArray.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
-            quantity: p.stock > 0 ? 1 : 0,
+            quantity: 0,
             price: p.price,
             stock: p.stock,
             imageUrl: p.image_url ? `${process.env.REACT_APP_IMG_URL}/${p.image_url}` : p.imageUrl,
@@ -978,10 +978,14 @@ export default function ReservePage() {
           <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
             <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⏰</span>
-              <span>당일 모든 주문 마감시간은 <strong className="text-orange-900">18:00</strong>입니다</span>
+              <span>예약하신 상품은 <strong className="text-orange-900">당일 19시 이전</strong>에</span>
             </p>
-            <p className="text-[10px] text-orange-700 mt-0.5">
-              (셀프수령 여부 체크포함)
+            <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
+              <span>매장 방문하셔야 구매 가능합니다.</span>
+            </p>
+            
+            <p className="text-xs text-orange-900 mt-0.5 text-center">
+              (19시 까지 미수령 시 <strong>예약 자동 취소</strong>)
             </p>
           </div>
         </div>
@@ -1167,7 +1171,7 @@ export default function ReservePage() {
             <div className="text-center mb-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-2">🎉 예약 완료!</h2>
               <p className="text-sm text-gray-600">
-                <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다.
+                <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다!
               </p>
             </div>
             
