@@ -696,7 +696,7 @@ export default function AdminReservationsPage() {
                   <td className="px-2 py-3 align-middle w-32 text-center">{r.createdAt}</td>
                   <td className="px-2 py-3 align-middle w-16 text-center" onClick={(e) => e.stopPropagation()}>
                                       {/* 노쇼 경고 버튼 - 셀프 수령 및 셀프 수령 준비 완료 상태일 때 표시 */}
-                  {(r.status === 'self_pick' || r.status === 'self_pick_ready') && (
+                  {(r.status === 'self_pick' || r.status === 'self_pick_ready' || r.status === 'pending' || r.status === 'canceled') && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -850,7 +850,7 @@ export default function AdminReservationsPage() {
                     <span className="line-clamp-2 break-words">{r.productName}</span>
                   </div>
                   {/* 노쇼 경고 버튼 - 셀프 수령 및 셀프 수령 준비 완료 상태일 때 표시 */}
-                  {(r.status === 'self_pick' || r.status === 'self_pick_ready') && (
+                  {(r.status === 'self_pick' || r.status === 'self_pick_ready' || r.status === 'pending' || r.status === 'canceled') && (
                     <button
                       type="button"
                       onClick={e => { e.stopPropagation(); openWarningDialog(r.id); }}
