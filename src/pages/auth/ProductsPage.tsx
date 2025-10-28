@@ -978,14 +978,14 @@ export default function ReservePage() {
           <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
             <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⏰</span>
-              <span>예약하신 상품은 <strong className="text-orange-900">당일 19시 이전</strong>에</span>
+              <span>예약하신 상품은 <strong className="text-orange-900">당일 20시 이전</strong>에</span>
             </p>
             <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
               <span>매장 방문하셔야 구매 가능합니다.</span>
             </p>
             
             <p className="text-xs text-orange-900 mt-0.5 text-center">
-              (19시 까지 미수령 시 <strong>예약 자동 취소</strong>)
+              (20시 까지 미수령 시 <strong>예약 자동 취소</strong>)
             </p>
           </div>
         </div>

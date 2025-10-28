@@ -335,12 +335,12 @@ export default function OrdersPage() {
         
         // self_pick인 경우 추가 체크
         if (targetStatus === 'self_pick') {
-          // order_date의 오후 6시(18:00)까지 신청 가능
+          // order_date의 오후 7시(19:00)까지 신청 가능
           if (orderDateOnly.getTime() === todayDate.getTime()) {
             // 오늘 주문인 경우: 현재 시간이 오후 6시 이전이어야 함
             const currentHour = kstNow.getHours();
-            if (currentHour >= 18) {
-              show('셀프 수령은 오후 6시까지만 가능합니다.', { variant: 'error' });
+            if (currentHour >= 19) {
+              show('셀프 수령은 오후 7시까지만 가능합니다.', { variant: 'error' });
               setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
               return;
             }
@@ -453,7 +453,7 @@ export default function OrdersPage() {
               <option value="all">전체</option>
               <option value="pending">예약 완료</option>
               <option value="picked">수령 완료</option>
-              {canSelfPick && <option value="self_pick">셀프 수령(19시 이후)</option>}
+              {canSelfPick && <option value="self_pick">셀프 수령(20시 이후)</option>}
               <option value="canceled">예약 취소</option>
             </select>
           </div>
@@ -470,7 +470,7 @@ export default function OrdersPage() {
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
           수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.<br />
-                        셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 6시</strong>까지 가능하며, <strong className="text-red-600">오후 6시 이후에는 신청할 수 없습니다</strong>.
+                        셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 7시</strong>까지 가능하며, <strong className="text-red-600">오후 7시 이후에는 신청할 수 없습니다</strong>.
         </div>
         <div className="mt-2 text-xs text-red-600">
           셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> 
@@ -663,7 +663,7 @@ export default function OrdersPage() {
                   }}
                   className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm"
                 >
-                  <span className="whitespace-pre-line">{"19시 이후\n셀프 수령"}</span>
+                  <span className="whitespace-pre-line">{"20시 이후\n셀프 수령"}</span>
                 </button>
               )}
               <button
