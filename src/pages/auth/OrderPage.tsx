@@ -339,8 +339,9 @@ export default function OrdersPage() {
           if (orderDateOnly.getTime() === todayDate.getTime()) {
             // 오늘 주문인 경우: 현재 시간이 오후 6시 이전이어야 함
             const currentHour = kstNow.getHours();
-            if (currentHour >= 19) {
-              show('셀프 수령은 오후 7시까지만 가능합니다.', { variant: 'error' });
+            const currentMinute = kstNow.getMinutes();
+            if (currentHour >= 19 && currentMinute >= 30) {
+              show('셀프 수령은 오후 7시 30분까지만 가능합니다.', { variant: 'error' });
               setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
               return;
             }
@@ -469,12 +470,12 @@ export default function OrdersPage() {
         </div>
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
-          수령 대기 중인 상품을 눌러 셀프 수령으로 변경하거나 예약을 취소할 수 있어요.<br />
-                        셀프 수령 신청은 수령일 당일 <strong className="text-gray-800">오후 7시</strong>까지 가능하며, <strong className="text-red-600">오후 7시 이후에는 신청할 수 없습니다</strong>.
+        <strong>예약 완료 버튼</strong> 클릭 시 <strong>예약을 취소</strong>할 수 있습니다<br /> 
+          
         </div>
         <div className="mt-2 text-xs text-red-600">
-          셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> 
-          <strong>당월 셀프 수령 신청이 불가능</strong>할 수 있습니다.
+          <strong>노쇼가 누적</strong>될 경우 <strong>추후 예약이 불가합니다</strong> <br />
+          꼭 수령해주세요!
         </div>
       </section>
 

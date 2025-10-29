@@ -51,7 +51,7 @@ function getNext3Days(): string[] {
   const kstNow = now;
   const start = new Date(now);
   // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
-  if (kstNow.getHours() >= 19) {
+  if (kstNow.getHours() >= 19 && kstNow.getMinutes() >= 30) {
     start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < 7; i++) {
@@ -258,7 +258,7 @@ export default function ReservePage() {
           // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
           const kstNow = now;
           const start = new Date(now);        
-          if (kstNow.getHours() >= 19) {
+          if (kstNow.getHours() >= 19 && kstNow.getMinutes() >= 30) {
             start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);
@@ -644,6 +644,11 @@ export default function ReservePage() {
     return `${d.getMonth() + 1}월${d.getDate()}일 (${w})`;
   };
 
+  const prettyDay = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    return '일월화수목금토'[d.getDay()] + '요일';
+  };
+
 
   // 닉네임 모달
   const openNickModal = () => {
@@ -976,16 +981,17 @@ export default function ReservePage() {
         <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
           <h1 className="text-base font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
           <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
-            <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
-              <span className="text-orange-600">⏰</span>
-              <span>예약하신 상품은 <strong className="text-orange-900">당일 20시 이전</strong>에</span>
+            
+            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
+              <span className="text-orange-600">⚠</span>
+              <span>판매 당일 <strong className="text-orange-900">20시 전에 매장을 방문</strong>하셔야</span>
             </p>
-            <p className="text-xs text-orange-800 font-medium flex items-center justify-center gap-1">
-              <span>매장 방문하셔야 구매 가능합니다.</span>
+            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
+              <span><strong className="text-orange-900">예약 상품 구매가 가능</strong>합니다</span>
             </p>
             
             <p className="text-xs text-orange-900 mt-0.5 text-center">
-              (20시 까지 미수령 시 <strong>예약 자동 취소</strong>)
+              [20시 기준 미수령 예약 자동 취소]
             </p>
           </div>
         </div>
@@ -1039,6 +1045,25 @@ export default function ReservePage() {
                   </button>
                 );
               })}
+            </div>
+            
+            {/* 수령 가능 안내 문구 */}
+            <div className="px-3 mt-2">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <span className="text-xs font-medium text-green-700">
+                    <strong>{prettyDay(activeDate)}</strong>에 구매 가능한 상품입니다
+                  </span>                  
+                </div>
+                <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
+                  <span className="text-xs font-medium text-green-700">
+                    <strong>{prettyDay(activeDate)} 19:30까지 </strong> 예약 가능합니다
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
