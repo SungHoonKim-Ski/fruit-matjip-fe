@@ -51,7 +51,7 @@ function getNext3Days(): string[] {
   const kstNow = now;
   const start = new Date(now);
   // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
-  if (kstNow.getHours() >= 18) {
+  if (kstNow.getHours() >= 19) {
     start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < 7; i++) {
@@ -258,7 +258,7 @@ export default function ReservePage() {
           // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
           const kstNow = now;
           const start = new Date(now);        
-          if (kstNow.getHours() >= 18) {
+          if (kstNow.getHours() >= 19) {
             start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);
@@ -1190,7 +1190,7 @@ export default function ReservePage() {
                 <span className="whitespace-pre-line">
                   {selfPickDialog.product?.selfPickAllowed === false
                     ? '셀프 수령 불가'
-                    : '19시 이후 방문\n(셀프수령)'}
+                    : '20시 이후 방문\n(셀프수령)'}
                 </span>
               </button>
               <button
