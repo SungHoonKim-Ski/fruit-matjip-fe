@@ -1071,7 +1071,7 @@ export default function ReservePage() {
                   <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
                     <div>
                       {item.selfPickAllowed === false && (
-                        <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">19시 이후 수령 불가</span>
+                        <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
                       )}
                     </div>
                     <span className="text-l">
