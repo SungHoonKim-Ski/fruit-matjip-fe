@@ -1065,7 +1065,7 @@ export default function ReservePage() {
                 <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
                   <span className="text-xs font-medium text-green-700">
-                    <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약 가능해요
+                    <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약이 가능해요
                   </span>
                 </div>
               </div>
