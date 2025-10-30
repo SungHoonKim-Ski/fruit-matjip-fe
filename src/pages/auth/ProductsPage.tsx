@@ -8,6 +8,8 @@ import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick, getServerTime } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
+const MAX_DAYS = 10; // 최대 10일 예약 가능
+
 type Product = {
   id: number;
   name: string;
@@ -44,7 +46,7 @@ function formatKstYmd(kstDate: Date): string {
 }
 
 // 오후 6시(KST) 이후에는 다음날을 시작으로, 포함 7일간 날짜 생성
-function getNext3Days(): string[] {
+function getNext10Days(): string[] {
   const arr: string[] = [];
   const now = new Date();
   // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
@@ -54,7 +56,7 @@ function getNext3Days(): string[] {
   if (kstNow.getHours() >= 19 && kstNow.getMinutes() >= 30) {
     start.setDate(start.getDate() + 1);
   }
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < MAX_DAYS; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i); // setUTCDate 대신 setDate 사용
     arr.push(formatKstYmd(d));
@@ -110,8 +112,6 @@ function getOpenCountdown(product: Product, offsetMs: number = 0): string | null
 }
 
 export default function ReservePage() {
-  // 재고 상태 기준값 (static 변수)
-  const LOW_STOCK_THRESHOLD = 10;    // 품절임박 기준
   
   const [products, setProducts] = useState<Product[]>([]);
   const { show } = useSnackbar();
@@ -189,7 +189,7 @@ export default function ReservePage() {
   }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen]);
 
   // 날짜 탭
-  const dates = useMemo(() => getNext3Days(), []);
+  const dates = useMemo(() => getNext10Days(), []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
   
   // 검색어 (상품명)
@@ -263,7 +263,7 @@ export default function ReservePage() {
           }
           const fromStr = formatKstYmd(start);
           const toDate = new Date(start);
-          toDate.setDate(start.getDate() + 6);
+          toDate.setDate(start.getDate() + MAX_DAYS - 1);
           const toStr = formatKstYmd(toDate);
           
           const res = await getProducts(fromStr, toStr);
@@ -642,6 +642,11 @@ export default function ReservePage() {
     const d = new Date(iso + 'T00:00:00');
     const w = '일월화수목금토'[d.getDay()];
     return `${d.getMonth() + 1}월${d.getDate()}일 (${w})`;
+  };
+
+  const prettydate = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');    
+    return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
   const prettyDay = (iso: string) => {
@@ -1053,14 +1058,14 @@ export default function ReservePage() {
                 <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   <span className="text-xs font-medium text-green-700">
-                    <strong>{prettyDay(activeDate)}</strong>에 구매 가능한 상품입니다
+                    매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 수령할 수 있어요
                   </span>                  
                 </div>
                 <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
                   <span className="text-xs font-medium text-green-700">
-                    <strong>{prettyDay(activeDate)} 19:30까지 </strong> 예약 가능합니다
+                    <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약 가능합니다
                   </span>
                 </div>
               </div>
