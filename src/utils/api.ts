@@ -424,6 +424,16 @@ export const selfPickReservation = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const minusQuantity = async (id: number, quantity: number) => {
+  const key = 'minusQuantity';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch(`/api/auth/reservations/${id}/quantity?minus=${quantity}`, { method: 'PATCH' });
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 export const checkCanSelfPick = async (): Promise<boolean> => {
   const res = await userFetch('/api/auth/reservation/self-pick');
   if (!res.ok) {

@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
-import { getReservations, cancelReservation, selfPickReservation, checkCanSelfPick } from '../../utils/api';
+import { getReservations, cancelReservation, selfPickReservation, checkCanSelfPick, minusQuantity } from '../../utils/api';
 
 // 취소 확인 dialog 타입
 interface CancelDialogProps {
@@ -52,16 +52,21 @@ export default function OrdersPage() {
     productName: string;
     currentStatus: 'pending' | 'self_pick';
     newStatus: 'canceled' | 'self_pick';
+    quantity: number;
   }>({
     isOpen: false,
     orderId: 0,
     productName: '',
     currentStatus: 'pending',
-    newStatus: 'canceled'
+    newStatus: 'canceled',
+    quantity: 0
   });
 
   // Dialog 오픈 시점의 셀프 수령 가능 여부(전역 API && 해당 상품 플래그)
   const [dialogSelfPickEligible, setDialogSelfPickEligible] = useState<boolean | null>(null);
+
+  // Dialog에서 수량 변경 임시 상태 (확인 버튼을 눌러야 실제 적용)
+  const [tempQuantity, setTempQuantity] = useState<number>(0);
 
   // 검색 관련 상태
   const [search, setSearch] = useState('');
@@ -247,14 +252,16 @@ export default function OrdersPage() {
   };
 
   // 상태 변경 dialog 열기
-  const openStatusDialog = (orderId: number, productName: string, currentStatus: 'pending' | 'self_pick') => {
+  const openStatusDialog = (orderId: number, productName: string, currentStatus: 'pending' | 'self_pick', quantity: number) => {
     setStatusDialog({
       isOpen: true,
       orderId,
       productName,
       currentStatus,
-      newStatus: 'canceled' // 기본값은 canceled로 설정
+      newStatus: 'canceled', // 기본값은 canceled로 설정
+      quantity
     });
+    setTempQuantity(quantity); // 임시 수량 초기화
   };
 
   // Dialog 오픈 시 최신 조건으로 셀프 수령 가능 여부 계산 (API + 상품 self_pick)
@@ -302,6 +309,88 @@ export default function OrdersPage() {
     setTempSearch('');
   };
 
+  // 임시 수량 증감 처리 (화면에만 반영, 확인 버튼 필요)
+  const handleTempQuantityChange = (diff: number) => {
+    const newTempQuantity = Math.max(1, Math.min(tempQuantity + diff, statusDialog.quantity));
+    setTempQuantity(newTempQuantity);
+  };
+
+  // 수량 변경 확인 처리 (실제 API 호출)
+  const handleConfirmQuantityChange = async () => {
+    if (tempQuantity === statusDialog.quantity) {
+      show('수량 변경이 없습니다.', { variant: 'info' });
+      return;
+    }
+    
+    const decreaseAmount = statusDialog.quantity - tempQuantity;
+    if (decreaseAmount <= 0) {
+      show('수량은 더 이상 늘릴 수 없습니다.', { variant: 'error' });
+      return;
+    }
+
+    if (!statusDialog.isOpen) return;
+    
+    try {
+      if (USE_MOCKS) {
+        // Mock 수량 감소 처리
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setOrders(prev => prev.map(o => 
+          o.id === statusDialog.orderId 
+            ? { 
+                ...o, 
+                items: o.items.map(item => ({
+                  ...item,
+                  quantity: Math.max(0, item.quantity - decreaseAmount)
+                }))
+              }
+            : o
+        ));
+        
+        // dialog의 수량도 업데이트
+        setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
+        
+        show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
+        
+        // dialog 닫기
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+      } else {
+        // 실제 API 호출
+        const res = await minusQuantity(statusDialog.orderId, decreaseAmount);
+        if (!res.ok) {
+          if (res.status === 400) {
+            show('수량을 줄일 수 없습니다. 최소 수량은 1개입니다.', { variant: 'error' });
+            return;
+          }
+          throw new Error('수량 변경에 실패했습니다.');
+        }
+        
+        // 성공 시 로컬 상태 업데이트
+        setOrders(prev => prev.map(o => 
+          o.id === statusDialog.orderId 
+            ? { 
+                ...o, 
+                items: o.items.map(item => ({
+                  ...item,
+                  quantity: Math.max(0, item.quantity - decreaseAmount)
+                }))
+              }
+            : o
+        ));
+        
+        // dialog의 수량도 업데이트
+        setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
+        
+        show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
+        
+        // dialog 닫기
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+      }
+    } catch (e: any) {
+      safeErrorLog(e, 'OrderPage - handleConfirmQuantityChange');
+      show(getSafeErrorMessage(e, '수량 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+    }
+  };
+
   // 상태 변경 처리
   const handleStatusChange = async (newStatus?: 'canceled' | 'self_pick') => {
     if (!statusDialog.isOpen) return;
@@ -329,7 +418,7 @@ export default function OrdersPage() {
         
         if (orderDateOnly.getTime() < todayDate.getTime()) {
           show('과거 예약은 취소하거나 셀프 수령 신청할 수 없습니다.', { variant: 'error' });
-          setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+          setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
           return;
         }
         
@@ -342,7 +431,7 @@ export default function OrdersPage() {
             const currentMinute = kstNow.getMinutes();
             if (currentHour >= 19 && currentMinute >= 30) {
               show('셀프 수령은 오후 7시 30분까지만 가능합니다.', { variant: 'error' });
-              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
               return;
             }
           }
@@ -350,7 +439,7 @@ export default function OrdersPage() {
           // 셀프 수령 가능 여부 추가 체크: 전역 허용 + 상품 자체 허용 둘 다 필요
           if (canSelfPick !== true) {
             show('셀프 수령 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
-            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
             return;
           }
           // 해당 주문의 상품(selfPickAllowed)이 true인 경우에만 허용 (대표 아이템 기준)
@@ -358,7 +447,7 @@ export default function OrdersPage() {
           const productAllows = !!(firstItem && firstItem.selfPickAllowed === true);
           if (!productAllows) {
             show('해당 상품은 셀프 수령이 불가합니다.', { variant: 'error' });
-            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+            setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
             return;
           }
           
@@ -380,7 +469,7 @@ export default function OrdersPage() {
         } else if (targetStatus === 'self_pick') {
           show(`${statusDialog.productName} 주문의 셀프 수령 신청이 완료됬습니다`);
         }
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       } else {
         // 실제 API 호출 (cancelReservation 또는 selfPickReservation)
         if (targetStatus === 'canceled') {
@@ -388,7 +477,7 @@ export default function OrdersPage() {
           if (!res.ok) {
             if (res.status === 400) {
               // 400 에러는 사용자 이슈 - dialog만 닫기
-              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
               return;
             }
             throw new Error('주문 취소에 실패했습니다.');
@@ -398,7 +487,7 @@ export default function OrdersPage() {
           if (!res.ok) {
             if (res.status === 400) {
               // 400 에러는 사용자 이슈 (시간 제한, 평일 아님 등) - dialog만 닫기
-              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
               return;
             }
             throw new Error('셀프 수령 신청에 실패했습니다.');
@@ -417,12 +506,12 @@ export default function OrdersPage() {
         } else if (targetStatus === 'self_pick') {
           show(`${statusDialog.productName} 주문의 셀프 수령을 준비합니다.`);
         }
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       }
     } catch (e: any) {
       safeErrorLog(e, 'OrderPage - handleStatusChange');
       show(getSafeErrorMessage(e, '상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
-      setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' });
+      setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
     }
   };
 
@@ -502,7 +591,7 @@ export default function OrdersPage() {
                   className={`border-t text-sm ${(o.status === 'pending' || o.status === 'self_pick') ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
                   onClick={() => {
                     if (o.status === 'pending' || o.status === 'self_pick') {
-                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
+                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status, o.items.reduce((sum, item) => sum + item.quantity, 0));
                     }
                   }}
                   role={(o.status === 'pending' || o.status === 'self_pick') ? 'button' : undefined}
@@ -554,7 +643,7 @@ export default function OrdersPage() {
               className={`bg-white rounded-lg shadow p-4 ${(o.status === 'pending' || o.status === 'self_pick') ? 'active:bg-orange-50 cursor-pointer' : ''}`}
               onClick={() => {
                 if (o.status === 'pending' || o.status === 'self_pick') {
-                  openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
+                  openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status, o.items.reduce((sum, item) => sum + item.quantity, 0));
                 }
               }}
               role={(o.status === 'pending' || o.status === 'self_pick') ? 'button' : undefined}
@@ -565,7 +654,7 @@ export default function OrdersPage() {
                 <button
                   onClick={() => {
                     if (o.status === 'pending' || o.status === 'self_pick') {
-                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status);
+                      openStatusDialog(o.id, o.items.map(item => item.name).join(', '), o.status, o.items.reduce((sum, item) => sum + item.quantity, 0));
                     }
                   }}
                   className={`${statusBadge(o.status)} ${(o.status === 'pending' || o.status === 'self_pick') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
@@ -626,6 +715,42 @@ export default function OrdersPage() {
                 ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
+            {/* 수량 변경 UI */}
+            {statusDialog.currentStatus === 'pending' && statusDialog.quantity > 1 && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-500">변경 뒤 수량 <strong>[기존 예약 수량 이하로만 가능해요]</strong></span>
+                </div>
+                <div className="flex items-center gap-3 justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleTempQuantityChange(-1)}
+                      disabled={tempQuantity <= 1}
+                      className="w-10 h-10 rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-lg flex items-center justify-center"
+                    >
+                      -
+                    </button>
+                    <div className="text-2xl font-bold text-gray-900 min-w-[60px] text-center">
+                      {tempQuantity}개
+                    </div>
+                    <button
+                      onClick={() => handleTempQuantityChange(+1)}
+                      disabled={tempQuantity >= statusDialog.quantity}
+                      className="w-10 h-10 rounded border border-gray-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-lg flex items-center justify-center"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleConfirmQuantityChange}
+                    disabled={tempQuantity === statusDialog.quantity}
+                    className="h-10 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    적용
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="mb-4">
               <span className="text-sm text-red-600">셀프 수령 신청 후 <strong>미수령이 누적</strong>될 경우<br /> <strong>당월 셀프 수령 신청이 불가능</strong>할 수 있습니다.</span>           </div>
             <div className="flex gap-3">
@@ -668,7 +793,7 @@ export default function OrdersPage() {
                 </button>
               )}
               <button
-                onClick={() => setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled' })}
+                onClick={() => setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 })}
                 className="flex-1 h-10 rounded bg-gray-500 hover:bg-gray-600 text-white"
               >
                 닫기
