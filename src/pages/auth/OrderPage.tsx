@@ -712,7 +712,7 @@ export default function OrdersPage() {
             <p className="text-gray-600 mb-6">
               <span className="font-medium">"{statusDialog.productName}"</span>
               {statusDialog.currentStatus === 'pending' 
-                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 6시</b>까지 가능합니다.</>
+                ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 7시반</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
             {/* 수량 변경 UI */}
