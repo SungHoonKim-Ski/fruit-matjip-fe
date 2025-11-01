@@ -28,13 +28,13 @@ export default function FloatingActionsReversed({
           type="button"
           aria-label="주문 내역"
           onClick={() => nav(orderPath)}
-          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-6 h-14
-                     text-base font-bold tracking-tight flex items-center gap-2
+          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-4 h-10
+                     text-sm font-bold tracking-tight flex items-center gap-2
                      hover:bg-orange-50 hover:shadow-xl active:scale-[0.98]
                      focus:outline-none focus:ring-4 focus:ring-orange-200 transition"
         >
           <span className="text-gray-900">주문 내역</span>
-          <span className="ml-1 text-orange-500 text-xl leading-none" aria-hidden="true">›</span>
+          <span className="ml-1 text-orange-500 text-lg leading-none" aria-hidden="true">›</span>
         </button>
       </div>
 
