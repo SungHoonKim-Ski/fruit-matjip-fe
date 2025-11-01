@@ -88,7 +88,7 @@ export default function AdminEditProductPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { show } = useSnackbar();
-  const DETAIL_IMAGES_MAX = 10;
+  const DETAIL_IMAGES_MAX = 5;
 
   const [form, setForm] = useState<ProductEdit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -975,7 +975,7 @@ export default function AdminEditProductPage() {
 
             <div className="mt-4">
               <label className="text-sm font-medium">추가 이미지</label>
-              <p className="text-xs text-gray-500 mt-1">최대 {DETAIL_IMAGES_MAX}장까지 추가할 수 있습니다.</p>
+              <p className="text-xs text-gray-500 mt-1">최대 5장까지 추가할 수 있습니다.</p>
               <div className="mt-2 flex gap-3 flex-wrap">
                 {(form.images || []).map((src, i) => (
                   <div key={src} className="relative w-28">
