@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick, getServerTime } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
@@ -147,11 +147,18 @@ export default function ReservePage() {
   // 검색 모달 상태
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   
+  // 사용자 메시지 dialog 상태
+  const [messageDialog, setMessageDialog] = useState<{
+    isOpen: boolean;
+    messageId: number | null;
+    title: string;
+    body: string;
+  }>({ isOpen: false, messageId: null, title: '', body: '' });
 
 
-  // 모달(상세/닉네임/개인정보/셀프수령/검색) 오픈 시 백그라운드 스크롤 잠금
+  // 모달(상세/닉네임/개인정보/셀프수령/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
-    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen;
+    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen || messageDialog.isOpen;
     if (anyOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -159,7 +166,7 @@ export default function ReservePage() {
         document.body.style.overflow = prev || '';
       };
     }
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen, messageDialog.isOpen]);
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
     const onPopState = () => {
@@ -183,10 +190,18 @@ export default function ReservePage() {
         setSearchModalOpen(false);
         return;
       }
+      if (messageDialog.isOpen) {
+        const messageId = messageDialog.messageId;
+        setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
+        if (messageId) {
+          markMessageAsRead(messageId).catch(e => safeErrorLog(e, 'ProductsPage - markMessageAsRead'));
+        }
+        return;
+      }
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen, messageDialog.isOpen]);
 
   // 날짜 탭
   const dates = useMemo(() => getNext10Days(), []);
@@ -311,6 +326,33 @@ export default function ReservePage() {
     };
     loadProducts();
   }, [show, dates]);
+
+  // 사용자 메시지 확인 (페이지 진입 시)
+  useEffect(() => {
+    const checkUserMessage = async () => {
+      if (USE_MOCKS) {
+        // Mock에서는 메시지 없음
+        return;
+      }
+      
+      try {
+        const message = await getUserMessage();
+        if (message && message.id) {
+          setMessageDialog({
+            isOpen: true,
+            messageId: message.id,
+            title: message.title,
+            body: message.body
+          });
+        }
+      } catch (e) {
+        safeErrorLog(e, 'ProductsPage - checkUserMessage');
+        // 메시지 확인 실패는 무시 (사용자에게 표시 안 함)
+      }
+    };
+    
+    checkUserMessage();
+  }, []);
 
 
   const productsOfDay = useMemo(
@@ -1591,6 +1633,51 @@ export default function ReservePage() {
               </button>
             </div>
             
+          </div>
+        </div>
+      )}
+
+      {/* 사용자 메시지 Dialog */}
+      {messageDialog.isOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center p-4"
+          aria-modal="true"
+          role="dialog"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={async () => {
+            const messageId = messageDialog.messageId;
+            setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
+            if (messageId) {
+              try {
+                await markMessageAsRead(messageId);
+              } catch (e) {
+                safeErrorLog(e, 'ProductsPage - markMessageAsRead');
+              }
+            }
+          }} />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{messageDialog.title}</h3>
+            <p className="text-gray-700 mb-6 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: messageDialog.body.replace(/\n/g, '<br/>') }} />
+            <div className="flex justify-end">
+              <button
+                onClick={async () => {
+                  const messageId = messageDialog.messageId;
+                  setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
+                  
+                  if (messageId) {
+                    try {
+                      await markMessageAsRead(messageId);
+                    } catch (e) {
+                      safeErrorLog(e, 'ProductsPage - markMessageAsRead');
+                      // 읽음 처리 실패는 무시
+                    }
+                  }
+                }}
+                className="px-6 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
+              >
+                확인
+              </button>
+            </div>
           </div>
         </div>
       )}
