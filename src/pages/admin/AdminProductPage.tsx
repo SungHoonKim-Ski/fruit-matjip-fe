@@ -97,7 +97,31 @@ export default function AdminProductPage() {
     
     // 판매일 필터링
     if (filteredSellDate) {
-      filtered = filtered.filter(p => (p.sellDate || '미설정') === filteredSellDate);
+      // 오늘 날짜 계산 (KST)
+      const now = new Date();
+      const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const todayStr = kstNow.toISOString().split('T')[0];
+      const sevenDaysAgo = new Date(kstNow);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+      const thirtyDaysAgo = new Date(kstNow);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      
+      filtered = filtered.filter(p => {
+        let sellDate = p.sellDate || '미설정';
+        
+        // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
+        if (sellDate !== '미설정' && sellDate < thirtyDaysAgoStr) {
+          sellDate = '과거 상품+';
+        }
+        // 7일 전 이전의 상품들은 "과거 상품" 카테고리로
+        else if (sellDate !== '미설정' && sellDate < sevenDaysAgoStr) {
+          sellDate = '과거 상품';
+        }
+        
+        return sellDate === filteredSellDate;
+      });
     }
     
     return filtered;
@@ -292,7 +316,7 @@ export default function AdminProductPage() {
       if (b === '과거 상품') return -1;
       if (a === '과거 상품+') return 1;
       if (b === '과거 상품+') return -1;
-      return a.localeCompare(b);
+      return b.localeCompare(a); // desc
     });
   };
 
