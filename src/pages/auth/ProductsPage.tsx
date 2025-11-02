@@ -215,6 +215,9 @@ export default function ReservePage() {
   // 임시 검색어 (모달에서 입력 중인 검색어)
   const [tempSearch, setTempSearch] = useState('');
   
+  // 활성화된 추천 검색 칩
+  const [activeChip, setActiveChip] = useState<string | null>(null);
+  
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
 
@@ -430,6 +433,14 @@ export default function ReservePage() {
     return searchFiltered.length;
   };
 
+  // 검색어 없이 상품이 있는 날짜만 필터링 (칩 표시용)
+  const allProductDates = useMemo(() => {
+    return dates.filter(d => {
+      const filtered = products.filter(p => p.sellDate === d);
+      return filtered.length > 0;
+    });
+  }, [dates, products]);
+
   // 임시 검색어로 필터링된 상품 목록 (모달에서 미리보기용)
   const getFilteredProductsByDate = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
@@ -515,6 +526,10 @@ export default function ReservePage() {
     setSearch(tempSearch);
     setSearchModalOpen(false);
     
+    // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
+    const recommendedKeywords = ['케이크','할인', '딸기','블루베리','특가'];
+    setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
+    
     // 검색 결과가 있으면 해당 날짜로 이동
     const closestDate = findClosestDateWithResults(tempSearch);
     if (closestDate) {
@@ -526,6 +541,7 @@ export default function ReservePage() {
   const clearSearch = () => {
     setSearch('');
     setTempSearch('');
+    setActiveChip(null);
   };
 
   // 상품이 있는 날짜만 노출
@@ -1061,7 +1077,7 @@ export default function ReservePage() {
 
 
         {/* 전체 비어있을 때 안내 */}
-        {availableDates.length === 0 && (
+        {allProductDates.length === 0 && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             현재 예약중인 상품이 없습니다.
           </div>
@@ -1069,7 +1085,7 @@ export default function ReservePage() {
 
 
         {/* 검색 결과 없음 */}
-        {availableDates.length > 0 && productsOfDay.length === 0 && search && (
+        {allProductDates.length > 0 && availableDates.length === 0 && search && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             <div className="text-sm">
               <span className="font-medium text-orange-600">"{search}"</span>에 대한 검색 결과가 없습니다.
@@ -1127,27 +1143,40 @@ export default function ReservePage() {
                 </div>
               </div>
             </div>
-                    {/* 검색 칩 */}
-        {availableDates.length > 0 && (
+        {/* 검색 칩 */}
+        {allProductDates.length > 0 && (
           <div className="mt-2 px-3">
-            
             <div className="flex items-center gap-2 flex-wrap">
-            
-              {['케이크','할인', '딸기','블루베리','특가'].map(keyword => (
-                <button
-                  key={keyword}
-                  onClick={(e) => { e.preventDefault(); openSearchModal(keyword); }}
-                  className="px-3 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors"
-                >
-                  {keyword}
-                </button>
-              ))}
+              {['케이크','할인', '딸기','블루베리','특가'].map(keyword => {
+                const isActive = activeChip === keyword;
+                return (
+                  <button
+                    key={keyword}
+                    onClick={(e) => { 
+                      e.preventDefault(); 
+                      if (isActive) {
+                        setActiveChip(null);
+                        setSearch('');
+                      } else {
+                        setActiveChip(keyword);
+                        setSearch(keyword);
+                      }
+                    }}
+                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                      isActive
+                        ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
+                        : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+                    }`}
+                  >
+                    {keyword}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
           </div>
         )}
-
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
