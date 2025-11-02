@@ -92,7 +92,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
           if (!data) throw new Error('상품 정보를 불러오지 못했습니다.');
           if (alive) {
             setProduct(data as Product);
-            setActiveImage((data as Product).detail_images?.[0] || (data as Product).imageUrl);
+            setActiveImage((data as Product).imageUrl);
           }
         } else {
           const res = await getProduct(productId);
@@ -115,7 +115,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
           
           if (alive) {
             setProduct(data);
-            setActiveImage((data.detail_images && data.detail_images[0]) || data.imageUrl);
+            setActiveImage(data.imageUrl);
           }
         }
       } catch (e: any) {
