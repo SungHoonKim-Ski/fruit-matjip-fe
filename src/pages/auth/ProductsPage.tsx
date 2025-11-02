@@ -465,10 +465,14 @@ export default function ReservePage() {
   };
 
   // 검색 모달 열기/닫기
-  const openSearchModal = () => {
-    setTempSearch(search); // 현재 검색어를 임시 검색어로 설정
+  const openSearchModal = (keyword?: string) => {
+    setTempSearch(keyword || search); // keyword가 있으면 그걸로, 없으면 현재 검색어를 임시 검색어로 설정
     setSearchModalOpen(true);
     window.history.pushState({ modal: 'search' }, '');
+  };
+
+  const handleOpenSearchModalClick = () => {
+    openSearchModal();
   };
 
   const closeSearchModal = () => {
@@ -525,7 +529,7 @@ export default function ReservePage() {
   };
 
   // 상품이 있는 날짜만 노출
-  const availableDates = useMemo(() => dates.filter(d => countOf(d) > 0), [dates, products]);
+  const availableDates = useMemo(() => dates.filter(d => countOf(d) > 0), [dates, products, search]);
 
   // 활성 날짜가 사라졌다면 첫 유효 날짜로 이동
   useEffect(() => {
@@ -1123,8 +1127,27 @@ export default function ReservePage() {
                 </div>
               </div>
             </div>
+                    {/* 검색 칩 */}
+        {availableDates.length > 0 && (
+          <div className="mt-2 px-3">
+            
+            <div className="flex items-center gap-2 flex-wrap">
+            
+              {['케이크','할인', '딸기','블루베리','특가'].map(keyword => (
+                <button
+                  key={keyword}
+                  onClick={(e) => { e.preventDefault(); openSearchModal(keyword); }}
+                  className="px-3 py-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors"
+                >
+                  {keyword}
+                </button>
+              ))}
+            </div>
           </div>
         )}
+          </div>
+        )}
+
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
@@ -1221,7 +1244,7 @@ export default function ReservePage() {
 
       {/* FAB 통합 검색/필터 초기화 버튼 */}
       <button
-        onClick={search ? clearSearch : openSearchModal}
+        onClick={search ? clearSearch : handleOpenSearchModalClick}
         className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
           search ? 'border border-blue-500' : 'border-2 border-blue-500'
         }`}
