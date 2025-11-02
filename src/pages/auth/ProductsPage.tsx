@@ -221,6 +221,9 @@ export default function ReservePage() {
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
 
+  // 초기화 버튼 진동 애니메이션 트리거
+  const [shakeButton, setShakeButton] = useState(false);
+
   // 실시간 카운트다운 갱신용 틱 (1초 간격)
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
   // 서버 시간 동기화 오프셋 (ms)
@@ -230,6 +233,18 @@ export default function ReservePage() {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // 초기화 버튼이 활성화되었을 때 주기적으로 진동 애니메이션 표시
+  useEffect(() => {
+    if (!search) return; // 검색어가 없으면 초기화 버튼이 아니므로 무시
+    
+    const interval = setInterval(() => {
+      setShakeButton(true);
+      setTimeout(() => setShakeButton(false), 500);
+    }, 3000); // 3초마다 반복
+    
+    return () => clearInterval(interval);
+  }, [search]);
 
   // 서버 시간 동기화
   useEffect(() => {
@@ -1088,10 +1103,10 @@ export default function ReservePage() {
         {allProductDates.length > 0 && availableDates.length === 0 && search && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             <div className="text-sm">
-              <span className="font-medium text-orange-600">"{search}"</span>에 대한 검색 결과가 없습니다.
+              <span className="font-medium text-orange-600">"{search}"</span>상품이 존재하지 않습니다.
             </div>
             <div className="text-xs text-gray-400 mt-1">
-              다른 검색어를 시도해보세요.
+              <strong className="font-medium text-red-500">우측 하단 초기화 버튼</strong>을 눌러 모든 상품을 볼 수 있습니다.
             </div>
           </div>
         )}
@@ -1276,7 +1291,7 @@ export default function ReservePage() {
         onClick={search ? clearSearch : handleOpenSearchModalClick}
         className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
           search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        }`}
+        } ${shakeButton ? 'animate-shake' : ''}`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
       >
         {search ? (
@@ -1623,10 +1638,7 @@ export default function ReservePage() {
                 {availableDates.every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
                   <div className="text-center text-gray-500 py-6">
                     <div className="text-sm">
-                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      다른 검색어를 시도해보세요.
+                      <span className="font-medium text-orange-600">"{tempSearch}"</span>상품이 존재하지 않습니다.
                     </div>
                   </div>
                 )}
