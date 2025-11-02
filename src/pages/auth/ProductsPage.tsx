@@ -155,6 +155,8 @@ export default function ReservePage() {
     body: string;
   }>({ isOpen: false, messageId: null, title: '', body: '' });
 
+  // 예약 처리 중인 상품 ID 추적
+  const [reservingProductId, setReservingProductId] = useState<number | null>(null);
 
   // 모달(상세/닉네임/개인정보/셀프수령/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
@@ -544,10 +546,20 @@ export default function ReservePage() {
   };
 
   const handleReserve = async (product: Product) => {
-    if (product.quantity <= 0) return show('1개 이상 선택해주세요.', { variant: 'error' });
-    if (product.quantity > product.stock) return show('재고보다 많이 예약할 수 없어요.', { variant: 'error' });
+    // 이미 예약 처리 중인 경우 무시
+    if (reservingProductId !== null) return;
     
     try {
+      setReservingProductId(product.id);
+      
+      if (product.quantity <= 0) {
+        show('1개 이상 선택해주세요.', { variant: 'error' });
+        return;
+      }
+      if (product.quantity > product.stock) {
+        show('재고보다 많이 예약할 수 없어요.', { variant: 'error' });
+        return;
+      }
       if (USE_MOCKS) {
         // Mock 예약 처리
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -573,22 +585,21 @@ export default function ReservePage() {
           if (!canPick) {
             // 셀프 수령이 불가능한 경우 dialog 없이 처리
             show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
-            return;
-          }
-          
-          // 셀프 수령이 가능한 경우에만 dialog 표시
-          let reservationId = mockReservationResponse.id;
-          if (!reservationId) {
-            console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
-            reservationId = Date.now(); // 임시 ID 사용
-          }
-          
-          const productWithReservationId = { ...product, reservationId };
-          
-          // 이미 dialog가 열려있지 않은 경우에만 열기
-          if (!selfPickDialog.isOpen) {
-            setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-            window.history.pushState({ modal: 'selfPick' }, '');
+          } else {
+            // 셀프 수령이 가능한 경우에만 dialog 표시
+            let reservationId = mockReservationResponse.id;
+            if (!reservationId) {
+              console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
+              reservationId = Date.now(); // 임시 ID 사용
+            }
+            
+            const productWithReservationId = { ...product, reservationId };
+            
+            // 이미 dialog가 열려있지 않은 경우에만 열기
+            if (!selfPickDialog.isOpen) {
+              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+              window.history.pushState({ modal: 'selfPick' }, '');
+            }
           }
         } catch (e: any) {
           // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
@@ -631,37 +642,34 @@ export default function ReservePage() {
           reservationId = reservationResponse;
         }
         
-                  // reservationId가 없으면 에러 처리
-          if (!reservationId) {
-            show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
-            return;
-          }
+        // reservationId가 없으면 에러 처리
+        if (!reservationId) {
+          show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
+        } else {
+          show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
+          
+          // 성공 시 재고 차감
+          setProducts(prev =>
+            prev.map(p =>
+              p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
+            )
+          );
         
-        show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
-        
-        // 성공 시 재고 차감
-        setProducts(prev =>
-          prev.map(p =>
-            p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
-          )
-        );
-      
-                  // 셀프 수령 가능 여부 미리 확인
+          // 셀프 수령 가능 여부 미리 확인
           try {
             const canPick = await checkCanSelfPick();
             if (!canPick) {
               // 셀프 수령이 불가능한 경우 dialog 없이 처리
               show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
-              return;
-            }
-            
-            // 셀프 수령이 가능한 경우에만 dialog 표시
-            const productWithReservationId = { ...product, reservationId };
-            
-            // 이미 dialog가 열려있지 않은 경우에만 열기
-            if (!selfPickDialog.isOpen) {
-              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-              window.history.pushState({ modal: 'selfPick' }, '');
+            } else {
+              // 셀프 수령이 가능한 경우에만 dialog 표시
+              const productWithReservationId = { ...product, reservationId };
+              
+              // 이미 dialog가 열려있지 않은 경우에만 열기
+              if (!selfPickDialog.isOpen) {
+                setSelfPickDialog({ isOpen: true, product: productWithReservationId });
+                window.history.pushState({ modal: 'selfPick' }, '');
+              }
             }
           } catch (e: any) {
             // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
@@ -673,10 +681,13 @@ export default function ReservePage() {
               window.history.pushState({ modal: 'selfPick' }, '');
             }
           }
+        }
       }
     } catch (e: any) {
       safeErrorLog(e, 'ProductsPage - handleReserve');
       show(getSafeErrorMessage(e, '예약 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setReservingProductId(null);
     }
   };
 
@@ -1184,14 +1195,16 @@ export default function ReservePage() {
                     </button>
                     <button
                       onClick={() => handleReserve(item)}
-                      disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs)}
-                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                      disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
+                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                     >
                       {item.stock === 0
                         ? '품절'
-                        : (isReservationTimeOpen(item, timeOffsetMs)
-                            ? '예약하기'
-                            : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`)}
+                        : (reservingProductId !== null
+                            ? '예약 중...'
+                            : (isReservationTimeOpen(item, timeOffsetMs)
+                                ? '예약하기'
+                                : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`))}
                     </button>
                   </div>
                 </div>
