@@ -35,6 +35,11 @@ export default function AdminHeader() {
       navigate('/admin/products/order');
     }
   };
+  const goCustomers = () => {
+    if (location !== '/admin/customers') {
+      navigate('/admin/customers');
+    }
+  };
 
   const openAdminMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
     // 기존 메뉴가 있으면 제거하고 함수 종료 (토글 기능)
@@ -106,6 +111,15 @@ export default function AdminHeader() {
       menu.remove();
     };
     
+    // 고객 관리 버튼
+    const customersBtn = document.createElement('button');
+    customersBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
+    customersBtn.innerHTML = '👥 고객 관리';
+    customersBtn.onclick = () => {
+      goCustomers();
+      menu.remove();
+    };
+    
     // 버튼들을 메뉴에 추가
     menu.appendChild(productsBtn);
     menu.appendChild(newProductBtn);
@@ -113,6 +127,7 @@ export default function AdminHeader() {
     menu.appendChild(productOrderBtn);
     menu.appendChild(reservationsBtn);
     menu.appendChild(salesBtn);
+    menu.appendChild(customersBtn);
     
     menu.classList.add('admin-header-menu');
     document.body.appendChild(menu);

@@ -980,3 +980,91 @@ export const getServerTime = async (): Promise<number> => {
     throw e; 
   }
 };
+
+// 고객 관리 API
+export type CustomerSortKey = 'TOTAL_REVENUE' | 'WARN_COUNT' | 'TOTAL_WARN_COUNT';
+export type SortOrder = 'ASC' | 'DESC';
+
+export type CustomerListItem = {
+  id: string;
+  name: string;
+  totalRevenue: number;
+  monthlyWarnCount: number;
+  totalWarnCount: number;
+  isFirstTimeBuyer: boolean;
+};
+
+export const getCustomers = async (
+  cursor: string = '',
+  sortKey: CustomerSortKey = 'TOTAL_REVENUE',
+  sortOrder: SortOrder = 'DESC',
+  limit: number = 20,
+  name?: string
+): Promise<{ users: CustomerListItem[]; cursor: string | null }> => {
+  const key = 'getCustomers';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const url = `/api/admin/customers?name=${encodeURIComponent(name || '')}&sortKey=${sortKey}&sortOrder=${sortOrder}&cursor=${encodeURIComponent(cursor)}&limit=${limit}`;
+    const res = await adminFetch(url, {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    const data = await res.json();
+    const users: CustomerListItem[] = Array.isArray(data.response) ? data.response.map((u: any) => ({
+      id: String(u.uid),
+      name: String(u.name || ''),
+      totalRevenue: Number(u.total_revenue || 0),
+      monthlyWarnCount: Number(u.monthly_warn_count || 0),
+      totalWarnCount: Number(u.total_warn_count || 0),
+      isFirstTimeBuyer: Boolean(u.first_time_buyer),
+    })) : [];
+    
+    const nextCursor = data.pagination?.next_cursor || null;
+    return { users, cursor: nextCursor };
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 유저 경고 등록 (POST)
+export const addCustomerWarn = async (userId: string): Promise<void> => {
+  const key = 'addCustomerWarn';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(
+      `/api/admin/customer/warn/${userId}`,
+      {
+        method: 'POST',
+      },
+      true
+    );
+    if (!res.ok) {
+      throw new Error(`경고 등록에 실패했습니다. (${res.status})`);
+    }
+    if (res.ok) resetApiRetryCount(key);
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 이번 달 이용 제한 해제 (PATCH)
+export const resetCustomerWarn = async (userId: string): Promise<void> => {
+  const key = 'resetCustomerWarn';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(
+      `/api/admin/customer/warn/reset/${userId}`,
+      {
+        method: 'PATCH',
+      },
+      true
+    );
+    if (!res.ok) {
+      throw new Error(`이용 제한 해제에 실패했습니다. (${res.status})`);
+    }
+    if (res.ok) resetApiRetryCount(key);
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
