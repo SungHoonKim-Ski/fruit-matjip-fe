@@ -20,7 +20,7 @@ import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 
 
 // 글자수/가격 제한
-const DESCRIPTION_LIMIT = 300;
+const DESCRIPTION_LIMIT = 500;
 const PRICE_MAX = 1_000_000;
 
 // ✅ 업로드 동시성 상수화 (환경 맞춰 3~6 권장)
