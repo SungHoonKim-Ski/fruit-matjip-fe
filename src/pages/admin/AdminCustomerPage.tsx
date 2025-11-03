@@ -271,14 +271,19 @@ export default function AdminCustomerPage() {
                     )}
                   </div>
 
-                  <div className="mt-1.5 flex items-center gap-4 text-xs">
-                    <div className="flex-1">
-                      <span className="text-gray-500 block">이번 달 경고</span>
-                      <div className="font-semibold text-orange-600">{customer.monthlyWarnCount}</div>
+                  <div className="mt-1.5 space-y-1 text-xs">
+                  <div>
+                      <span className="text-gray-500">누적 경고</span>
+                      <span className="ml-2 font-semibold text-red-600">{customer.totalWarnCount}회</span>
                     </div>
-                    <div className="flex-1">
-                      <span className="text-gray-500 block">누적 매출</span>
-                      <div className="font-semibold text-gray-900">{formatPrice(customer.totalRevenue)}</div>
+                    <div>
+                      <span className="text-gray-500">이번 달 경고</span>
+                      <span className="ml-2 font-semibold text-orange-500">{customer.monthlyWarnCount}회</span>
+                    </div>
+                    
+                    <div>
+                      <span className="text-gray-500">누적 매출</span>
+                      <span className="ml-2 font-semibold text-gray-900">{formatPrice(customer.totalRevenue)}</span>
                     </div>
                   </div>
                 </div>
