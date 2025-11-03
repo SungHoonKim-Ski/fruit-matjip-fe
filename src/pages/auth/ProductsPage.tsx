@@ -729,7 +729,7 @@ export default function ReservePage() {
   const prettyKdate = (iso: string) => {
     const d = new Date(iso + 'T00:00:00');
     const w = '일월화수목금토'[d.getDay()];
-    return `${d.getMonth() + 1}월${d.getDate()}일 (${w})`;
+    return `${d.getMonth() + 1}/${d.getDate()}(${w})`;
   };
 
   const prettydate = (iso: string) => {
@@ -1114,7 +1114,7 @@ export default function ReservePage() {
         {/* 날짜 탭 (상품 없는 날짜는 비노출) */}
         {availableDates.length > 0 && (
           <div className="sticky top-14 z-30 bg-white mt-2 mb-4 py-2">
-            <div className="flex items-center justify-start gap-2 overflow-x-auto no-scrollbar pl-3 pr-3">
+            <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
               {availableDates.map(date => {
                 const active = activeDate === date;
                 return (
@@ -1125,14 +1125,14 @@ export default function ReservePage() {
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     className={
-                      'px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition ' +
+                      'px-2 py-1.5 rounded-lg border text-xs whitespace-nowrap transition ' +
                       (active
                         ? 'bg-orange-500 text-white border-orange-500 shadow'
                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
                     }
                   >
-                    <div className="font-semibold text-sm">{prettyKdate(date)}</div>
-                    <div className="text-[10px] mt-1 text-center text-gray-600">
+                    <div className="font-semibold text-xs">{prettyKdate(date)}</div>
+                    <div className="text-[8px] mt-0.5 text-center text-gray-600">
                       {countOf(date)}개 상품 예약중
                     </div>
                   </button>
