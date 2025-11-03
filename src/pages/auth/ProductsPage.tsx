@@ -542,7 +542,7 @@ export default function ReservePage() {
     setSearchModalOpen(false);
     
     // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
-    const recommendedKeywords = ['케이크','할인', '딸기','블루베리','특가'];
+    const recommendedKeywords = ['케이크','할인', '딸기','왕란','특가'];
     setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
     
     // 검색 결과가 있으면 해당 날짜로 이동
@@ -1162,7 +1162,7 @@ export default function ReservePage() {
         {allProductDates.length > 0 && (
           <div className="mt-2 px-3">
             <div className="flex items-center gap-2 flex-wrap">
-              {['케이크','할인', '딸기','블루베리','특가'].map(keyword => {
+              {['케이크','할인','딸기','왕란','특가'].map(keyword => {
                 const isActive = activeChip === keyword;
                 return (
                   <button
