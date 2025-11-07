@@ -1068,3 +1068,34 @@ export const resetCustomerWarn = async (userId: string): Promise<void> => {
     throw e;
   }
 };
+
+// 고객 경고 목록 조회
+export type UserWarnReason = 'NO_SHOW' | 'ADMIN';
+
+export type CustomerWarnItem = {
+  reason: UserWarnReason;
+  warnAt: string; // ISO 8601 date string
+};
+
+export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem[]> => {
+  const key = 'getCustomerWarns';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/customers/warn/${userId}`, {}, true);
+    if (!res.ok) {
+      throw new Error(`경고 목록 조회에 실패했습니다. (${res.status})`);
+    }
+    if (res.ok) resetApiRetryCount(key);
+    const data = await res.json();
+    const warns: CustomerWarnItem[] = Array.isArray(data.response)
+      ? data.response.map((w: any) => ({
+          reason: w.reason as UserWarnReason,
+          warnAt: String(w.warn_at || w.warnAt || ''),
+        }))
+      : [];
+    return warns;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};

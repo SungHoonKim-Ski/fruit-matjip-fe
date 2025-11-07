@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getMockCustomers, updateMockCustomerWarnCount } from '../../mocks/customers';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getCustomers, addCustomerWarn, resetCustomerWarn, CustomerListItem, CustomerSortKey } from '../../utils/api';
+import { getCustomers, addCustomerWarn, resetCustomerWarn, getCustomerWarns, CustomerListItem, CustomerSortKey, CustomerWarnItem } from '../../utils/api';
 import AdminHeader from '../../components/AdminHeader';
 
 const LIMIT = 20;
@@ -27,6 +27,10 @@ export default function AdminCustomerPage() {
     isOpen: boolean;
     customer: CustomerListItem | null;
   }>({ isOpen: false, customer: null });
+  
+  // 고객 경고 목록
+  const [customerWarns, setCustomerWarns] = useState<CustomerWarnItem[]>([]);
+  const [loadingWarns, setLoadingWarns] = useState(false);
 
   // 노쇼 경고 확인 Dialog
   const [warnDialog, setWarnDialog] = useState<{
@@ -120,14 +124,31 @@ export default function AdminCustomerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
 
+  // 고객 경고 목록 로드
+  const loadCustomerWarns = async (userId: string) => {
+    try {
+      setLoadingWarns(true);
+      const warns = await getCustomerWarns(userId);
+      setCustomerWarns(warns);
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminCustomerPage - loadCustomerWarns');
+      show(getSafeErrorMessage(e, '경고 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+      setCustomerWarns([]);
+    } finally {
+      setLoadingWarns(false);
+    }
+  };
+
   // 고객 상세 Dialog 열기
-  const openCustomerDialog = (customer: CustomerListItem) => {
+  const openCustomerDialog = async (customer: CustomerListItem) => {
     setCustomerDialog({ isOpen: true, customer });
+    await loadCustomerWarns(customer.id);
   };
 
   // 고객 Dialog 닫기
   const closeCustomerDialog = () => {
     setCustomerDialog({ isOpen: false, customer: null });
+    setCustomerWarns([]);
   };
 
   // 노쇼 경고 확인 Dialog 열기
@@ -176,6 +197,28 @@ export default function AdminCustomerPage() {
   // 가격 포맷팅
   const formatPrice = (price: number) => {
     return price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
+  };
+
+  // 날짜 포맷팅
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // 경고 사유 포맷팅
+  const formatWarnReason = (reason: string) => {
+    return reason === 'NO_SHOW' ? '노쇼' : reason === 'ADMIN' ? '직원' : reason;
   };
 
   return (
@@ -361,6 +404,12 @@ export default function AdminCustomerPage() {
                       setCursor('');
                       await loadCustomers(true);
                     }
+                    
+                    // Dialog가 열려있고 같은 고객이면 경고 목록 새로고침
+                    if (customerDialog.isOpen && customerDialog.customer?.id === customer.id) {
+                      await loadCustomerWarns(customer.id);
+                    }
+                    
                     show('노쇼 경고가 등록되었습니다.');
                   } catch (e: any) {
                     safeErrorLog(e, 'AdminCustomerPage - registerWarn');
@@ -412,8 +461,35 @@ export default function AdminCustomerPage() {
                 <div className="text-xl font-bold text-orange-600 text-right">{customerDialog.customer.monthlyWarnCount}</div>
               </div>
               </div>
+            </div>
 
-              
+            {/* 경고 목록 */}
+            <div className="border-t-2 border-orange-200 pt-4 mb-4">
+              <div className="text-sm font-medium text-orange-700 mb-3">경고 내역</div>
+              {loadingWarns ? (
+                <div className="text-center text-gray-500 text-sm py-4">로딩 중...</div>
+              ) : customerWarns.length === 0 ? (
+                <div className="text-center text-gray-500 text-sm py-4">경고 내역이 없습니다.</div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {customerWarns.map((warn, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${
+                            warn.reason === 'NO_SHOW' 
+                              ? 'bg-red-100 text-red-700' 
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {formatWarnReason(warn.reason)}
+                          </span>
+                          <span className="text-sm text-gray-600">{formatDate(warn.warnAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 경고 수 조정 UI */}
