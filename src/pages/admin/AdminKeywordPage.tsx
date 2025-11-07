@@ -3,7 +3,8 @@ import { useSnackbar } from '../../components/snackbar';
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -30,7 +31,7 @@ function SortableItem({ id, onDelete, deleting }: { id: string; onDelete: (id: s
       {...attributes}
       className="flex items-center mb-2 text-base bg-gray-50 border rounded px-2 py-1"
     >
-      <span className="flex-1 font-mono cursor-move" {...listeners}>
+      <span className="flex-1 font-mono cursor-move touch-none" {...listeners}>
         {id}
       </span>
       <button
@@ -109,7 +110,15 @@ export default function AdminKeywordPage() {
     }
   };
 
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
+      },
+    }),
+  );
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
