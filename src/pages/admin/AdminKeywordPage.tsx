@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSnackbar } from '../../components/snackbar';
+import AdminHeader from '../../components/AdminHeader';
 import {
   DndContext,
   closestCenter,
@@ -79,7 +80,7 @@ export default function AdminKeywordPage() {
     input.trim().length > 0 &&
     input.trim().length <= 5 &&
     !keywords.includes(input.trim()) &&
-    keywords.length < 10
+    keywords.length < 7
   );
 
   const handleAdd = async () => {
@@ -137,23 +138,34 @@ export default function AdminKeywordPage() {
 
   return (
     <main className="max-w-lg mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">🔎 추천 검색어 관리</h1>
+        <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">🔎 추천 검색어 관리</h1>
+            <div className="flex justify-end">
+                <AdminHeader />
+            </div>
+        </div>
+        </div>
+      
       <div className="border bg-white rounded-xl p-6 shadow mb-8">
-        <div className="mb-3">현재 추천 검색어 <b className="text-orange-500">{keywords.length}</b>/10개</div>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="mb-3">현재 추천 검색어 <b className="text-orange-500">{keywords.length}</b>/7개</div>
+        <div className="flex items-center mb-4">
           <input
             value={input}
             onChange={e=>setInput(e.target.value.replace(/\s/g, '').slice(0,5))}
             maxLength={5}
             placeholder="검색어(최대 5자)"
             className="h-10 px-3 rounded border w-40 text-base focus:ring-orange-400"
-            disabled={adding || keywords.length >= 10}
+            disabled={adding || keywords.length >= 7}
           />
+          <div className="flex-1" />
           <button
             onClick={handleAdd}
             disabled={!canAdd || adding}
             className={`h-10 px-5 rounded text-white font-semibold ${canAdd && !adding ? 'bg-orange-500 hover:bg-orange-600' : 'bg-gray-300'} transition`}
-          >추가</button>
+          >
+            추가
+          </button>
         </div>
         <div className="mt-3">
           {loading ? <div className="text-gray-500">로딩 중...</div>:
@@ -169,7 +181,7 @@ export default function AdminKeywordPage() {
             </DndContext>
           }
         </div>
-        <p className="text-xs text-gray-500 mt-5">* 최대 10개, 중복 불가, 추가/삭제 및 순서 변경 시 자동 저장 (드래그로 이동 가능)</p>
+        <p className="text-xs text-gray-500 mt-5">* 최대 7개, 중복 불가, 추가/삭제 및 순서 변경 시 자동 저장 (드래그로 이동 가능)</p>
       </div>
     </main>
   );
