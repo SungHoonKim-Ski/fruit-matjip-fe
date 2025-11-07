@@ -114,28 +114,38 @@ export default function OrdersPage() {
             // ReservationResponse를 OrderRow status로 변환
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
+              // NO_SHOW는 CANCELED로 취급
               let orderStatus: 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
-              switch (r.status?.toLowerCase()) {
-                case 'pending':
+              const rawStatus = String(r.status ?? '').toUpperCase();
+              switch (rawStatus) {
+                case 'PENDING':
                   orderStatus = 'pending';
                   break;
-                case 'picked':
-                case 'completed':
+                case 'PICKED':
+                case 'COMPLETED':
                   orderStatus = 'picked';
                   break;
-                case 'self_pick':
-                case 'self_picked':
+                case 'SELF_PICK':
+                case 'SELF_PICKED':
                   orderStatus = 'self_pick';
                   break;
-                case 'self_pick_ready':
+                case 'SELF_PICK_READY':
                   orderStatus = 'self_pick_ready';
                   break;
-                case 'canceled':
-                case 'cancelled':
+                case 'CANCELED':
+                case 'CANCELLED':
+                case 'NO_SHOW':
                   orderStatus = 'canceled';
                   break;
                 default:
-                  orderStatus = 'pending';
+                  // 소문자로도 체크 (하위 호환성)
+                  const lowerStatus = r.status?.toLowerCase();
+                  if (lowerStatus === 'pending') orderStatus = 'pending';
+                  else if (lowerStatus === 'picked' || lowerStatus === 'completed') orderStatus = 'picked';
+                  else if (lowerStatus === 'self_pick' || lowerStatus === 'self_picked') orderStatus = 'self_pick';
+                  else if (lowerStatus === 'self_pick_ready') orderStatus = 'self_pick_ready';
+                  else if (lowerStatus === 'canceled' || lowerStatus === 'cancelled' || lowerStatus === 'no_show') orderStatus = 'canceled';
+                  else orderStatus = 'pending';
               }
               
               const qty = Math.max(1, Number(r.quantity ?? 1));

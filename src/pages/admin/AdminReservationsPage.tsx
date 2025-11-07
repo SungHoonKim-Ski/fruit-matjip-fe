@@ -14,20 +14,21 @@ type ReservationRow = {
   buyerName: string;
   quantity: number;
   amount: number;
-  status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'; // 대기 / 셀프수령준비완료 / 완료 / 셀프수령 / 취소됨
+  status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show'; // 대기 / 셀프수령준비완료 / 완료 / 셀프수령 / 취소됨 / 노쇼
   createdAt: string;   // YYYY-MM-DD HH:MM:SS
  };
 
 const formatKRW = (n: number) =>
   n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-const getStatusText = (status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
+const getStatusText = (status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show') => {
   switch (status) {
     case 'pending': return '수령 대기';
     case 'self_pick_ready': return '셀프 수령 준비 완료';
     case 'picked': return '수령 완료';
     case 'self_pick': return '셀프 수령';
     case 'canceled': return '예약 취소';
+    case 'no_show': return '노쇼';
     default: return '알 수 없음';
   }
 };
@@ -49,14 +50,14 @@ export default function AdminReservationsPage() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
   const [term, setTerm]   = useState('');
-  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'>('all'); // 기본값을 전체로 변경
+  const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show'>('all'); // 기본값을 전체로 변경
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // 데이터 & 변경 상태 - mock 데이터를 현재 날짜 기준으로 동적 생성
   const [rows, setRows] = useState<ReservationRow[]>([]);
   const [confirmId, setConfirmId] = useState<number | null>(null);
-  const [confirmNext, setConfirmNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | null>(null);
+  const [confirmNext, setConfirmNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show' | null>(null);
   const [confirmProductName, setConfirmProductName] = useState<string>('');
   const [confirmBuyerName, setConfirmBuyerName] = useState<string>('');
   const [applying, setApplying] = useState(false);
@@ -65,7 +66,7 @@ export default function AdminReservationsPage() {
 
   // 다중 선택 & 일괄 변경 상태
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [bulkNext, setBulkNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled'>('pending');
+  const [bulkNext, setBulkNext] = useState<'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show'>('pending');
   const [bulkApplying, setBulkApplying] = useState(false);
   // 일괄 선택 기준값(유저, 상태)
   const [selectedBulkUser, setSelectedBulkUser] = useState<string | null>(null);
@@ -168,8 +169,8 @@ export default function AdminReservationsPage() {
           ...r, 
           // 테스트를 위해 다양한 상태를 가진 데이터 생성
           status: (() => {
-            const statuses: Array<'pending' | 'self_pick_ready' | 'self_pick' | 'picked' | 'canceled'> = [
-              'pending', 'self_pick_ready', 'self_pick', 'picked', 'canceled'
+            const statuses: Array<'pending' | 'self_pick_ready' | 'self_pick' | 'picked' | 'canceled' | 'no_show'> = [
+              'pending', 'self_pick_ready', 'self_pick', 'picked', 'canceled', 'no_show'
             ];
             return statuses[index % statuses.length];
           })(),
@@ -206,11 +207,12 @@ export default function AdminReservationsPage() {
             const unit = Number(r.price ?? 0);
             const amt = Number(r.amount ?? (unit * qty));
             const rawStatus = String(r.status ?? '').toUpperCase();
-            const mapped: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' = 
+            const mapped: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show' = 
               rawStatus === 'PICKED' ? 'picked' : 
               rawStatus === 'CANCELED' ? 'canceled' : 
               rawStatus === 'SELF_PICK' ? 'self_pick' : 
-              rawStatus === 'SELF_PICK_READY' ? 'self_pick_ready' : 'pending';
+              rawStatus === 'SELF_PICK_READY' ? 'self_pick_ready' :
+              rawStatus === 'NO_SHOW' ? 'no_show' : 'pending';
             
             // createdAt 처리: 서버가 준 문자열을 그대로 사용 (KST 반영 가정)
             let createdAt = '';
@@ -354,8 +356,11 @@ export default function AdminReservationsPage() {
       // 수령 여부 필터 처리
       let pickupHit: boolean;
       if (pickupFilter === 'all') {
-        // 기본값일 때는 취소된 항목 제외
-        pickupHit = row.status !== 'canceled';
+        // 전체: 취소된 항목과 노쇼 항목 제외
+        pickupHit = row.status !== 'canceled' && row.status !== 'no_show';
+      } else if (pickupFilter === 'canceled') {
+        // 예약 취소: canceled, no_show 둘 다 포함
+        pickupHit = row.status === 'canceled' || row.status === 'no_show';
       } else {
         // 특정 필터 선택 시 해당 상태만 표시
         pickupHit = row.status === pickupFilter;
@@ -368,8 +373,8 @@ export default function AdminReservationsPage() {
     if (!sortField) return list;
 
     // 정렬
-    // 상태 정렬: 오름차순 ⇒ 대기(0) < 셀프수령준비완료(1) < 셀프수령(2) < 완료(3) < 취소(4)
-    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, self_pick_ready: 1, self_pick: 2, picked: 3, canceled: 4 };
+    // 상태 정렬: 오름차순 ⇒ 대기(0) < 셀프수령준비완료(1) < 셀프수령(2) < 완료(3) < 취소(4) < 노쇼(5)
+    const statusOrder: Record<ReservationRow['status'], number> = { pending: 0, self_pick_ready: 1, self_pick: 2, picked: 3, canceled: 4, no_show: 5 };
     const cmpCore = (a: ReservationRow, b: ReservationRow) => {
       switch (sortField) {
         case 'date':
@@ -399,12 +404,12 @@ export default function AdminReservationsPage() {
   }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
 
   // 드롭다운으로 상태 변경
-  const updateRowStatus = (id: number, next: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
+  const updateRowStatus = (id: number, next: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show') => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
   };
 
   // 변경 확인 다이얼로그
-  const openConfirmChange = (id: number, current: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
+  const openConfirmChange = (id: number, current: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show') => {
     const target = rows.find(r => r.id === id);
     setConfirmId(id);
     setConfirmNext(current); // 기본값을 기존 상태로 설정
@@ -427,6 +432,10 @@ export default function AdminReservationsPage() {
         const ids = Array.from(selectedIds);
         try {
           if (!USE_MOCKS) {
+            if (confirmNext === 'no_show') {
+              show('노쇼 경고로만 노쇼 상태로 변경이 가능합니다.', { variant: 'error' });
+              return;
+            }
             await updateReservationsStatusBulk(ids, confirmNext);
           }
           setRows(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, status: confirmNext } : r));
@@ -467,6 +476,8 @@ export default function AdminReservationsPage() {
           show(`${buyerName}님의 예약 상품이 셀프 수령 준비 완료로 변경되었습니다.`, { variant: 'info' });
         } else if (confirmNext === 'canceled') {
           show(`${buyerName}님의 예약 상품이 예약 취소로 변경되었습니다.`, { variant: 'info' });
+        } else if (confirmNext === 'no_show') {
+          show(`${buyerName}님의 예약 상품이 노쇼로 변경되었습니다.`, { variant: 'info' });
         } else {
           show(`${buyerName}님의 예약 상품이 수령 대기로 변경되었습니다.`, { variant: 'info' });
         }
@@ -695,8 +706,8 @@ export default function AdminReservationsPage() {
                   <td className="px-2 py-3 font-medium align-middle w-20">{formatKRW(r.amount)}</td>
                   <td className="px-2 py-3 align-middle w-32 text-center">{r.createdAt}</td>
                   <td className="px-2 py-3 align-middle w-16 text-center" onClick={(e) => e.stopPropagation()}>
-                                      {/* 노쇼 경고 버튼 - 셀프 수령 및 셀프 수령 준비 완료 상태일 때 표시 */}
-                  {(r.status === 'self_pick' || r.status === 'self_pick_ready' || r.status === 'pending' || r.status === 'canceled') && (
+                                      {/* 노쇼 경고 버튼 - no_show 상태가 아닐 때만 표시 */}
+                  {(r.status !== 'no_show' && r.status !== 'picked') && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -729,7 +740,9 @@ export default function AdminReservationsPage() {
                               ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
                             : r.status === 'canceled'
                               ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
+                              : r.status === 'no_show'
+                                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
                       aria-pressed={r.status === 'picked'}
                     >
@@ -738,7 +751,7 @@ export default function AdminReservationsPage() {
                           셀프 수령<br />
                           준비 완료
                         </>
-                      ) : r.status === 'canceled' ? '취소됨' : '수령 대기'}
+                      ) : r.status === 'canceled' ? '취소됨' : r.status === 'no_show' ? '노쇼' : '수령 대기'}
                     </button>
 
                     {/* 접근성용 select (시각적으로 숨김) */}
@@ -746,7 +759,7 @@ export default function AdminReservationsPage() {
                     <select
                       id={`pickup-${r.id}`}
                       value={r.status}
-                      onChange={(e) => updateRowStatus(r.id, e.target.value as 'pending'|'self_pick_ready'|'picked'|'self_pick'|'canceled')}
+                      onChange={(e) => updateRowStatus(r.id, e.target.value as 'pending'|'self_pick_ready'|'picked'|'self_pick'|'canceled'|'no_show')}
                       className="sr-only"
                       aria-hidden="true"
                       tabIndex={-1}
@@ -756,6 +769,7 @@ export default function AdminReservationsPage() {
                       <option value="self_pick">셀프 수령</option>
                       <option value="picked">수령 완료</option>
                       <option value="canceled">예약 취소</option>
+                      <option value="no_show">노쇼</option>
                     </select>
                   </td>
                 </tr>
@@ -888,7 +902,9 @@ export default function AdminReservationsPage() {
                           ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
                           : r.status === 'canceled'
                             ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                            : 'bg-gray-50 text-gray-700 border-gray-200')
+                            : r.status === 'no_show'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
                   {r.status === 'picked' ? '수령 완료' : r.status === 'self_pick' ? '셀프 수령' : r.status === 'self_pick_ready' ? (
@@ -896,7 +912,7 @@ export default function AdminReservationsPage() {
                       셀프 수령<br />
                       준비 완료
                     </>
-                  ) : r.status === 'canceled' ? '예약 취소' : '수령 대기'}
+                  ) : r.status === 'canceled' ? '예약 취소' : r.status === 'no_show' ? '노쇼' : '수령 대기'}
                 </button>
               </div>
               {/* 생성일시: 제품명 밑 왼쪽에 표시 */}
@@ -1059,7 +1075,7 @@ export default function AdminReservationsPage() {
               </div>
               <div>
                 <h2 className="text-base font-semibold text-gray-800">노쇼 경고 등록</h2>
-                <p className="text-sm text-gray-500">이 예약한 고객에게 노쇼 경고를 등록하시겠습니까?</p>
+                <p className="text-sm text-red-600">※노쇼 예약은 취소할 수 없습니다.</p>
               </div>
             </div>
             
