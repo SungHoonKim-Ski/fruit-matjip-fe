@@ -5,7 +5,7 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, resetApiRetryCount, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
@@ -218,6 +218,9 @@ export default function ReservePage() {
   // 활성화된 추천 검색 칩
   const [activeChip, setActiveChip] = useState<string | null>(null);
   
+  // 추천 키워드
+  const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([]);
+  
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
 
@@ -232,6 +235,21 @@ export default function ReservePage() {
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // 추천 키워드 로드
+  useEffect(() => {
+    const fetchKeywords = async () => {
+      try {
+        const data = await getProductKeywords();
+        if (data && Array.isArray(data.response)) {
+          setRecommendedKeywords(data.response);
+        }
+      } catch (e) {
+        console.error('상품 키워드 불러오기 실패:', e);
+      }
+    };
+    fetchKeywords();
   }, []);
 
   // 초기화 버튼이 활성화되었을 때 주기적으로 진동 애니메이션 표시
@@ -542,7 +560,6 @@ export default function ReservePage() {
     setSearchModalOpen(false);
     
     // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
-    const recommendedKeywords = ['케이크','할인', '딸기','왕란','특가'];
     setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
     
     // 검색 결과가 있으면 해당 날짜로 이동
@@ -1162,7 +1179,7 @@ export default function ReservePage() {
         {allProductDates.length > 0 && (
           <div className="mt-2 px-3">
             <div className="flex items-center gap-2 flex-wrap">
-              {['케이크','할인','딸기','왕란','특가'].map(keyword => {
+              {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크','할인','딸기','특가']).map(keyword => {
                 const isActive = activeChip === keyword;
                 return (
                   <button

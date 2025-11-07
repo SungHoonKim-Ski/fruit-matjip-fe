@@ -120,6 +120,15 @@ export default function AdminHeader() {
       menu.remove();
     };
     
+    // 추천 검색어 관리 버튼
+    const keywordBtn = document.createElement('button');
+    keywordBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
+    keywordBtn.innerHTML = '🔎 추천 검색어';
+    keywordBtn.onclick = () => {
+      navigate('/admin/keywords');
+      menu.remove();
+    };
+    
     // 버튼들을 메뉴에 추가
     menu.appendChild(productsBtn);
     menu.appendChild(newProductBtn);
@@ -128,6 +137,7 @@ export default function AdminHeader() {
     menu.appendChild(reservationsBtn);
     menu.appendChild(salesBtn);
     menu.appendChild(customersBtn);
+    menu.appendChild(keywordBtn);
     
     menu.classList.add('admin-header-menu');
     document.body.appendChild(menu);

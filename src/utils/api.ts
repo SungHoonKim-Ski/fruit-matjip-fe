@@ -394,6 +394,19 @@ export const getProduct = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const getProductKeywords = async () => {
+  const key = 'getKeywords';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/products/keywords');
+    if (res.ok) resetApiRetryCount(key);
+    return res.json();
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
 export const createReservation = async (data: any) => {
   const key = 'createReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -1094,6 +1107,75 @@ export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem
         }))
       : [];
     return warns;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+
+// === Admin Keyword 관리 API ===
+export const getAdminProductKeywords = async () => {
+  const key = 'getAdminKeywords';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/products/keywords', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res.json(); // ProductKeywordResponse 반환
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const addAdminProductKeyword = async (keyword: string) => {
+  const key = 'addAdminProductKeyword';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/keyword?keyword=${keyword}`, {
+      method: 'POST',
+    }, true);
+
+    if (!res.ok) throw new Error('추천 검색어 추가 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const deleteAdminProductKeyword = async (keyword: string) => {
+  const key = 'deleteAdminProductKeyword';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/keyword?keyword=${keyword}`, {
+      method: 'DELETE',
+    }, true);
+
+    if (!res.ok) throw new Error('추천 검색어 제거 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 순서 일괄 업데이트 (드래그앤드롭 후 저장)
+export const updateAdminProductKeywordOrder = async (keywords: string[]) => {
+  const key = 'updateAdminProductKeywordOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [...] }
+    const res = await adminFetch('/api/admin/products/keywords', {
+      method: 'PATCH',
+      body: JSON.stringify({ keywords }),
+    }, true);
+
+    if (!res.ok) throw new Error('추천 검색어 순서 저장 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
   } catch (e) {
     incrementApiRetryCount(key);
     throw e;

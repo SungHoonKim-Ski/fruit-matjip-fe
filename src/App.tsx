@@ -13,6 +13,7 @@ import AdminEditProductPage from './pages/admin/AdminEditProductPage';
 import AdminBulkSellDatePage from './pages/admin/AdminBulkSellDatePage';
 import AdminProductOrderPage from './pages/admin/AdminProductOrderPage';
 import AdminCustomerPage from './pages/admin/AdminCustomerPage';
+import AdminKeywordPage from './pages/admin/AdminKeywordPage';
 import Error404Page from './pages/error/Error404Page';
 import Error403Page from './pages/error/Error403Page';
 import RequireAdmin from './routes/RequireAdmin';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/admin/sales" element={<AdminSalesPage />} />
         <Route path="/admin/reservations" element={<AdminReservationsPage />} />
         <Route path="/admin/customers" element={<AdminCustomerPage />} />
+        <Route path="/admin/keywords" element={<AdminKeywordPage />} />
         <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />
       </Route>
       <Route path="/403" element={<Error403Page />} />
