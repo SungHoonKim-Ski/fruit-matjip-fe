@@ -358,9 +358,6 @@ export default function AdminReservationsPage() {
       if (pickupFilter === 'all') {
         // 전체: 취소된 항목과 노쇼 항목 제외
         pickupHit = row.status !== 'canceled' && row.status !== 'no_show';
-      } else if (pickupFilter === 'canceled') {
-        // 예약 취소: canceled, no_show 둘 다 포함
-        pickupHit = row.status === 'canceled' || row.status === 'no_show';
       } else {
         // 특정 필터 선택 시 해당 상태만 표시
         pickupHit = row.status === pickupFilter;
@@ -587,7 +584,8 @@ export default function AdminReservationsPage() {
               <option value="self_pick_ready">셀프 수령 준비 완료</option>
               <option value="self_pick">셀프 수령</option>
               <option value="picked">수령 완료</option>
-              <option value="canceled">예약 취소 + 노쇼</option>
+              <option value="canceled">예약 취소</option>
+              <option value="no_show">노쇼</option>
             </select>
           </div>
 
