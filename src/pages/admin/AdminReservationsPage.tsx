@@ -582,12 +582,12 @@ export default function AdminReservationsPage() {
               onChange={e=>setPickupFilter(e.target.value as any)}
               className="mt-1 w-full h-10 border rounded px-2"
             >
-              <option value="all">전체</option>
+              <option value="all">예약 진행중</option>
               <option value="pending">수령 대기</option>
               <option value="self_pick_ready">셀프 수령 준비 완료</option>
               <option value="self_pick">셀프 수령</option>
               <option value="picked">수령 완료</option>
-              <option value="canceled">예약 취소</option>
+              <option value="canceled">예약 취소 + 노쇼</option>
             </select>
           </div>
 
@@ -729,7 +729,10 @@ export default function AdminReservationsPage() {
                   <td className="px-2 py-3 align-middle w-24" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={() => openConfirmChange(r.id, r.status)}
+                      onClick={() => {
+                        if (r.status !== 'no_show') openConfirmChange(r.id, r.status);
+                      }}
+                      disabled={r.status === 'no_show'}
                       className={
                         'inline-flex items-center h-9 px-3 rounded-full border text-xs font-medium transition ' +
                         (r.status === 'picked'
@@ -741,7 +744,7 @@ export default function AdminReservationsPage() {
                             : r.status === 'canceled'
                               ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                               : r.status === 'no_show'
-                                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                                ? 'bg-purple-100 text-purple-400 border-purple-200 cursor-not-allowed'
                                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100')
                       }
                       aria-pressed={r.status === 'picked'}
@@ -891,7 +894,11 @@ export default function AdminReservationsPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={e => { e.stopPropagation(); openConfirmChange(r.id, r.status); }}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (r.status !== 'no_show') openConfirmChange(r.id, r.status);
+                  }}
+                  disabled={r.status === 'no_show'}
                   className={
                     'inline-flex items-center h-8 px-3 rounded-full border text-xs font-medium transition ' +
                     (r.status === 'picked'
@@ -903,7 +910,7 @@ export default function AdminReservationsPage() {
                           : r.status === 'canceled'
                             ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                             : r.status === 'no_show'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              ? 'bg-purple-100 text-purple-400 border-purple-200 cursor-not-allowed'
                               : 'bg-gray-50 text-gray-700 border-gray-200')
                   }
                 >
@@ -1075,7 +1082,7 @@ export default function AdminReservationsPage() {
               </div>
               <div>
                 <h2 className="text-base font-semibold text-gray-800">노쇼 경고 등록</h2>
-                <p className="text-sm text-red-600">※노쇼 예약은 취소할 수 없습니다.</p>
+                <p className="text-sm text-red-600">※ 이 작업은 되돌릴 수 없습니다.</p>
               </div>
             </div>
             

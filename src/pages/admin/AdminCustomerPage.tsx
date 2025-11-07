@@ -504,7 +504,7 @@ export default function AdminCustomerPage() {
                   적용
                 </button>
               </div>
-              <div className="text-sm font-medium text-gray-500">* 셀프 수령 가능</div>
+              <div className="text-sm font-medium text-gray-500">* 해제시 셀프 수령 가능</div>
             </div>
 
             {/* 닫기 버튼 */}
