@@ -203,35 +203,8 @@ export default function AdminSalesPage() {
     setMonthTotalQty(0);
     setMonthTotalRev(0);
     loadSummary(from, to);
-  }, [from, to, show]);
+  }, [from, to]);
 const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
-  // 페이지 진입 시 오늘 데이터도 함께 로드
-  useEffect(() => {
-    const loadInitialData = async () => {
-      if (USE_MOCKS) return; // Mock은 기존 로직 사용
-      
-      try {
-        const todayStr = toKstYMD(kstNow);
-        
-        // 오늘 데이터 미리 로드
-        const res = await getTodaySales(todayStr);
-        if (res.ok) {
-          const body = await res.json();
-          const list = Array.isArray(body) ? body : (body?.response || []);
-          if (list.length > 0) {
-            // 오늘 데이터가 있으면 기본 선택
-            setSelectedDate(todayStr);
-            loadDetailsForDate(todayStr);
-          }
-        }
-      } catch (e) {
-        // 오늘 데이터 로드 실패는 무시 (기존 월 데이터는 정상 로드됨)
-        safeErrorLog(e, 'AdminSalesPage - loadInitialTodayData');
-      }
-    };
-
-    loadInitialData();
-  }, []); // 페이지 진입 시 한 번만 실행
 
   // 오늘 날짜를 기본 선택 (기존 로직 유지)
   useEffect(() => {
