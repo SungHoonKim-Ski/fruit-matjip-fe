@@ -48,7 +48,7 @@ export default function AdminReservationsPage() {
   
   // 필터 (기본값)
   const [selectedDate, setSelectedDate] = useState(today);
-  const [field, setField] = useState<'buyerName' | 'productName'>('buyerName'); // 기본값을 이름으로 변경
+  const [field, setField] = useState<'both' | 'buyerName' | 'productName'>('both'); // 닉네임+상품명 / 닉네임 / 상품명
   const [term, setTerm]   = useState('');
   const [pickupFilter, setPickupFilter] = useState<'all' | 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show'>('all'); // 기본값을 전체로 변경
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -346,12 +346,25 @@ export default function AdminReservationsPage() {
 
   const filtered = useMemo(() => {
     const v = term.trim();
-
+    const lower = v.toLowerCase();
+  
     const list = rows.filter(row => {
       const dateMatch = selectedDate === 'all' || row.date === selectedDate;
-      const fieldHit = !v || 
-        row.productName.toLowerCase().includes(v.toLowerCase()) ||
-        row.buyerName.toLowerCase().includes(v.toLowerCase());
+  
+      let fieldHit = true;
+      if (v) {
+        const productMatch = row.productName.toLowerCase().includes(lower);
+        const buyerMatch = row.buyerName.toLowerCase().includes(lower);
+  
+        if (field === 'productName') {
+          fieldHit = productMatch;
+        } else if (field === 'buyerName') {
+          fieldHit = buyerMatch;
+        } else {
+          // both: 닉네임 또는 상품명 중 하나라도 매칭
+          fieldHit = productMatch || buyerMatch;
+        }
+      }
       
       // 수령 여부 필터 처리
       let pickupHit: boolean;
@@ -362,10 +375,9 @@ export default function AdminReservationsPage() {
         // 특정 필터 선택 시 해당 상태만 표시
         pickupHit = row.status === pickupFilter;
       }
-
+  
       return dateMatch && fieldHit && pickupHit;
     });
-
     // 초기 상태: 정렬 적용 없이 서버 순서 유지
     if (!sortField) return list;
 
@@ -399,7 +411,25 @@ export default function AdminReservationsPage() {
       return cmp;
     });
   }, [rows, selectedDate, term, field, pickupFilter, sortField, sortOrder]);
+  const baseCount = useMemo(() => {
+    return rows.filter(row => {
+      const dateMatch = selectedDate === 'all' || row.date === selectedDate;
 
+      let pickupHit: boolean;
+      if (pickupFilter === 'all') {
+        // 전체: 취소된 항목과 노쇼 항목 제외
+        pickupHit = row.status !== 'canceled' && row.status !== 'no_show';
+      } else {
+        // 특정 필터 선택 시 해당 상태만 표시
+        pickupHit = row.status === pickupFilter;
+      }
+
+      return dateMatch && pickupHit;
+    }).length;
+  }, [rows, selectedDate, pickupFilter]);
+  const filteredTotalAmount = useMemo(() => {
+    return filtered.reduce((sum, row) => sum + (row.amount || 0), 0);
+  }, [filtered]);
   // 드롭다운으로 상태 변경
   const updateRowStatus = (id: number, next: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show') => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, status: next } : r)));
@@ -553,12 +583,13 @@ export default function AdminReservationsPage() {
             <label className="text-xs text-gray-500">검색 필터 <span className="text-red-500">*</span></label>
             <select
               value={field}
-              onChange={e=>setField(e.target.value as any)}
+              onChange={e => setField(e.target.value as 'both' | 'buyerName' | 'productName')}
               required
               className="mt-1 w-full h-10 border rounded px-2"
             >
-              <option value="productName">상품명</option>
+              <option value="both">닉네임 + 상품명</option>
               <option value="buyerName">닉네임</option>
+              <option value="productName">상품명</option>
             </select>
           </div>
 
@@ -567,7 +598,13 @@ export default function AdminReservationsPage() {
             <input
               value={term}
               onChange={e=>setTerm(e.target.value)}
-              placeholder={field === 'productName' ? '예) 토마토' : '예) 홍길동'}
+              placeholder={
+                field === 'productName'
+                  ? '예) 토마토'
+                  : field === 'buyerName'
+                    ? '예) 홍길동'
+                    : '예) 홍길동, 토마토'
+              }
               className="mt-1 w-full h-10 border rounded px-3"
             />
           </div>
@@ -598,8 +635,16 @@ export default function AdminReservationsPage() {
           </div>
         </div>
         {/* 선택된 날짜 정보 표시 */}
-        <div className="mt-3 text-sm text-gray-600">
-          📅 {selectedDate} ({filtered.length}건)
+        
+        {/* 선택된 날짜 정보 표시 + 검색 결과 요약 */}
+        <div className="mt-3 text-sm text-gray-600 flex justify-between items-center">
+          <span>
+            📅 {selectedDate}({baseCount}건)
+          </span>
+          <span className="text-right">
+            검색 결과: <span className="font-semibold text-gray-800">{filtered.length}</span>건{' '}
+            {/* <span className="font-semibold text-gray-800">{formatKRW(filteredTotalAmount)}</span> */}
+          </span>
         </div>
       </div>
 
