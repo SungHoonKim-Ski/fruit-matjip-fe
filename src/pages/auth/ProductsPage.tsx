@@ -712,7 +712,7 @@ export default function ReservePage() {
             const canPick = await checkCanSelfPick();
             if (!canPick) {
               // 셀프 수령이 불가능한 경우 dialog 없이 처리
-              show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
+              // show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
             } else {
               // 셀프 수령이 가능한 경우에만 dialog 표시
               const productWithReservationId = { ...product, reservationId };

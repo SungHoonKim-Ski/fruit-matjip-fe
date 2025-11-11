@@ -448,7 +448,7 @@ export default function OrdersPage() {
           
           // 셀프 수령 가능 여부 추가 체크: 전역 허용 + 상품 자체 허용 둘 다 필요
           if (canSelfPick !== true) {
-            show('셀프 수령 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
+            // show('셀프 수령 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
             setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
             return;
           }
