@@ -9,6 +9,7 @@ import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
+import { getBrowserInfo, getInstallInstructions } from '../../utils/browserDetect';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
 
@@ -132,6 +133,9 @@ export default function ReservePage() {
   // 개인정보처리방침 dialog 상태
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
 
+  // PWA 설치 안내 모달
+  const [installInstructionsOpen, setInstallInstructionsOpen] = useState(false);
+
   // 셀프 수령 확인 dialog 상태
   const [selfPickDialog, setSelfPickDialog] = useState<{
     isOpen: boolean;
@@ -164,7 +168,7 @@ export default function ReservePage() {
 
   // 모달(상세/닉네임/개인정보/셀프수령/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
-    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen || messageDialog.isOpen;
+    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen || messageDialog.isOpen || installInstructionsOpen;
     if (anyOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -182,6 +186,10 @@ export default function ReservePage() {
       }
       if (nickModalOpen) {
         setNickModalOpen(false);
+        return;
+      }
+      if (installInstructionsOpen) {
+        setInstallInstructionsOpen(false);
         return;
       }
       if (privacyDialogOpen) {
@@ -1069,8 +1077,11 @@ export default function ReservePage() {
                       setDrawerOpen(false);
                     }
                   } else {
-                    // 이미 설치되었거나 설치 불가능한 경우
-                    if (window.matchMedia('(display-mode: standalone)').matches) {
+                    // Safari나 인앱 브라우저 확인
+                    const instructions = getInstallInstructions();
+                    if (instructions) {
+                      setInstallInstructionsOpen(true);
+                    } else if (window.matchMedia('(display-mode: standalone)').matches) {
                       show('이미 앱이 설치되어 있습니다.', { variant: 'info' });
                     } else {
                       show('브라우저 메뉴에서 "홈 화면에 추가"를 선택해주세요.', { variant: 'info' });
@@ -1662,6 +1673,54 @@ export default function ReservePage() {
             </div>
           </div>
         )
+      }
+
+      {/* PWA 설치 안내 모달 */}
+      {
+        installInstructionsOpen && (() => {
+          const instructions = getInstallInstructions();
+          if (!instructions) return null;
+
+          return (
+            <div
+              className="fixed inset-0 z-50 grid place-items-center p-4"
+              aria-modal="true"
+              role="dialog"
+            >
+              <div className="absolute inset-0 bg-black/40" onClick={() => setInstallInstructionsOpen(false)} />
+              <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-800">{instructions.title}</h2>
+                  <button
+                    onClick={() => setInstallInstructionsOpen(false)}
+                    className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                    aria-label="닫기"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {instructions.instructions.map((step, index) => (
+                    <div key={index} className="flex gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center text-sm font-bold">
+                        {index + 1}
+                      </div>
+                      <p className="text-sm text-gray-700 pt-0.5">{step}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setInstallInstructionsOpen(false)}
+                  className="mt-6 w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2.5 rounded-lg transition-colors"
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          );
+        })()
       }
 
       {/* 검색 모달 */}
