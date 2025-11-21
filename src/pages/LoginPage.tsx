@@ -64,7 +64,7 @@ export default function LoginPage() {
     const env = getCurrentEnvironment();
     if (env !== 'production') return; // dev/local에서는 로드하지 않음
     if (!JS_KAKAO_KEY) return;
-    ensureKakaoSDK(JS_KAKAO_KEY).catch(() => {});
+    ensureKakaoSDK(JS_KAKAO_KEY).catch(() => { });
   }, []);
 
   // 에러 메시지 표시(있으면)
@@ -95,7 +95,7 @@ export default function LoginPage() {
       try {
         setBusy(true);
         const access = localStorage.getItem('access') || '';
-        const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (access) headers.Authorization = `Bearer ${access}`;
 
         const res = await fetch(`${API_BASE}/api/refresh`, {
@@ -164,7 +164,7 @@ export default function LoginPage() {
         const data: LoginSuccess = JSON.parse(text);
         const forceNicknameChange = data && data.change_name === false;
         if (forceNicknameChange) {
-          showRef.current('닉네임 변경이 필요합니다.');
+          showRef.current('닉네임 변경이 필요합니다');
           localStorage.setItem('nickname', '신규 고객');
         } else {
           showRef.current(`${data.name}님 환영합니다!`);
@@ -237,7 +237,7 @@ export default function LoginPage() {
           if (!data?.access) throw new Error('토큰이 없습니다.');
           const forceNicknameChange = data && data.change_name === false;
           if (forceNicknameChange) {
-            showRef.current('닉네임 변경이 필요합니다.');
+            showRef.current('닉네임 변경이 필요합니다');
             localStorage.setItem('nickname', '신규 고객');
           } else {
             showRef.current(`${data.name || '사용자'}님 환영합니다!`);

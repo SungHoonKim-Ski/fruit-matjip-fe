@@ -25,7 +25,7 @@ const BASE_BACKOFF_MS = 300;
 
 // === 공통 Retry 상태 (API 키별 관리) ===
 const apiRetryCounts = new Map<string, number>();
-const makeApiKey = (scope: 'ADMIN'|'USER'|'GEN', method: string, url: string) => `${scope}:${method.toUpperCase()}:${url}`;
+const makeApiKey = (scope: 'ADMIN' | 'USER' | 'GEN', method: string, url: string) => `${scope}:${method.toUpperCase()}:${url}`;
 
 export const getApiRetryCount = (apiKey: string) => apiRetryCounts.get(apiKey) || 0;
 export const canRetryApi = (apiKey: string) => (apiRetryCounts.get(apiKey) || 0) < MAX_RETRY_PER_API;
@@ -55,7 +55,7 @@ const shouldRetry = (method: string, errorOrResponse: unknown): boolean => {
 const getAccessToken = () => localStorage.getItem('access');
 
 // === 공통 에러 메시지 저장 ===
-const pushUiError = (message: string, type: 'error'|'admin'|'user' = 'error') => {
+const pushUiError = (message: string, type: 'error' | 'admin' | 'user' = 'error') => {
   // 구 UI/신 UI 동시 호환
   localStorage.setItem('api-error-message', message);
   localStorage.setItem('api-error-type', 'error');
@@ -417,6 +417,16 @@ export const createReservation = async (data: any) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const createOrder = async (data: any) => {
+  const key = 'createOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/orders', { method: 'POST', body: JSON.stringify(data) });
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 export const cancelReservation = async (id: number) => {
   const key = 'cancelReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -641,7 +651,7 @@ export const warnReservation = async (id: number) => {
 };
 
 // 일자별 매출 집계 요약 API
-export const getSalesSummary = async (from?: string, to?: string)  => {
+export const getSalesSummary = async (from?: string, to?: string) => {
   const key = 'getSalesSummary';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
@@ -649,7 +659,7 @@ export const getSalesSummary = async (from?: string, to?: string)  => {
     if (from && to) {
       url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     }
-    
+
     const res = await adminFetch(url, { cache: 'no-store' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -970,27 +980,27 @@ export const getServerTime = async (): Promise<number> => {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
-    
+
     // LocalDateTime 문자열 응답을 받아서 epoch milliseconds로 변환
     const localDateTimeStr = await res.text();
     const cleanedDateTimeStr = localDateTimeStr
       .replace(/^"|"$/g, '') // 앞뒤 따옴표 제거
       .replace(/\.(\d{3})\d+/, '.$1'); // 마이크로초를 밀리초로 제한
-    
-    
+
+
     // LocalDateTime을 Date 객체로 변환 (KST 기준)
     const date = new Date(cleanedDateTimeStr + '+09:00'); // KST 타임존 추가
     const epochMs = date.getTime();
-    
+
     if (isNaN(epochMs)) {
       throw new Error(`LocalDateTime 파싱 실패: ${localDateTimeStr}`);
     }
-    
+
     if (res.ok) resetApiRetryCount(key);
     return epochMs;
-  } catch (e) { 
-    incrementApiRetryCount(key); 
-    throw e; 
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
   }
 };
 
@@ -1029,7 +1039,7 @@ export const getCustomers = async (
       totalWarnCount: Number(u.total_warn_count || 0),
       isFirstTimeBuyer: Boolean(u.first_time_buyer),
     })) : [];
-    
+
     const nextCursor = data.pagination?.next_cursor || null;
     return { users, cursor: nextCursor };
   } catch (e) {
@@ -1102,9 +1112,9 @@ export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem
     const data = await res.json();
     const warns: CustomerWarnItem[] = Array.isArray(data.response)
       ? data.response.map((w: any) => ({
-          reason: w.reason as UserWarnReason,
-          warnAt: String(w.warn_at || w.warnAt || ''),
-        }))
+        reason: w.reason as UserWarnReason,
+        warnAt: String(w.warn_at || w.warnAt || ''),
+      }))
       : [];
     return warns;
   } catch (e) {

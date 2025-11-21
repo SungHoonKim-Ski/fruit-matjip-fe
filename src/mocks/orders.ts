@@ -13,7 +13,7 @@ export type OrderItem = {
 export type OrderRow = {
   id: number;
   date: string;           // YYYY-MM-DD
-  status: 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
+  status: 'pending' | 'paid' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
   items: OrderItem[];
 };
 
@@ -76,7 +76,7 @@ export const listOrders = async (page: number = 1): Promise<{ rows: OrderRow[]; 
   const startIndex = (page - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const paginatedOrders = mockOrders.slice(startIndex, endIndex);
-  
+
   return {
     rows: paginatedOrders,
     hasMore: endIndex < mockOrders.length

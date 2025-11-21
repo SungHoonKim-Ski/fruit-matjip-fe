@@ -5,6 +5,7 @@ import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
 import { getReservations, cancelReservation, selfPickReservation, checkCanSelfPick, minusQuantity } from '../../utils/api';
+import BottomNav from '../../components/BottomNav';
 
 // 취소 확인 dialog 타입
 interface CancelDialogProps {
@@ -26,7 +27,7 @@ export default function OrdersPage() {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  
+
   // ✅ 오늘 ~ 6틀 뒤 (reservation API 기본값과 동일)
   const now = new Date();
   const today = (() => {
@@ -36,7 +37,7 @@ export default function OrdersPage() {
   })();
   // 필터 - 기본값: 시작일(오늘)만 사용
   const [from, setFrom] = useState(today);
-  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled'>('all');
+  const [status, setStatus] = useState<'all' | 'pending' | 'paid' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled'>('all');
 
   // 데이터
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -44,7 +45,7 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);         // “더 보기” 용
   const [hasMore, setHasMore] = useState(false);
   const [canSelfPick, setCanSelfPick] = useState<boolean | null>(null); // 셀프 수령 가능 여부
-  
+
   // 상태 변경 dialog 상태
   const [statusDialog, setStatusDialog] = useState<{
     isOpen: boolean;
@@ -99,27 +100,30 @@ export default function OrdersPage() {
               throw new Error('주문 목록을 불러오지 못했습니다.');
             }
             const data = await res.json();
-            
-            
+
+
             // ReservationListResponse 구조에서 response 필드 추출
             let reservationsArray = data;
             if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
               reservationsArray = data.response;
             }
-            
+
             if (!Array.isArray(reservationsArray)) {
               throw new Error('주문 데이터가 배열 형태가 아닙니다.');
             }
-            
+
             // ReservationResponse를 OrderRow status로 변환
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
               // NO_SHOW는 CANCELED로 취급
-              let orderStatus: 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
+              let orderStatus: 'pending' | 'paid' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
               const rawStatus = String(r.status ?? '').toUpperCase();
               switch (rawStatus) {
                 case 'PENDING':
                   orderStatus = 'pending';
+                  break;
+                case 'PAID':
+                  orderStatus = 'paid';
                   break;
                 case 'PICKED':
                 case 'COMPLETED':
@@ -141,13 +145,14 @@ export default function OrdersPage() {
                   // 소문자로도 체크 (하위 호환성)
                   const lowerStatus = r.status?.toLowerCase();
                   if (lowerStatus === 'pending') orderStatus = 'pending';
+                  else if (lowerStatus === 'paid') orderStatus = 'paid';
                   else if (lowerStatus === 'picked' || lowerStatus === 'completed') orderStatus = 'picked';
                   else if (lowerStatus === 'self_pick' || lowerStatus === 'self_picked') orderStatus = 'self_pick';
                   else if (lowerStatus === 'self_pick_ready') orderStatus = 'self_pick_ready';
                   else if (lowerStatus === 'canceled' || lowerStatus === 'cancelled' || lowerStatus === 'no_show') orderStatus = 'canceled';
                   else orderStatus = 'pending';
               }
-              
+
               const qty = Math.max(1, Number(r.quantity ?? 1));
               const amt = Number(r.amount ?? 0);
               const unit = qty > 0 ? amt / qty : amt;
@@ -157,7 +162,7 @@ export default function OrdersPage() {
                 status: orderStatus,
                 items: [{
                   id: r.id,
-                  name: r.product_name, 
+                  name: r.product_name,
                   quantity: qty,
                   price: unit,
                   imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '',
@@ -167,7 +172,7 @@ export default function OrdersPage() {
                 }]
               };
             });
-            
+
             setOrders(orderRows);
           } catch (e: any) {
             safeErrorLog(e, 'OrderPage - loadOrders');
@@ -193,7 +198,7 @@ export default function OrdersPage() {
         setCanSelfPick(true);
         return;
       }
-      
+
       try {
         const canPick = await checkCanSelfPick();
         if (alive) {
@@ -211,27 +216,27 @@ export default function OrdersPage() {
 
   // 현재 시간이 18시 이후인지 체크 (실시간 업데이트)
   const [isAfter6PM, setIsAfter6PM] = useState(false);
-  
+
   useEffect(() => {
     const checkTime = () => {
       const now = new Date();
       const currentHour = now.getHours();
       setIsAfter6PM(currentHour >= 18);
     };
-    
+
     // 초기 체크
     checkTime();
-    
+
     // 1분마다 체크 (18시 경계를 넘을 때를 위해)
     const interval = setInterval(checkTime, 60000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const searchQuery = search.trim().toLowerCase();
-    
+
     return orders.filter(o => {
       const d = new Date(o.date);
       const sameDay = f ? (
@@ -240,11 +245,11 @@ export default function OrdersPage() {
         d.getDate() === f.getDate()
       ) : true;
       const s = status === 'all' ? true : o.status === status;
-      
+
       // 제품명 검색 필터링
-      const matchesSearch = searchQuery === '' || 
+      const matchesSearch = searchQuery === '' ||
         o.items.some(item => item.name.toLowerCase().includes(searchQuery));
-      
+
       return sameDay && s && matchesSearch;
     });
   }, [orders, from, status, search]);
@@ -255,6 +260,7 @@ export default function OrdersPage() {
   const statusBadge = (s: OrderRow['status']) => {
     const base = 'inline-flex items-center h-7 px-2.5 rounded-full text-xs font-medium';
     if (s === 'pending') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
+    if (s === 'paid') return `${base} bg-indigo-50 text-indigo-700 border border-indigo-200`;
     if (s === 'picked') return `${base} bg-green-50 text-green-700 border border-green-200`;
     if (s === 'self_pick') return `${base} bg-blue-50 text-blue-700 border border-blue-200`;
     if (s === 'self_pick_ready') return `${base} bg-yellow-50 text-yellow-700 border border-yellow-200`;
@@ -331,7 +337,7 @@ export default function OrdersPage() {
       show('수량 변경이 없습니다.', { variant: 'info' });
       return;
     }
-    
+
     const decreaseAmount = statusDialog.quantity - tempQuantity;
     if (decreaseAmount <= 0) {
       show('수량은 더 이상 늘릴 수 없습니다.', { variant: 'error' });
@@ -339,28 +345,28 @@ export default function OrdersPage() {
     }
 
     if (!statusDialog.isOpen) return;
-    
+
     try {
       if (USE_MOCKS) {
         // Mock 수량 감소 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
-            ? { 
-                ...o, 
-                items: o.items.map(item => ({
-                  ...item,
-                  quantity: Math.max(0, item.quantity - decreaseAmount)
-                }))
-              }
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
+            ? {
+              ...o,
+              items: o.items.map(item => ({
+                ...item,
+                quantity: Math.max(0, item.quantity - decreaseAmount)
+              }))
+            }
             : o
         ));
-        
+
         // dialog의 수량도 업데이트
         setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
-        
+
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
-        
+
         // dialog 닫기
         setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       } else {
@@ -373,25 +379,25 @@ export default function OrdersPage() {
           }
           throw new Error('수량 변경에 실패했습니다.');
         }
-        
+
         // 성공 시 로컬 상태 업데이트
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
-            ? { 
-                ...o, 
-                items: o.items.map(item => ({
-                  ...item,
-                  quantity: Math.max(0, item.quantity - decreaseAmount)
-                }))
-              }
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
+            ? {
+              ...o,
+              items: o.items.map(item => ({
+                ...item,
+                quantity: Math.max(0, item.quantity - decreaseAmount)
+              }))
+            }
             : o
         ));
-        
+
         // dialog의 수량도 업데이트
         setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
-        
+
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
-        
+
         // dialog 닫기
         setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       }
@@ -404,34 +410,34 @@ export default function OrdersPage() {
   // 상태 변경 처리
   const handleStatusChange = async (newStatus?: 'canceled' | 'self_pick') => {
     if (!statusDialog.isOpen) return;
-    
+
     // newStatus 파라미터가 있으면 사용, 없으면 statusDialog.newStatus 사용
     const targetStatus = newStatus || statusDialog.newStatus;
-    
+
     try {
       // pending 상태에서 과거 예약 체크 (취소/셀프 수령 모두)
       if (statusDialog.currentStatus === 'pending') {
         const targetOrder = orders.find(o => o.id === statusDialog.orderId);
         if (!targetOrder) return;
-        
+
         // order_date를 KST 기준으로 파싱
         const orderDate = new Date(targetOrder.date + 'T00:00:00');
         // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
         const kstOrderDate = orderDate;
-        
+
         // 과거 주문인 경우: 취소/셀프 수령 모두 불가
         const now = new Date();
         // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
         const kstNow = now;
         const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
         const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
-        
+
         if (orderDateOnly.getTime() < todayDate.getTime()) {
           show('과거 예약은 취소하거나 셀프 수령 신청할 수 없습니다.', { variant: 'error' });
           setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
           return;
         }
-        
+
         // self_pick인 경우 추가 체크
         if (targetStatus === 'self_pick') {
           // order_date의 오후 7시(19:00)까지 신청 가능
@@ -445,7 +451,7 @@ export default function OrdersPage() {
               return;
             }
           }
-          
+
           // 셀프 수령 가능 여부 추가 체크: 전역 허용 + 상품 자체 허용 둘 다 필요
           if (canSelfPick !== true) {
             // show('셀프 수령 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
@@ -460,20 +466,20 @@ export default function OrdersPage() {
             setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
             return;
           }
-          
+
           // 미래 주문인 경우: 신청 가능 (시간 제한 없음)
         }
       }
-      
+
       if (USE_MOCKS) {
         // Mock 상태 변경 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
             ? { ...o, status: targetStatus }
             : o
         ));
-        
+
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         } else if (targetStatus === 'self_pick') {
@@ -503,14 +509,14 @@ export default function OrdersPage() {
             throw new Error('셀프 수령 신청에 실패했습니다.');
           }
         }
-        
+
         // 성공 시 로컬 상태 업데이트
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
             ? { ...o, status: targetStatus }
             : o
         ));
-        
+
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         } else if (targetStatus === 'self_pick') {
@@ -541,17 +547,18 @@ export default function OrdersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
             <label className="text-xs text-gray-500">상품 수령일</label>
-            <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="mt-1 w-full h-10 border rounded px-2" />
           </div>
           <div className="sm:col-span-2">
             <label className="text-xs text-gray-500">수령 상태</label>
             <select
               value={status}
-              onChange={e=>setStatus(e.target.value as any)}
+              onChange={e => setStatus(e.target.value as any)}
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
               <option value="pending">예약 완료</option>
+              <option value="paid">결제 완료</option>
               <option value="picked">수령 완료</option>
               {canSelfPick && <option value="self_pick">셀프 수령(20시 이후)</option>}
               <option value="canceled">예약 취소</option>
@@ -569,8 +576,8 @@ export default function OrdersPage() {
         </div>
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
-        <strong>예약 완료 버튼</strong> 클릭 시 <strong>예약을 취소</strong>할 수 있습니다<br /> 
-          
+          <strong>예약 완료 버튼</strong> 클릭 시 <strong>예약을 취소</strong>할 수 있습니다<br />
+
         </div>
         <div className="mt-2 text-xs text-red-600">
           <strong>노쇼가 누적</strong>될 경우 <strong>추후 예약이 불가합니다</strong> <br />
@@ -627,10 +634,11 @@ export default function OrdersPage() {
                       className={`${statusBadge(o.status)} ${(o.status === 'pending' || o.status === 'self_pick') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
                       title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
                     >
-                      {o.status === 'pending' ? '예약 완료(클릭 시 변경)' : 
-                       o.status === 'picked' ? '수령 완료' : 
-                       o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
-                       o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
+                      {o.status === 'pending' ? '예약 완료(클릭 시 변경)' :
+                        o.status === 'paid' ? '결제 완료' :
+                          o.status === 'picked' ? '수령 완료' :
+                            o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
+                              o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
                     </span>
                   </td>
                 </tr>
@@ -671,10 +679,11 @@ export default function OrdersPage() {
                   title={(o.status === 'pending' || o.status === 'self_pick') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
                   disabled={!(o.status === 'pending' || o.status === 'self_pick')}
                 >
-                  {o.status === 'pending' ? '예약 완료(클릭 시 변경)' : 
-                   o.status === 'picked' ? '수령 완료' : 
-                   o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
-                   o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
+                  {o.status === 'pending' ? '예약 완료(클릭 시 변경)' :
+                    o.status === 'paid' ? '결제 완료' :
+                      o.status === 'picked' ? '수령 완료' :
+                        o.status === 'self_pick' ? '셀프 수령(클릭 시 취소)' :
+                          o.status === 'self_pick_ready' ? '셀프 수령 준비 완료' : '예약 취소'}
                 </button>
               </div>
               <div className="mt-2 space-y-2">
@@ -721,7 +730,7 @@ export default function OrdersPage() {
             </h3>
             <p className="text-gray-600 mb-6">
               <span className="font-medium">"{statusDialog.productName}"</span>
-              {statusDialog.currentStatus === 'pending' 
+              {statusDialog.currentStatus === 'pending'
                 ? <>주문의 상태를 변경합니다.<br />셀프 수령 신청은 <b>수령일 오후 7시반</b>까지 가능합니다.</>
                 : '주문을 취소하시겠습니까?'}
             </p>
@@ -777,31 +786,31 @@ export default function OrdersPage() {
                 // 주문일 기준으로 18시 체크
                 const targetOrder = orders.find(o => o.id === statusDialog.orderId);
                 if (!targetOrder) return false;
-                
+
                 const orderDate = new Date(targetOrder.date + 'T00:00:00');
                 const now = new Date();
                 const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 const orderDateOnly = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
-                
+
                 // 주문일이 오늘인 경우에만 18시 체크
                 if (orderDateOnly.getTime() === todayDate.getTime()) {
                   const currentHour = now.getHours();
                   return currentHour < 18;
                 }
-                
+
                 // 주문일이 미래인 경우는 항상 가능
                 return true;
               })() && (
-                <button
-                  onClick={() => {
-                    // pending -> self_pick
-                    handleStatusChange('self_pick');
-                  }}
-                  className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm"
-                >
-                  <span className="whitespace-pre-line">{"20시 이후\n셀프 수령"}</span>
-                </button>
-              )}
+                  <button
+                    onClick={() => {
+                      // pending -> self_pick
+                      handleStatusChange('self_pick');
+                    }}
+                    className="flex-1 h-10 rounded bg-blue-500 hover:bg-blue-600 text-white font-medium text-sm"
+                  >
+                    <span className="whitespace-pre-line">{"20시 이후\n셀프 수령"}</span>
+                  </button>
+                )}
               <button
                 onClick={() => setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 })}
                 className="flex-1 h-10 rounded bg-gray-500 hover:bg-gray-600 text-white"
@@ -816,21 +825,20 @@ export default function OrdersPage() {
       {/* FAB 통합 검색/필터 초기화 버튼 */}
       <button
         onClick={search ? clearSearch : openSearchModal}
-        className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
-          search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        }`}
+        className={`fixed bottom-4 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
+          }`}
         aria-label={search ? "필터 초기화" : "주문 검색"}
       >
         {search ? (
           // 필터 초기화 아이콘 (필터)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
           // 검색 아이콘 (돋보기)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
         )}
         <span className="text-sm font-bold text-gray-900">
@@ -858,7 +866,7 @@ export default function OrdersPage() {
                 ✕
               </button>
             </div>
-            
+
             {/* 검색 입력 */}
             <div className="p-4">
               <div className="relative">
@@ -888,26 +896,26 @@ export default function OrdersPage() {
                 )}
               </div>
             </div>
-            
+
             {/* 검색 결과 미리보기 */}
             {tempSearch && (
               <div className="px-4 pb-4">
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {orders.filter(o => 
-                    o.items.some(item => 
+                  {orders.filter(o =>
+                    o.items.some(item =>
                       item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
                     )
                   ).map(order => (
-                  <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                       onClick={() => {
-                         // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
-                         const firstProductName = order.items[0]?.name || '';
-                         setSearch(firstProductName);
-                         setFrom(today);
-                         setStatus('all');
-                         setSearchModalOpen(false);
-                         setTempSearch('');
-                       }}>
+                    <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => {
+                        // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
+                        const firstProductName = order.items[0]?.name || '';
+                        setSearch(firstProductName);
+                        setFrom(today);
+                        setStatus('all');
+                        setSearchModalOpen(false);
+                        setTempSearch('');
+                      }}>
                       <div className="text-sm font-medium text-gray-800 mb-1">
                         {order.date}
                       </div>
@@ -917,25 +925,25 @@ export default function OrdersPage() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* 검색 결과 없음 */}
-                {orders.filter(o => 
-                  o.items.some(item => 
+                {orders.filter(o =>
+                  o.items.some(item =>
                     item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
                   )
                 ).length === 0 && (
-                  <div className="text-center text-gray-500 py-6">
-                    <div className="text-sm">
-                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                    <div className="text-center text-gray-500 py-6">
+                      <div className="text-sm">
+                        <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        다른 검색어를 시도해보세요.
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      다른 검색어를 시도해보세요.
-                    </div>
-                  </div>
-                )}
+                  )}
               </div>
             )}
-            
+
             {/* 버튼 영역 */}
             <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button
@@ -954,6 +962,7 @@ export default function OrdersPage() {
           </div>
         </div>
       )}
+      <BottomNav />
     </main>
   );
 }

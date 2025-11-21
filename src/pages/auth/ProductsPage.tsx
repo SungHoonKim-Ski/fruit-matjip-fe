@@ -1,7 +1,9 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
-import FloatingActions from '../../components/FloatingActions';
+import { useCart } from '../../contexts/CartContext';
+import BottomNav from '../../components/BottomNav';
+import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -29,14 +31,14 @@ const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 // KST 기준 시각/날짜 유틸
-  function formatDateKR(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
+function formatDateKR(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
- 
+
 function formatKstYmd(kstDate: Date): string {
   // kstDate는 KST 시각을 나타내는 Date 객체. UTC 게터로 연/월/일을 안전하게 추출
   const y = kstDate.getFullYear();
@@ -112,9 +114,11 @@ function getOpenCountdown(product: Product, offsetMs: number = 0): string | null
 }
 
 export default function ReservePage() {
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const { show } = useSnackbar();
+  const { addToCart, totalCount } = useCart();
+  const { isInstallable, promptInstall } = usePWAInstall();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
@@ -143,10 +147,10 @@ export default function ReservePage() {
   const [draftNick, setDraftNick] = useState(() => (nickname === '신규 고객' ? '' : nickname));
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
-  
+
   // 검색 모달 상태
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  
+
   // 사용자 메시지 dialog 상태
   const [messageDialog, setMessageDialog] = useState<{
     isOpen: boolean;
@@ -208,19 +212,19 @@ export default function ReservePage() {
   // 날짜 탭
   const dates = useMemo(() => getNext10Days(), []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
-  
+
   // 검색어 (상품명)
   const [search, setSearch] = useState('');
-  
+
   // 임시 검색어 (모달에서 입력 중인 검색어)
   const [tempSearch, setTempSearch] = useState('');
-  
+
   // 활성화된 추천 검색 칩
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  
+
   // 추천 키워드
   const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([]);
-  
+
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
 
@@ -255,12 +259,12 @@ export default function ReservePage() {
   // 초기화 버튼이 활성화되었을 때 주기적으로 진동 애니메이션 표시
   useEffect(() => {
     if (!search) return; // 검색어가 없으면 초기화 버튼이 아니므로 무시
-    
+
     const interval = setInterval(() => {
       setShakeButton(true);
       setTimeout(() => setShakeButton(false), 500);
     }, 3000); // 3초마다 반복
-    
+
     return () => clearInterval(interval);
   }, [search]);
 
@@ -269,24 +273,24 @@ export default function ReservePage() {
     const syncServerTime = async () => {
       try {
         const serverTime = await getServerTime();
-        
+
         const offset = serverTime - Date.now();
-        
+
         setTimeOffsetMs(offset);
       } catch (e) {
         console.error('서버 시간 동기화 실패:', e);
         setTimeOffsetMs(0);
       }
     };
-    
+
     // 초기 동기화
     syncServerTime();
-    
+
     // 5분마다 재동기화
     const interval = setInterval(syncServerTime, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-  
+
   // Load data from mock or API
   useEffect(() => {
     const loadProducts = async () => {
@@ -306,11 +310,11 @@ export default function ReservePage() {
       } else {
         try {
           // 한국 시간(KST) 기준 오늘을 시작으로, 오후 7시 30분 이후면 다음날부터 포함 10일 범위 요청
-          
+
           const now = new Date();
           // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
           const kstNow = now;
-          const start = new Date(now);        
+          const start = new Date(now);
           if (kstNow.getHours() > 19 || (kstNow.getHours() == 19 && kstNow.getMinutes() >= 30)) {
             start.setDate(start.getDate() + 1);
           }
@@ -318,7 +322,7 @@ export default function ReservePage() {
           const toDate = new Date(start);
           toDate.setDate(start.getDate() + MAX_DAYS - 1);
           const toStr = formatKstYmd(toDate);
-          
+
           const res = await getProducts(fromStr, toStr);
           if (!res.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
@@ -328,19 +332,19 @@ export default function ReservePage() {
             throw new Error('상품 목록을 불러오지 못했습니다.');
           }
           const data = await res.json();
-          
+
           let productsArray = data;
-          
+
           // ProductListResponse 구조에서 response 필드 추출
           if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
             productsArray = data.response;
           }
-          
+
           // 여전히 배열이 아닌 경우 에러
           if (!Array.isArray(productsArray)) {
             throw new Error('상품 데이터가 배열 형태가 아닙니다.');
           }
-          
+
           setProducts(productsArray.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
@@ -372,7 +376,7 @@ export default function ReservePage() {
         // Mock에서는 메시지 없음
         return;
       }
-      
+
       try {
         const message = await getUserMessage();
         if (message && message.id) {
@@ -388,7 +392,7 @@ export default function ReservePage() {
         // 메시지 확인 실패는 무시 (사용자에게 표시 안 함)
       }
     };
-    
+
     checkUserMessage();
   }, []);
 
@@ -396,12 +400,12 @@ export default function ReservePage() {
   const productsOfDay = useMemo(
     () => {
       const filtered = products.filter(p => p.sellDate === activeDate);
-      
+
       // 검색어 필터링
       const searchQuery = search.trim().toLowerCase();
-      const searchFiltered = searchQuery === '' ? filtered : 
+      const searchFiltered = searchQuery === '' ? filtered :
         filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
-      
+
       // 정렬 우선순위: 판매 가능 > 오픈예정(가까운 시간순) > 품절
       return searchFiltered.sort((a, b) => {
         const rank = (p: Product) => {
@@ -457,12 +461,12 @@ export default function ReservePage() {
   );
   const countOf = (date: string) => {
     const filtered = products.filter(p => p.sellDate === date);
-    
+
     // 검색어 필터링
     const searchQuery = search.trim().toLowerCase();
-    const searchFiltered = searchQuery === '' ? filtered : 
+    const searchFiltered = searchQuery === '' ? filtered :
       filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
-    
+
     return searchFiltered.length;
   };
 
@@ -478,7 +482,7 @@ export default function ReservePage() {
   const getFilteredProductsByDate = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
     if (query === '') return products;
-    
+
     return products.filter(p => p.name.toLowerCase().includes(query));
   };
 
@@ -497,11 +501,11 @@ export default function ReservePage() {
   // 검색어 하이라이트 함수
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
-    
+
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <mark key={index} className="bg-yellow-200 px-1 rounded">{part}</mark>
       ) : part
@@ -528,21 +532,21 @@ export default function ReservePage() {
   const findClosestDateWithResults = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
     if (query === '') return null;
-    
+
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(query));
     if (filteredProducts.length === 0) return null;
-    
+
     // 검색 결과가 있는 날짜들
     const datesWithResults = filteredProducts.map(p => p.sellDate);
     const uniqueDates = [...new Set(datesWithResults)];
-    
+
     if (uniqueDates.length === 0) return null;
-    
+
     // 현재 활성 날짜와의 거리 계산
     const currentDateIndex = dates.indexOf(activeDate);
     let closestDate = uniqueDates[0];
     let minDistance = Math.abs(dates.indexOf(closestDate) - currentDateIndex);
-    
+
     for (const date of uniqueDates) {
       const distance = Math.abs(dates.indexOf(date) - currentDateIndex);
       if (distance < minDistance) {
@@ -550,7 +554,7 @@ export default function ReservePage() {
         closestDate = date;
       }
     }
-    
+
     return closestDate;
   };
 
@@ -558,10 +562,10 @@ export default function ReservePage() {
   const applySearch = () => {
     setSearch(tempSearch);
     setSearchModalOpen(false);
-    
+
     // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
     setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
-    
+
     // 검색 결과가 있으면 해당 날짜로 이동
     const closestDate = findClosestDateWithResults(tempSearch);
     if (closestDate) {
@@ -600,10 +604,10 @@ export default function ReservePage() {
   const handleReserve = async (product: Product) => {
     // 이미 예약 처리 중인 경우 무시
     if (reservingProductId !== null) return;
-    
+
     try {
       setReservingProductId(product.id);
-      
+
       if (product.quantity <= 0) {
         show('1개 이상 선택해주세요.', { variant: 'error' });
         return;
@@ -615,22 +619,22 @@ export default function ReservePage() {
       if (USE_MOCKS) {
         // Mock 예약 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         // Mock 모드에서도 실제 API와 동일한 응답 구조 가정
         const mockReservationResponse = {
           id: Date.now(), // Mock용 예약 ID
           status: 'success'
         };
-        
+
         show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
-        
+
         // Mock 모드에서는 재고 차감
         setProducts(prev =>
           prev.map(p =>
             p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
           )
         );
-        
+
         // 셀프 수령 가능 여부 미리 확인 (Mock 모드)
         try {
           const canPick = await checkCanSelfPick();
@@ -644,9 +648,9 @@ export default function ReservePage() {
               console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
               reservationId = Date.now(); // 임시 ID 사용
             }
-            
+
             const productWithReservationId = { ...product, reservationId };
-            
+
             // 이미 dialog가 열려있지 않은 경우에만 열기
             if (!selfPickDialog.isOpen) {
               setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -657,7 +661,7 @@ export default function ReservePage() {
           // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
           let reservationId = mockReservationResponse.id || Date.now();
           const productWithReservationId = { ...product, reservationId };
-          
+
           // 이미 dialog가 열려있지 않은 경우에만 열기
           if (!selfPickDialog.isOpen) {
             setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -672,41 +676,41 @@ export default function ReservePage() {
           pickup_date: product.sellDate,
           amount: product.price * product.quantity
         };
-        
+
         const res = await createReservation(reservationData);
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.message || '예약에 실패했습니다.');
         }
-        
+
         const reservationResponse = await res.json();
-        
+
         // API 응답에서 예약 ID 추출 (443이 오는 경우)
         let reservationId = null;
         if (reservationResponse && typeof reservationResponse === 'object') {
           // 객체인 경우 다양한 필드에서 ID 추출
-          reservationId = reservationResponse.id || 
-                         reservationResponse.reservation_id || 
-                         reservationResponse.reservationId ||
-                         null;
+          reservationId = reservationResponse.id ||
+            reservationResponse.reservation_id ||
+            reservationResponse.reservationId ||
+            null;
         } else if (typeof reservationResponse === 'number') {
           // 숫자 ID가 직접 오는 경우 (예: 443)
           reservationId = reservationResponse;
         }
-        
+
         // reservationId가 없으면 에러 처리
         if (!reservationId) {
           show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
         } else {
           show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
-          
+
           // 성공 시 재고 차감
           setProducts(prev =>
             prev.map(p =>
               p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
             )
           );
-        
+
           // 셀프 수령 가능 여부 미리 확인
           try {
             const canPick = await checkCanSelfPick();
@@ -716,7 +720,7 @@ export default function ReservePage() {
             } else {
               // 셀프 수령이 가능한 경우에만 dialog 표시
               const productWithReservationId = { ...product, reservationId };
-              
+
               // 이미 dialog가 열려있지 않은 경우에만 열기
               if (!selfPickDialog.isOpen) {
                 setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -726,7 +730,7 @@ export default function ReservePage() {
           } catch (e: any) {
             // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
             const productWithReservationId = { ...product, reservationId };
-            
+
             // 이미 dialog가 열려있지 않은 경우에만 열기
             if (!selfPickDialog.isOpen) {
               setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -743,6 +747,37 @@ export default function ReservePage() {
     }
   };
 
+  const handleAddToCart = (product: Product) => {
+    // 닉네임 변경 여부 확인
+    if (nickname === '신규 고객') {
+      show('제품을 구매하려면 닉네임을 변경해주세요.', { variant: 'info' });
+      setNickModalOpen(true);
+      setDraftNick('');
+      return;
+    }
+
+    if (product.quantity <= 0) {
+      show('1개 이상 선택해주세요.', { variant: 'error' });
+      return;
+    }
+    if (product.quantity > product.stock) {
+      show('재고보다 많이 담을 수 없어요.', { variant: 'error' });
+      return;
+    }
+
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: product.quantity,
+      imageUrl: product.imageUrl,
+      sellDate: product.sellDate,
+      maxStock: product.stock
+    });
+
+    show(`${product.name} 장바구니에 담겼습니다.`, { variant: 'success' });
+  };
+
   const prettyKdate = (iso: string) => {
     const d = new Date(iso + 'T00:00:00');
     const w = '일월화수목금토'[d.getDay()];
@@ -750,7 +785,7 @@ export default function ReservePage() {
   };
 
   const prettydate = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');    
+    const d = new Date(iso + 'T00:00:00');
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -783,11 +818,11 @@ export default function ReservePage() {
       setDraftNick('');
       setNickname('신규 고객');
       window.history.pushState({ modal: 'nickname' }, '');
-      try { sessionStorage.removeItem('force_nickname_change'); } catch {}
-      try { localStorage.removeItem('force_nickname_change'); } catch {}
+      try { sessionStorage.removeItem('force_nickname_change'); } catch { }
+      try { localStorage.removeItem('force_nickname_change'); } catch { }
       // nav state 정리
       if (fromNav) {
-        try { window.history.replaceState({}, ''); } catch {}
+        try { window.history.replaceState({}, ''); } catch { }
       }
     }
   }, [location]);
@@ -817,7 +852,7 @@ export default function ReservePage() {
       try {
         const res = await checkNameExists(value);
         if (!res.ok) throw new Error('중복 검사 실패');
-        
+
         const data = await res.json();
         // 백엔드에서 true/false로 중복 여부 반환
         // true: 사용 가능 (중복 아님), false: 중복됨
@@ -847,6 +882,11 @@ export default function ReservePage() {
       show('닉네임은 3~10자로 입력해주세요.', { variant: 'error' });
       return;
     }
+    // '신규 고객' 금지
+    if (value === '신규 고객') {
+      show('해당 닉네임은 사용할 수 없습니다.', { variant: 'error' });
+      return;
+    }
     if (value === nickname) {
       setNickModalOpen(false);
       return;
@@ -869,27 +909,28 @@ export default function ReservePage() {
         setNickModalOpen(false);
       } else {
         const res = await modifyName(value);
-        
+
         // 응답 상태 확인
         if (!res.ok) {
           const errorText = await res.text();
           console.error('닉네임 변경 API 응답:', res.status, errorText);
           throw new Error(`닉네임 저장 실패: ${res.status} ${res.statusText}`);
         }
-        
-        // 성공 시 처리
-        setNickname(value);
-        localStorage.setItem('nickname', value);
-        show('닉네임이 변경되었습니다.');
-        
 
-        
+        // 성공 시 처리
+        localStorage.setItem('nickname', value);
+        setNickname(value);
+        show('닉네임이 변경되었습니다.');
+
+
+
         // 모달 닫기
         setNickModalOpen(false);
-        
+
         // 닉네임 상태 강제 업데이트 (UI 리렌더링 보장)
         setTimeout(() => {
-          setNickname(value);
+          const updatedNick = localStorage.getItem('nickname') || value;
+          setNickname(updatedNick);
         }, 100);
       }
     } catch (e: any) {
@@ -924,7 +965,7 @@ export default function ReservePage() {
 
       // 셀프 수령 API 호출 (예약 ID 사용)
       const res = await selfPickReservation(product.reservationId);
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || '셀프 수령 신청에 실패했습니다.');
@@ -940,58 +981,67 @@ export default function ReservePage() {
   };
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-24">
+    <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 pt-16 pb-24">
       {/* 상단 바: 3등분 레이아웃로 균등 분배 */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
-        <div className="mx-auto w-full max-w-md h-14 flex items-center px-4">
-          {/* 좌: 햄버거 */}
-          <div className="flex-1 flex justify-start">
-            <button
-              type="button"
-              onClick={() => {
-                if (detailDialog.isOpen) {
-                  setDetailDialog({ isOpen: false, productId: 0 });
-                } else if (nickModalOpen) {
-                  setNickModalOpen(false);
-                } else {
-                  setDrawerOpen(true);
-                }
-              }}
-              className="h-10 w-10 grid place-items-center rounded-md hover:bg-gray-50 active:scale-[0.98]"
-              aria-label={detailDialog.isOpen || nickModalOpen ? "닫기" : "메뉴 열기"}
-            >
-              {detailDialog.isOpen || nickModalOpen ? (
-                <span className="text-lg">✕</span>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/>
+      <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+        <div className="mx-auto w-full max-w-4xl">
+          {/* Top Row: Logo & Cart */}
+          <div className="h-14 flex items-center justify-between px-4">
+            {/* Left: Menu Button & Logo */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDrawerOpen(true)}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="메뉴 열기"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-              )}
-            </button>
-          </div>
+              </button>
 
-          {/* 중: 상호/지점 (클릭 시 메인으로 이동) */}
-          <div className="flex-1 flex flex-col items-center leading-tight">
-            <button
-              type="button"
-              onClick={() => nav('/products')}
-              className="text-lg font-bold text-gray-800 hover:underline"
-              aria-label="메인으로 이동"
-            >
-              {storeTitle}
-            </button>
-            {branchName ? <div className="text-xs text-gray-600">- {branchName} -</div> : null}
-          </div>
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => window.location.reload()}
+              >
 
-          {/* 우: 닉네임 */}
-          <div className="flex-1 flex justify-end">
-            <button onClick={openNickModal} className="text-right leading-tight text-sm" title="닉네임 변경">
-              <div className="font-medium text-gray-800">{nickname}님</div>
-              <div className="text-gray-500">안녕하세요</div>
-            </button>
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                  과일맛집
+                </h1>
+
+
+              </div>
+            </div>
+
+            {/* Right: Nickname & Cart */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={openNickModal}
+                className="flex items-center gap-1 font-medium hover:opacity-80 transition-opacity text-sm"
+              >
+                <span>{nickname}님</span>
+
+              </button>
+
+              <button
+                onClick={() => nav('/cart')}
+                className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="장바구니"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                {totalCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-600 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    {totalCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>
+
+
 
       {/* 좌측 드로어 */}
       {drawerOpen && (
@@ -1010,18 +1060,43 @@ export default function ReservePage() {
             </div>
 
             <nav className="mt-2 space-y-2 text-sm">
+              <button
+                onClick={async () => {
+                  if (isInstallable) {
+                    const accepted = await promptInstall();
+                    if (accepted) {
+                      show('앱이 설치되었습니다!', { variant: 'success' });
+                      setDrawerOpen(false);
+                    }
+                  } else {
+                    // 이미 설치되었거나 설치 불가능한 경우
+                    if (window.matchMedia('(display-mode: standalone)').matches) {
+                      show('이미 앱이 설치되어 있습니다.', { variant: 'info' });
+                    } else {
+                      show('브라우저 메뉴에서 "홈 화면에 추가"를 선택해주세요.', { variant: 'info' });
+                    }
+                  }
+                }}
+                className={`w-full h-10 rounded border px-3 flex items-center justify-between hover:bg-orange-50 ${isInstallable ? 'bg-orange-50 border-orange-200 text-orange-700 font-medium' : 'border-gray-200'
+                  }`}
+              >
+                <span>홈 화면에 추가</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://open.kakao.com/o/gX73w4Yg" target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
+                href="https://open.kakao.com/o/gX73w4Yg" target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://open.kakao.com/o/sfAUFYeh" target="_blank" rel="noreferrer">과일맛집 문제해결사</a>
+                href="https://open.kakao.com/o/sfAUFYeh" target="_blank" rel="noreferrer">과일맛집 문제해결사</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="tel:01030299238">점장 문의</a>
+                href="tel:01030299238">점장 문의</a>
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://naver.me/FmfPi8Y8" target="_blank" rel="noreferrer">찾아오시는 길</a>
+                href="https://naver.me/FmfPi8Y8" target="_blank" rel="noreferrer">찾아오시는 길</a>
             </nav>
 
             <div className="mt-6 text-xs text-gray-400">© 2025 과일맛집</div>
-            
+
             {/* Footer 내용을 aside로 이동 */}
             <div className="mt-6 text-xs text-gray-400 space-y-1">
               <p className="font-semibold text-gray-500">과일맛집</p>
@@ -1030,7 +1105,7 @@ export default function ReservePage() {
               <p>문의: 02-2666-7412</p>
               <p className="mt-1">&copy; 2025 All rights reserved.</p>
             </div>
-            
+
             {/* 개인정보처리방침 링크 */}
             <div className="mt-4">
               <button
@@ -1086,12 +1161,12 @@ export default function ReservePage() {
         </div>
       )}
 
-      <section className="w-full max-w-md">
+      <section className="w-full max-w-4xl mx-auto">
         {/* 안내 카드 */}
         <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
-          <h1 className="text-base font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
+          {/* <h1 className="text-base font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1> */}
           <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
-            
+
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⚠</span>
               <span>판매일 <strong className="text-orange-900">20시까지 매장을 방문</strong>하셔야</span>
@@ -1099,7 +1174,7 @@ export default function ReservePage() {
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span><strong className="text-orange-900">예약 상품 구매가 가능</strong>합니다</span>
             </p>
-            
+
             <p className="text-xs text-orange-900 mt-0.5 text-center">
               [20시 기준 미수령 예약 자동 취소]
             </p>
@@ -1156,18 +1231,18 @@ export default function ReservePage() {
                 );
               })}
             </div>
-            
+
             {/* 수령 가능 안내 문구 */}
             <div className="px-3 mt-2">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   <span className="text-xs font-medium text-green-700">
                     매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 판매하는 상품이에요
-                  </span>                  
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
                   <span className="text-xs font-medium text-green-700">
                     <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약이 가능해요
@@ -1175,152 +1250,163 @@ export default function ReservePage() {
                 </div>
               </div>
             </div>
-        {/* 검색 칩 */}
-        {allProductDates.length > 0 && (
-          <div className="mt-2 px-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크','할인','딸기','특가']).map(keyword => {
-                const isActive = activeChip === keyword;
-                return (
-                  <button
-                    key={keyword}
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      if (isActive) {
-                        setActiveChip(null);
-                        setSearch('');
-                      } else {
-                        setActiveChip(keyword);
-                        setSearch(keyword);
-                      }
-                    }}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                      isActive
-                        ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
-                        : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    {keyword}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+            {/* 검색 칩 */}
+            {allProductDates.length > 0 && (
+              <div className="mt-2 px-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크', '할인', '딸기', '특가']).map(keyword => {
+                    const isActive = activeChip === keyword;
+                    return (
+                      <button
+                        key={keyword}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (isActive) {
+                            setActiveChip(null);
+                            setSearch('');
+                          } else {
+                            setActiveChip(keyword);
+                            setSearch(keyword);
+                          }
+                        }}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${isActive
+                          ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
+                          : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+                          }`}
+                      >
+                        {keyword}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
-        <div className="space-y-2 mb-6">
-          {productsOfDay.map((item) => (
-            <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              <img
-                src={item.imageUrl}
-                alt={item.name}
-                className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
-                onClick={() => openDetail(item.id)}
-                role="button"
-                aria-label={`${item.name} 상세보기`}
-              />
-              <div className="p-2">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <h2
-                    className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
-                    onClick={() => openDetail(item.id)}
-                    role="button"
-                  >
-                    <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
-                  </h2>
-                  <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
-                </div>
-                {item.stock > 0 && (
-                  <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
-                    <div>
-                      {item.selfPickAllowed === false && (
-                        <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
-                      )}
-                    </div>
-                    <span className="text-l">
-                      {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                    </span>
-                  </div>
-                )}
-              
-                <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
-                    <button
-                      onClick={() => handleQuantity(item.id, -1)}
-                      className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
-                      disabled={item.quantity <= 0}
-                      aria-label="수량 감소"
-                    >
-                      -
-                    </button>
-                    <span className="w-2/3 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => handleQuantity(item.id, 1)}
-                      className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
-                      disabled={item.quantity >= item.stock}
-                      aria-label="수량 증가"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
-                  <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
-                    <button
+          <div className="space-y-2 mb-6">
+            {productsOfDay.map((item) => (
+              <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
+                  onClick={() => openDetail(item.id)}
+                  role="button"
+                  aria-label={`${item.name} 상세보기`}
+                />
+                <div className="p-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h2
+                      className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
                       onClick={() => openDetail(item.id)}
-                      className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
-                      type="button"
+                      role="button"
                     >
-                      자세히 보기
-                    </button>
-                    <button
-                      onClick={() => handleReserve(item)}
-                      disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
-                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
-                    >
-                      {item.stock === 0
-                        ? '품절'
-                        : (reservingProductId !== null
-                            ? '예약 중...'
-                            : (isReservationTimeOpen(item, timeOffsetMs)
-                                ? '예약하기'
-                                : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`))}
-                    </button>
+                      <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
+                    </h2>
+                    <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
+                  </div>
+                  {item.stock > 0 && (
+                    <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
+                      <div>
+                        {item.selfPickAllowed === false && (
+                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
+                        )}
+                      </div>
+                      <span className="text-l">
+                        {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
+                      <button
+                        onClick={() => handleQuantity(item.id, -1)}
+                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        disabled={item.quantity <= 0}
+                        aria-label="수량 감소"
+                      >
+                        -
+                      </button>
+                      <span className="w-2/3 text-center">{item.quantity}</span>
+                      <button
+                        onClick={() => handleQuantity(item.id, 1)}
+                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        disabled={item.quantity >= item.stock}
+                        aria-label="수량 증가"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
+                    <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
+                      <button
+                        onClick={() => openDetail(item.id)}
+                        className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
+                        type="button"
+                      >
+                        자세히 보기
+                      </button>
+                      <button
+                        onClick={() => handleAddToCart(item)}
+                        disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs)}
+                        className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                      >
+                        {item.stock === 0
+                          ? '품절'
+                          : (isReservationTimeOpen(item, timeOffsetMs)
+                            ? '장바구니'
+                            : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`)}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
 
-      </section>      
-      <FloatingActions
-        orderPath="/me/orders"  
-      />
+      </section>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
+
+      {/* Scroll to Top Button */}
+      <button
+        type="button"
+        aria-label="맨 위로"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className={`fixed left-4 bottom-20 z-30 rounded-full
+                    bg-white text-gray-900
+                    border border-gray-200 shadow-lg h-10 w-10 grid place-items-center
+                    hover:bg-gray-50 active:scale-[0.98] transition-opacity duration-300
+                    ${shakeButton ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} // Using shakeButton state as a proxy for scroll or just always show if needed. Wait, I need a scroll state.
+      >
+        <span className="text-lg font-bold">↑</span>
+      </button>
 
       {/* FAB 통합 검색/필터 초기화 버튼 */}
+      {/* FAB 통합 검색/필터 초기화 버튼 - Bottom Nav 위에 위치 */}
       <button
         onClick={search ? clearSearch : handleOpenSearchModalClick}
-        className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
-          search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        } ${shakeButton ? 'animate-shake' : ''}`}
+        className={`fixed bottom-20 right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
+          } ${shakeButton ? 'animate-shake' : ''}`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
       >
         {search ? (
           // 필터 초기화 아이콘 (필터)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
           // 검색 아이콘 (돋보기)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
         )}
         <span className="text-sm font-bold text-gray-900">
@@ -1329,170 +1415,174 @@ export default function ReservePage() {
       </button>
 
       {/* 셀프 수령 확인 Dialog */}
-      {selfPickDialog.isOpen && selfPickDialog.product && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelfPickDialog({ isOpen: false, product: null })} />
-          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-6">
-            <div className="text-center mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">🎉 예약 완료!</h2>
-              <p className="text-sm text-gray-600">
-                <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다!
-              </p>
-            </div>
-            
-            
-            <div className="flex gap-3">
-              
-              <button
-                onClick={() => handleSelfPick(selfPickDialog.product!)}
-                disabled={selfPickDialog.product?.selfPickAllowed === false}
-                className={`flex-1 h-12 rounded-lg font-medium text-sm ${
-                  selfPickDialog.product?.selfPickAllowed === false
+      {
+        selfPickDialog.isOpen && selfPickDialog.product && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSelfPickDialog({ isOpen: false, product: null })} />
+            <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-6">
+              <div className="text-center mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">🎉 예약 완료!</h2>
+                <p className="text-sm text-gray-600">
+                  <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다!
+                </p>
+              </div>
+
+
+              <div className="flex gap-3">
+
+                <button
+                  onClick={() => selfPickDialog.product && handleSelfPick(selfPickDialog.product)}
+                  disabled={selfPickDialog.product?.selfPickAllowed === false}
+                  className={`flex-1 h-12 rounded-lg font-medium text-sm ${selfPickDialog.product?.selfPickAllowed === false
                     ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                     : 'bg-orange-500 hover:bg-orange-600 text-white'
-                }`}
-              >
-                <span className="whitespace-pre-line">
-                  {selfPickDialog.product?.selfPickAllowed === false
-                    ? '셀프 수령 불가'
-                    : '20시 이후 방문\n(셀프수령)'}
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelfPickDialog({ isOpen: false, product: null });
-                  // show('우측 하단 주문 내역에서 변경할 수 있습니다.');
-                }}
-                className="flex-1 h-12 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 상품 상세 Dialog */}
-      {detailDialog.isOpen && (
-        <ProductDetailPage
-          isOpen={detailDialog.isOpen}
-          onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
-          productId={detailDialog.productId}
-        />
-      )}
-
-      {/* 개인정보처리방침 Dialog */}
-      {privacyDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPrivacyDialogOpen(false)} />
-          <div className="relative z-10 w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-xl border overflow-hidden">
-            <div className="p-6 overflow-y-auto max-h-[90vh]">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">개인정보처리방침</h2>
-                <button
-                  onClick={() => setPrivacyDialogOpen(false)}
-                  className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
-                  aria-label="닫기"
+                    }`}
                 >
-                  ✕
+                  <span className="whitespace-pre-line">
+                    {selfPickDialog.product?.selfPickAllowed === false
+                      ? '셀프 수령 불가'
+                      : '20시 이후 방문\n(셀프수령)'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSelfPickDialog({ isOpen: false, product: null });
+                    // show('우측 하단 주문 내역에서 변경할 수 있습니다.');
+                  }}
+                  className="flex-1 h-12 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
+                >
+                  닫기
                 </button>
               </div>
-              
-              <div className="text-sm text-gray-700 space-y-4 leading-relaxed">
-                <div className="text-right text-gray-500">
-                  <p>업데이트 일자: 2025년 8월 15일</p>
-                </div>
-                
-                <p>
-                  주식회사 과일맛집(이하 "회사")는 이용자의 개인정보를 소중히 여기며 「개인정보 보호법」 등 관련 법령을 준수하고 있습니다. 
-                  본 개인정보처리방침은 회사가 운영하는 공동구매 플랫폼 서비스에 적용되며, 개인정보가 어떤 방식으로 수집되고 이용되는지, 
-                  어떤 보호 조치가 시행되고 있는지를 설명합니다.
-                </p>
-                
-                <p>
-                  회사는 개인정보처리방침을 수시로 개정할 수 있으며, 변경사항은 플랫폼 내 공지사항을 통해 사전에 안내합니다.
-                </p>
+            </div>
+          </div>
+        )
+      }
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">1. 수집하는 개인정보 항목 및 수집 방법</h3>
-                  <p className="mb-2">회사는 다음과 같은 목적으로 최소한의 개인정보를 수집합니다.</p>
-                  
-                  <h4 className="font-medium text-gray-700 mb-1">수집 항목</h4>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>오류 문의 시: 고객명(필수), 휴대폰 번호(필수)</li>
-                    <li>카카오 로그인: 이름(필수)</li>
-                  </ul>
-                  
-                  <h4 className="font-medium text-gray-700 mb-1 mt-3">수집 방법</h4>
-                  <p>회원가입, 고객 문의 접수, 카카오 로그인, 서비스 이용 과정에서 자동 또는 수동으로 수집</p>
-                </div>
+      {/* 상품 상세 Dialog */}
+      {
+        detailDialog.isOpen && (
+          <ProductDetailPage
+            isOpen={detailDialog.isOpen}
+            onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
+            productId={detailDialog.productId}
+          />
+        )
+      }
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">2. 개인정보의 이용 목적</h3>
-                  <p className="mb-2">회사는 수집한 개인정보를 다음 목적을 위해 이용합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>오류 문의 및 응답 처리</li>
-                    <li>카카오 로그인을 통한 본인 인증</li>
-                    <li>공동구매 주문 승인, 주문 취소 등과 관련된 알림톡 발송</li>
-                    <li>서비스 이용 통계 및 마케팅 자료 분석 (비식별 데이터 기준)</li>
-                  </ul>
+      {/* 개인정보처리방침 Dialog */}
+      {
+        privacyDialogOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => setPrivacyDialogOpen(false)} />
+            <div className="relative z-10 w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-xl border overflow-hidden">
+              <div className="p-6 overflow-y-auto max-h-[90vh]">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800">개인정보처리방침</h2>
+                  <button
+                    onClick={() => setPrivacyDialogOpen(false)}
+                    className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                    aria-label="닫기"
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">3. 개인정보 보유 및 이용 기간</h3>
-                  <p className="mb-2">회사는 수집된 개인정보를 목적 달성 후 즉시 파기하며, 관련 법령에 따라 아래와 같이 일정 기간 보관할 수 있습니다.</p>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-200 text-xs">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-200 p-2 text-left">항목</th>
-                          <th className="border border-gray-200 p-2 text-left">보유 기간</th>
-                          <th className="border border-gray-200 p-2 text-left">관련 법령</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td className="border border-gray-200 p-2">표시/광고에 관한 기록</td>
-                          <td className="border border-gray-200 p-2">6개월</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                        <tr>
-                          <td className="border border-gray-200 p-2">계약 또는 청약철회 기록</td>
-                          <td className="border border-gray-200 p-2">5년</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                        <tr>
-                          <td className="border border-gray-200 p-2">대금결제 및 재화 등의 공급 기록</td>
-                          <td className="border border-gray-200 p-2">5년</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                <div className="text-sm text-gray-700 space-y-4 leading-relaxed">
+                  <div className="text-right text-gray-500">
+                    <p>업데이트 일자: 2025년 8월 15일</p>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">4. 개인정보의 제3자 제공</h3>
-                  <p className="mb-2">회사는 이용자의 동의 없이 개인정보를 외부에 제공하지 않습니다. 다만 아래의 경우는 예외로 합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>사전에 이용자의 동의를 받은 경우</li>
-                    <li>법령에 따라 수사기관의 요청이 있는 경우</li>
-                    <li>서비스 제공에 따른 요금 정산이 필요한 경우</li>
-                    <li>긴급한 생명 및 안전 보호가 요구되는 경우</li>
-                  </ul>
-                </div>
-                  
+                  <p>
+                    주식회사 과일맛집(이하 "회사")는 이용자의 개인정보를 소중히 여기며 「개인정보 보호법」 등 관련 법령을 준수하고 있습니다.
+                    본 개인정보처리방침은 회사가 운영하는 공동구매 플랫폼 서비스에 적용되며, 개인정보가 어떤 방식으로 수집되고 이용되는지,
+                    어떤 보호 조치가 시행되고 있는지를 설명합니다.
+                  </p>
+
+                  <p>
+                    회사는 개인정보처리방침을 수시로 개정할 수 있으며, 변경사항은 플랫폼 내 공지사항을 통해 사전에 안내합니다.
+                  </p>
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">1. 수집하는 개인정보 항목 및 수집 방법</h3>
+                    <p className="mb-2">회사는 다음과 같은 목적으로 최소한의 개인정보를 수집합니다.</p>
+
+                    <h4 className="font-medium text-gray-700 mb-1">수집 항목</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li>오류 문의 시: 고객명(필수), 휴대폰 번호(필수)</li>
+                      <li>카카오 로그인: 이름(필수)</li>
+                    </ul>
+
+                    <h4 className="font-medium text-gray-700 mb-1 mt-3">수집 방법</h4>
+                    <p>회원가입, 고객 문의 접수, 카카오 로그인, 서비스 이용 과정에서 자동 또는 수동으로 수집</p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">2. 개인정보의 이용 목적</h3>
+                    <p className="mb-2">회사는 수집한 개인정보를 다음 목적을 위해 이용합니다.</p>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li>오류 문의 및 응답 처리</li>
+                      <li>카카오 로그인을 통한 본인 인증</li>
+                      <li>공동구매 주문 승인, 주문 취소 등과 관련된 알림톡 발송</li>
+                      <li>서비스 이용 통계 및 마케팅 자료 분석 (비식별 데이터 기준)</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">3. 개인정보 보유 및 이용 기간</h3>
+                    <p className="mb-2">회사는 수집된 개인정보를 목적 달성 후 즉시 파기하며, 관련 법령에 따라 아래와 같이 일정 기간 보관할 수 있습니다.</p>
+
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full border border-gray-200 text-xs">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            <th className="border border-gray-200 p-2 text-left">항목</th>
+                            <th className="border border-gray-200 p-2 text-left">보유 기간</th>
+                            <th className="border border-gray-200 p-2 text-left">관련 법령</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="border border-gray-200 p-2">표시/광고에 관한 기록</td>
+                            <td className="border border-gray-200 p-2">6개월</td>
+                            <td className="border border-gray-200 p-2">전자상거래법</td>
+                          </tr>
+                          <tr>
+                            <td className="border border-gray-200 p-2">계약 또는 청약철회 기록</td>
+                            <td className="border border-gray-200 p-2">5년</td>
+                            <td className="border border-gray-200 p-2">전자상거래법</td>
+                          </tr>
+                          <tr>
+                            <td className="border border-gray-200 p-2">대금결제 및 재화 등의 공급 기록</td>
+                            <td className="border border-gray-200 p-2">5년</td>
+                            <td className="border border-gray-200 p-2">전자상거래법</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">4. 개인정보의 제3자 제공</h3>
+                    <p className="mb-2">회사는 이용자의 동의 없이 개인정보를 외부에 제공하지 않습니다. 다만 아래의 경우는 예외로 합니다.</p>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li>사전에 이용자의 동의를 받은 경우</li>
+                      <li>법령에 따라 수사기관의 요청이 있는 경우</li>
+                      <li>서비스 제공에 따른 요금 정산이 필요한 경우</li>
+                      <li>긴급한 생명 및 안전 보호가 요구되는 경우</li>
+                    </ul>
+                  </div>
+
                   <p className="mt-2">
-                    회사는 위탁계약을 통해 개인정보 보호법에 따른 보호조치를 적용하고 있으며, 
+                    회사는 위탁계약을 통해 개인정보 보호법에 따른 보호조치를 적용하고 있으며,
                     위탁사항이 변경될 경우 본 방침을 통해 안내합니다.
                   </p>
                 </div>
@@ -1514,10 +1604,10 @@ export default function ReservePage() {
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-2">6. 개인정보 파기 절차 및 방법</h3>
                   <p className="mb-2">회사는 개인정보 보유기간 경과 또는 처리 목적 달성 시 다음 절차에 따라 파기합니다.</p>
-                  
+
                   <h4 className="font-medium text-gray-700 mb-1">파기 절차</h4>
                   <p className="mb-2">보유 목적 달성 후 내부 방침 및 관련 법령에 따라 즉시 삭제</p>
-                  
+
                   <h4 className="font-medium text-gray-700 mb-1">파기 방법</h4>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li>종이 출력물: 분쇄 또는 소각</li>
@@ -1539,242 +1629,247 @@ export default function ReservePage() {
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-2">8. 개인정보 보호책임자 및 열람청구 접수 부서</h3>
                   <p className="mb-2">이용자의 개인정보 보호와 관련한 문의사항은 아래 담당자에게 문의하실 수 있습니다.</p>
-                  
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">개인정보 보호책임자, 개인정보 열람청구 접수부서</h4>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="font-medium">이름:</span> 김지훈</p>
-                      <p><span className="font-medium">소속:</span> 과일맛집</p>
-                      <p><span className="font-medium">전화번호:</span> 010-3029-9238</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-medium text-gray-700 mb-2">개인정보 보호책임자, 개인정보 열람청구 접수부서</h4>
+                      <div className="space-y-1 text-sm">
+                        <p><span className="font-medium">이름:</span> 김지훈</p>
+                        <p><span className="font-medium">소속:</span> 과일맛집</p>
+                        <p><span className="font-medium">전화번호:</span> 010-3029-9238</p>
+                      </div>
                     </div>
                   </div>
+
+
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">10. 개인정보 침해 신고 및 상담 기관</h3>
+                    <p className="mb-2">아래 기관을 통해 개인정보 침해에 대한 상담 및 신고가 가능합니다.</p>
+                    <ul className="list-disc list-inside space-y-1 ml-4">
+                      <li>개인정보침해신고센터 (국번 없이 118) – <a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://privacy.kisa.or.kr</a></li>
+                      <li>대검찰청 사이버범죄수사과 (국번 없이 1301) – <a href="https://www.spo.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://www.spo.go.kr</a></li>
+                      <li>경찰청 사이버범죄 신고시스템 (국번 없이 182) – <a href="https://cyberbureau.police.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://cyberbureau.police.go.kr</a></li>
+                    </ul>
                   </div>
-                
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">10. 개인정보 침해 신고 및 상담 기관</h3>
-                  <p className="mb-2">아래 기관을 통해 개인정보 침해에 대한 상담 및 신고가 가능합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>개인정보침해신고센터 (국번 없이 118) – <a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://privacy.kisa.or.kr</a></li>
-                    <li>대검찰청 사이버범죄수사과 (국번 없이 1301) – <a href="https://www.spo.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://www.spo.go.kr</a></li>
-                    <li>경찰청 사이버범죄 신고시스템 (국번 없이 182) – <a href="https://cyberbureau.police.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://cyberbureau.police.go.kr</a></li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">11. 개인정보처리방침 변경에 대한 고지</h3>
-                  <p>본 방침은 2025년 8월 15일부터 적용됩니다.</p>
-                  <p className="mt-2">내용 변경 시 최소 7일 전에 홈페이지 공지사항을 통해 안내합니다.</p>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">11. 개인정보처리방침 변경에 대한 고지</h3>
+                    <p>본 방침은 2025년 8월 15일부터 적용됩니다.</p>
+                    <p className="mt-2">내용 변경 시 최소 7일 전에 홈페이지 공지사항을 통해 안내합니다.</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* 검색 모달 */}
-      {searchModalOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
-          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
-            {/* 검색 헤더 */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-800">상품 검색</h2>
-              <button
-                onClick={closeSearchModal}
-                className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
-                aria-label="검색창 닫기"
-              >
-                ✕
-              </button>
-            </div>
-            
-            {/* 검색 입력 */}
-            <div className="p-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={tempSearch}
-                  onChange={e => setTempSearch(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      applySearch();
-                    }
-                  }}
-                  placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
-                  className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
-                  autoFocus
-                />
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
-                {tempSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setTempSearch('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm w-6 h-6 flex items-center justify-center"
-                    aria-label="검색어 지우기"
-                  >
-                    ✕
-                  </button>
-                )}
+      {
+        searchModalOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
+            <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
+              {/* 검색 헤더 */}
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold text-gray-800">상품 검색</h2>
+                <button
+                  onClick={closeSearchModal}
+                  className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                  aria-label="검색창 닫기"
+                >
+                  ✕
+                </button>
               </div>
-            </div>
-            
-            {/* 날짜별 검색 결과 미리보기 */}
-            {tempSearch && !selectedDateForProducts && (
-              <div className="px-4 pb-4">
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {availableDates.map(date => {
-                    const count = getFilteredCountByDate(date, tempSearch);
-                    if (count === 0) return null;
-                    
-                    return (
-                      <div 
-                        key={date} 
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+
+              {/* 검색 입력 */}
+              <div className="p-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={tempSearch}
+                    onChange={e => setTempSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        applySearch();
+                      }
+                    }}
+                    placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
+                    className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                    autoFocus
+                  />
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
+                  {tempSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTempSearch('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm w-6 h-6 flex items-center justify-center"
+                      aria-label="검색어 지우기"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 날짜별 검색 결과 미리보기 */}
+              {tempSearch && !selectedDateForProducts && (
+                <div className="px-4 pb-4">
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {availableDates.map(date => {
+                      const count = getFilteredCountByDate(date, tempSearch);
+                      if (count === 0) return null;
+
+                      return (
+                        <div
+                          key={date}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={() => {
+                            setSelectedDateForProducts(date);
+                          }}
+                        >
+                          <div className="text-sm font-medium text-gray-800">
+                            {prettyKdate(date)}
+                          </div>
+                          <div className="text-sm text-orange-600 font-semibold">
+                            {count}개 상품
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 검색 결과 없음 */}
+                  {availableDates.every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
+                    <div className="text-center text-gray-500 py-6">
+                      <div className="text-sm">
+                        <span className="font-medium text-orange-600">"{tempSearch}"</span>상품이 존재하지 않습니다.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 선택된 날짜의 상품 목록 */}
+              {selectedDateForProducts && (
+                <div className="px-4 pb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-medium text-gray-700">
+                      {prettyKdate(selectedDateForProducts)} 상품 목록
+                    </div>
+                    <button
+                      onClick={() => setSelectedDateForProducts(null)}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      ← 뒤로
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {getFilteredProductsForDate(selectedDateForProducts, tempSearch).map(product => (
+                      <div
+                        key={product.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => {
-                          setSelectedDateForProducts(date);
+                          // 해당 상품의 이름으로 정확한 검색 적용
+                          setSearch(product.name);
+                          setActiveDate(product.sellDate);
+                          setSearchModalOpen(false);
+                          setSelectedDateForProducts(null);
                         }}
                       >
-                        <div className="text-sm font-medium text-gray-800">
-                          {prettyKdate(date)}
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-12 h-12 rounded object-cover border"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-800">
+                            {highlightSearchTerm(product.name, tempSearch)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {product.price.toLocaleString()}원
+                          </div>
                         </div>
-                        <div className="text-sm text-orange-600 font-semibold">
-                          {count}개 상품
+                        <div className="text-xs text-orange-600 font-semibold">
+                          {product.stock > 0 ? '재고 있음' : '품절'}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-                
-                {/* 검색 결과 없음 */}
-                {availableDates.every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
-                  <div className="text-center text-gray-500 py-6">
-                    <div className="text-sm">
-                      <span className="font-medium text-orange-600">"{tempSearch}"</span>상품이 존재하지 않습니다.
-                    </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* 선택된 날짜의 상품 목록 */}
-            {selectedDateForProducts && (
-              <div className="px-4 pb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-medium text-gray-700">
-                    {prettyKdate(selectedDateForProducts)} 상품 목록
-                  </div>
-                  <button
-                    onClick={() => setSelectedDateForProducts(null)}
-                    className="text-sm text-gray-500 hover:text-gray-700"
-                  >
-                    ← 뒤로
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {getFilteredProductsForDate(selectedDateForProducts, tempSearch).map(product => (
-                    <div
-                      key={product.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => {
-                        // 해당 상품의 이름으로 정확한 검색 적용
-                        setSearch(product.name);
-                        setActiveDate(product.sellDate);
-                        setSearchModalOpen(false);
-                        setSelectedDateForProducts(null);
-                      }}
-                    >
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-12 h-12 rounded object-cover border"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-800">
-                          {highlightSearchTerm(product.name, tempSearch)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {product.price.toLocaleString()}원
-                        </div>
-                      </div>
-                      <div className="text-xs text-orange-600 font-semibold">
-                        {product.stock > 0 ? '재고 있음' : '품절'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* 버튼 영역 */}
+              <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+                <button
+                  onClick={closeSearchModal}
+                  className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={applySearch}
+                  className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+                >
+                  검색 적용
+                </button>
               </div>
-            )}
-            
-            {/* 버튼 영역 */}
-            <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
-              <button
-                onClick={closeSearchModal}
-                className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={applySearch}
-                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
-              >
-                검색 적용
-              </button>
+
             </div>
-            
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* 사용자 메시지 Dialog */}
-      {messageDialog.isOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={async () => {
-            const messageId = messageDialog.messageId;
-            setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
-            if (messageId) {
-              try {
-                await markMessageAsRead(messageId);
-              } catch (e) {
-                safeErrorLog(e, 'ProductsPage - markMessageAsRead');
+      {
+        messageDialog.isOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={async () => {
+              const messageId = messageDialog.messageId;
+              setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
+              if (messageId) {
+                try {
+                  await markMessageAsRead(messageId);
+                } catch (e) {
+                  safeErrorLog(e, 'ProductsPage - markMessageAsRead');
+                }
               }
-            }
-          }} />
-          <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{messageDialog.title}</h3>
-            <p className="text-gray-700 mb-6 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: messageDialog.body.replace(/\n/g, '<br/>') }} />
-            <div className="flex justify-end">
-              <button
-                onClick={async () => {
-                  const messageId = messageDialog.messageId;
-                  setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
-                  
-                  if (messageId) {
-                    try {
-                      await markMessageAsRead(messageId);
-                    } catch (e) {
-                      safeErrorLog(e, 'ProductsPage - markMessageAsRead');
-                      // 읽음 처리 실패는 무시
+            }} />
+            <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{messageDialog.title}</h3>
+              <p className="text-gray-700 mb-6 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: messageDialog.body.replace(/\n/g, '<br/>') }} />
+              <div className="flex justify-end">
+                <button
+                  onClick={async () => {
+                    const messageId = messageDialog.messageId;
+                    setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
+
+                    if (messageId) {
+                      try {
+                        await markMessageAsRead(messageId);
+                      } catch (e) {
+                        safeErrorLog(e, 'ProductsPage - markMessageAsRead');
+                        // 읽음 처리 실패는 무시
+                      }
                     }
-                  }
-                }}
-                className="px-6 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
-              >
-                확인
-              </button>
+                  }}
+                  className="px-6 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
+                >
+                  확인
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </main>
+        )
+      }
+    </main >
   );
 }
