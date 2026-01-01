@@ -38,7 +38,7 @@ jobs:
     - name: Create .env.production
       run: |
         cat > .env.production << EOF
-        REACT_APP_BRAND=${{ secrets.REACT_APP_BRAND }}
+        REACT_APP_BRAND=${{ secrets[format('{0}_BRAND', steps.extract_env.outputs.env)] }}
         REACT_APP_NODE_ENV=${{steps.extract_env.outputs.env}}
         REACT_APP_GA_KEY=${{ secrets.GA_KEY }}
         REACT_APP_JS_KAKAO_KEY=${{ secrets.JS_KAKAO_KEY }}
