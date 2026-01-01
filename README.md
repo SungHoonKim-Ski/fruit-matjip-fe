@@ -52,3 +52,74 @@
 - UI
   - 반응형 디자인 (모바일/PC 지원)
   - 공통 Toast 알림 (성공/에러)
+
+---
+
+## 🎨 브랜딩 설정
+
+이 프로젝트는 **브랜딩 요소(로고, 테마 색상)를 코드에서 분리**하여 관리합니다.  
+이를 통해 upstream 변경사항을 자주 머지/리베이스할 때 **충돌을 최소화**할 수 있습니다.
+
+### 브랜딩 변경 방법
+
+1. **환경 변수 설정**
+   
+   `.env.local` 파일에서 `REACT_APP_BRAND` 값을 변경하세요:
+   
+   ```bash
+   REACT_APP_BRAND=fruit-matjip  # 기본 브랜딩 (오렌지 테마)
+   # 또는
+   REACT_APP_BRAND=clientA  # 예시 브랜딩 (레드 테마)
+   ```
+
+2. **새로운 브랜딩 추가**
+   
+   `src/brand/` 디렉토리에 새 폴더를 만들고 다음 파일을 추가하세요:
+   
+   ```
+   src/brand/
+   ├── fruit-matjip/
+   │   ├── theme.ts    # 테마 색상 정의
+   │   └── logo.png    # 로고 이미지
+   ├── clientA/
+   │   ├── theme.ts
+   │   └── logo.png
+   └── yourBrand/      # 새 브랜딩
+       ├── theme.ts
+       └── logo.png
+   ```
+
+3. **테마 색상 커스터마이징**
+   
+   `src/brand/yourBrand/theme.ts` 파일에서 색상을 정의하세요:
+   
+   ```typescript
+   export const theme = {
+     name: 'yourBrand',
+     colors: {
+       primary: {
+         50: '#your-color',
+         // ... 50~950 단계 색상
+       }
+     }
+   };
+   ```
+
+### Upstream 머지 시 충돌 최소화 원칙
+
+> **핵심 원칙**: 브랜딩 관련 변경은 `src/brand/` 디렉토리만 수정합니다.
+
+- ✅ **권장**: `src/brand/yourBrand/` 디렉토리에서만 작업
+- ✅ **안전**: 새 브랜딩 추가 시 기존 `fruit-matjip/` 폴더는 건드리지 않음
+- ❌ **지양**: 코드 전반에 걸쳐 색상/로고 경로를 직접 수정
+
+**작동 원리**:
+- 모든 로고 참조는 `import { logo } from '../brand'`를 통해 동적으로 로드됩니다
+- 테마 색상은 CSS 변수(`--color-primary-*`)로 주입되며, Tailwind의 `orange-*` 클래스가 자동으로 매핑됩니다
+- Upstream 변경사항은 주로 `src/pages/`, `src/components/` 등에서 발생하므로, `src/brand/` 디렉토리와 충돌하지 않습니다
+
+**머지 워크플로우**:
+1. Upstream 변경사항을 머지/리베이스
+2. 충돌 발생 시 대부분 `src/brand/` 외부 파일이므로 upstream 변경 수용
+3. `src/brand/yourBrand/` 내 커스터마이징은 그대로 유지
+4. 빌드 및 테스트로 검증

@@ -6,6 +6,10 @@ import { BrowserRouter } from 'react-router-dom';
 import { SnackbarProvider } from './components/snackbar';
 import App from './App';
 import GATracker from './GATracker'; // 만약 쓰는 중이라면
+import { injectBrandStyles } from './brand';
+
+// Inject brand CSS variables before React renders
+injectBrandStyles();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <BrowserRouter>

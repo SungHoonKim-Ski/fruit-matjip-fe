@@ -7,6 +7,7 @@ import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
+import { theme } from '../../brand';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
 
@@ -29,14 +30,14 @@ const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 // KST 기준 시각/날짜 유틸
-  function formatDateKR(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
+function formatDateKR(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
- 
+
 function formatKstYmd(kstDate: Date): string {
   // kstDate는 KST 시각을 나타내는 Date 객체. UTC 게터로 연/월/일을 안전하게 추출
   const y = kstDate.getFullYear();
@@ -112,7 +113,7 @@ function getOpenCountdown(product: Product, offsetMs: number = 0): string | null
 }
 
 export default function ReservePage() {
-  
+
   const [products, setProducts] = useState<Product[]>([]);
   const { show } = useSnackbar();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -143,10 +144,10 @@ export default function ReservePage() {
   const [draftNick, setDraftNick] = useState(() => (nickname === '신규 고객' ? '' : nickname));
   const [savingNick, setSavingNick] = useState(false);
   const nickInputRef = useRef<HTMLInputElement>(null);
-  
+
   // 검색 모달 상태
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  
+
   // 사용자 메시지 dialog 상태
   const [messageDialog, setMessageDialog] = useState<{
     isOpen: boolean;
@@ -208,19 +209,19 @@ export default function ReservePage() {
   // 날짜 탭
   const dates = useMemo(() => getNext10Days(), []);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
-  
+
   // 검색어 (상품명)
   const [search, setSearch] = useState('');
-  
+
   // 임시 검색어 (모달에서 입력 중인 검색어)
   const [tempSearch, setTempSearch] = useState('');
-  
+
   // 활성화된 추천 검색 칩
   const [activeChip, setActiveChip] = useState<string | null>(null);
-  
+
   // 추천 키워드
   const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([]);
-  
+
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
 
@@ -255,12 +256,12 @@ export default function ReservePage() {
   // 초기화 버튼이 활성화되었을 때 주기적으로 진동 애니메이션 표시
   useEffect(() => {
     if (!search) return; // 검색어가 없으면 초기화 버튼이 아니므로 무시
-    
+
     const interval = setInterval(() => {
       setShakeButton(true);
       setTimeout(() => setShakeButton(false), 500);
     }, 3000); // 3초마다 반복
-    
+
     return () => clearInterval(interval);
   }, [search]);
 
@@ -269,24 +270,24 @@ export default function ReservePage() {
     const syncServerTime = async () => {
       try {
         const serverTime = await getServerTime();
-        
+
         const offset = serverTime - Date.now();
-        
+
         setTimeOffsetMs(offset);
       } catch (e) {
         console.error('서버 시간 동기화 실패:', e);
         setTimeOffsetMs(0);
       }
     };
-    
+
     // 초기 동기화
     syncServerTime();
-    
+
     // 5분마다 재동기화
     const interval = setInterval(syncServerTime, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-  
+
   // Load data from mock or API
   useEffect(() => {
     const loadProducts = async () => {
@@ -306,11 +307,11 @@ export default function ReservePage() {
       } else {
         try {
           // 한국 시간(KST) 기준 오늘을 시작으로, 오후 7시 30분 이후면 다음날부터 포함 10일 범위 요청
-          
+
           const now = new Date();
           // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
           const kstNow = now;
-          const start = new Date(now);        
+          const start = new Date(now);
           if (kstNow.getHours() > 19 || (kstNow.getHours() == 19 && kstNow.getMinutes() >= 30)) {
             start.setDate(start.getDate() + 1);
           }
@@ -318,7 +319,7 @@ export default function ReservePage() {
           const toDate = new Date(start);
           toDate.setDate(start.getDate() + MAX_DAYS - 1);
           const toStr = formatKstYmd(toDate);
-          
+
           const res = await getProducts(fromStr, toStr);
           if (!res.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
@@ -328,19 +329,19 @@ export default function ReservePage() {
             throw new Error('상품 목록을 불러오지 못했습니다.');
           }
           const data = await res.json();
-          
+
           let productsArray = data;
-          
+
           // ProductListResponse 구조에서 response 필드 추출
           if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
             productsArray = data.response;
           }
-          
+
           // 여전히 배열이 아닌 경우 에러
           if (!Array.isArray(productsArray)) {
             throw new Error('상품 데이터가 배열 형태가 아닙니다.');
           }
-          
+
           setProducts(productsArray.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
@@ -372,7 +373,7 @@ export default function ReservePage() {
         // Mock에서는 메시지 없음
         return;
       }
-      
+
       try {
         const message = await getUserMessage();
         if (message && message.id) {
@@ -388,7 +389,7 @@ export default function ReservePage() {
         // 메시지 확인 실패는 무시 (사용자에게 표시 안 함)
       }
     };
-    
+
     checkUserMessage();
   }, []);
 
@@ -396,12 +397,12 @@ export default function ReservePage() {
   const productsOfDay = useMemo(
     () => {
       const filtered = products.filter(p => p.sellDate === activeDate);
-      
+
       // 검색어 필터링
       const searchQuery = search.trim().toLowerCase();
-      const searchFiltered = searchQuery === '' ? filtered : 
+      const searchFiltered = searchQuery === '' ? filtered :
         filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
-      
+
       // 정렬 우선순위: 판매 가능 > 오픈예정(가까운 시간순) > 품절
       return searchFiltered.sort((a, b) => {
         const rank = (p: Product) => {
@@ -457,12 +458,12 @@ export default function ReservePage() {
   );
   const countOf = (date: string) => {
     const filtered = products.filter(p => p.sellDate === date);
-    
+
     // 검색어 필터링
     const searchQuery = search.trim().toLowerCase();
-    const searchFiltered = searchQuery === '' ? filtered : 
+    const searchFiltered = searchQuery === '' ? filtered :
       filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
-    
+
     return searchFiltered.length;
   };
 
@@ -478,7 +479,7 @@ export default function ReservePage() {
   const getFilteredProductsByDate = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
     if (query === '') return products;
-    
+
     return products.filter(p => p.name.toLowerCase().includes(query));
   };
 
@@ -497,11 +498,11 @@ export default function ReservePage() {
   // 검색어 하이라이트 함수
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
-    
+
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <mark key={index} className="bg-yellow-200 px-1 rounded">{part}</mark>
       ) : part
@@ -528,21 +529,21 @@ export default function ReservePage() {
   const findClosestDateWithResults = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
     if (query === '') return null;
-    
+
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(query));
     if (filteredProducts.length === 0) return null;
-    
+
     // 검색 결과가 있는 날짜들
     const datesWithResults = filteredProducts.map(p => p.sellDate);
     const uniqueDates = [...new Set(datesWithResults)];
-    
+
     if (uniqueDates.length === 0) return null;
-    
+
     // 현재 활성 날짜와의 거리 계산
     const currentDateIndex = dates.indexOf(activeDate);
     let closestDate = uniqueDates[0];
     let minDistance = Math.abs(dates.indexOf(closestDate) - currentDateIndex);
-    
+
     for (const date of uniqueDates) {
       const distance = Math.abs(dates.indexOf(date) - currentDateIndex);
       if (distance < minDistance) {
@@ -550,7 +551,7 @@ export default function ReservePage() {
         closestDate = date;
       }
     }
-    
+
     return closestDate;
   };
 
@@ -558,10 +559,10 @@ export default function ReservePage() {
   const applySearch = () => {
     setSearch(tempSearch);
     setSearchModalOpen(false);
-    
+
     // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
     setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
-    
+
     // 검색 결과가 있으면 해당 날짜로 이동
     const closestDate = findClosestDateWithResults(tempSearch);
     if (closestDate) {
@@ -600,10 +601,10 @@ export default function ReservePage() {
   const handleReserve = async (product: Product) => {
     // 이미 예약 처리 중인 경우 무시
     if (reservingProductId !== null) return;
-    
+
     try {
       setReservingProductId(product.id);
-      
+
       if (product.quantity <= 0) {
         show('1개 이상 선택해주세요.', { variant: 'error' });
         return;
@@ -615,22 +616,22 @@ export default function ReservePage() {
       if (USE_MOCKS) {
         // Mock 예약 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         // Mock 모드에서도 실제 API와 동일한 응답 구조 가정
         const mockReservationResponse = {
           id: Date.now(), // Mock용 예약 ID
           status: 'success'
         };
-        
+
         show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
-        
+
         // Mock 모드에서는 재고 차감
         setProducts(prev =>
           prev.map(p =>
             p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
           )
         );
-        
+
         // 셀프 수령 가능 여부 미리 확인 (Mock 모드)
         try {
           const canPick = await checkCanSelfPick();
@@ -644,9 +645,9 @@ export default function ReservePage() {
               console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
               reservationId = Date.now(); // 임시 ID 사용
             }
-            
+
             const productWithReservationId = { ...product, reservationId };
-            
+
             // 이미 dialog가 열려있지 않은 경우에만 열기
             if (!selfPickDialog.isOpen) {
               setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -657,7 +658,7 @@ export default function ReservePage() {
           // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
           let reservationId = mockReservationResponse.id || Date.now();
           const productWithReservationId = { ...product, reservationId };
-          
+
           // 이미 dialog가 열려있지 않은 경우에만 열기
           if (!selfPickDialog.isOpen) {
             setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -672,41 +673,41 @@ export default function ReservePage() {
           pickup_date: product.sellDate,
           amount: product.price * product.quantity
         };
-        
+
         const res = await createReservation(reservationData);
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.message || '예약에 실패했습니다.');
         }
-        
+
         const reservationResponse = await res.json();
-        
+
         // API 응답에서 예약 ID 추출 (443이 오는 경우)
         let reservationId = null;
         if (reservationResponse && typeof reservationResponse === 'object') {
           // 객체인 경우 다양한 필드에서 ID 추출
-          reservationId = reservationResponse.id || 
-                         reservationResponse.reservation_id || 
-                         reservationResponse.reservationId ||
-                         null;
+          reservationId = reservationResponse.id ||
+            reservationResponse.reservation_id ||
+            reservationResponse.reservationId ||
+            null;
         } else if (typeof reservationResponse === 'number') {
           // 숫자 ID가 직접 오는 경우 (예: 443)
           reservationId = reservationResponse;
         }
-        
+
         // reservationId가 없으면 에러 처리
         if (!reservationId) {
           show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
         } else {
           show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
-          
+
           // 성공 시 재고 차감
           setProducts(prev =>
             prev.map(p =>
               p.id === product.id ? { ...p, stock: p.stock - product.quantity } : p
             )
           );
-        
+
           // 셀프 수령 가능 여부 미리 확인
           try {
             const canPick = await checkCanSelfPick();
@@ -716,7 +717,7 @@ export default function ReservePage() {
             } else {
               // 셀프 수령이 가능한 경우에만 dialog 표시
               const productWithReservationId = { ...product, reservationId };
-              
+
               // 이미 dialog가 열려있지 않은 경우에만 열기
               if (!selfPickDialog.isOpen) {
                 setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -726,7 +727,7 @@ export default function ReservePage() {
           } catch (e: any) {
             // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
             const productWithReservationId = { ...product, reservationId };
-            
+
             // 이미 dialog가 열려있지 않은 경우에만 열기
             if (!selfPickDialog.isOpen) {
               setSelfPickDialog({ isOpen: true, product: productWithReservationId });
@@ -750,7 +751,7 @@ export default function ReservePage() {
   };
 
   const prettydate = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');    
+    const d = new Date(iso + 'T00:00:00');
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -783,11 +784,11 @@ export default function ReservePage() {
       setDraftNick('');
       setNickname('신규 고객');
       window.history.pushState({ modal: 'nickname' }, '');
-      try { sessionStorage.removeItem('force_nickname_change'); } catch {}
-      try { localStorage.removeItem('force_nickname_change'); } catch {}
+      try { sessionStorage.removeItem('force_nickname_change'); } catch { }
+      try { localStorage.removeItem('force_nickname_change'); } catch { }
       // nav state 정리
       if (fromNav) {
-        try { window.history.replaceState({}, ''); } catch {}
+        try { window.history.replaceState({}, ''); } catch { }
       }
     }
   }, [location]);
@@ -817,7 +818,7 @@ export default function ReservePage() {
       try {
         const res = await checkNameExists(value);
         if (!res.ok) throw new Error('중복 검사 실패');
-        
+
         const data = await res.json();
         // 백엔드에서 true/false로 중복 여부 반환
         // true: 사용 가능 (중복 아님), false: 중복됨
@@ -869,24 +870,24 @@ export default function ReservePage() {
         setNickModalOpen(false);
       } else {
         const res = await modifyName(value);
-        
+
         // 응답 상태 확인
         if (!res.ok) {
           const errorText = await res.text();
           console.error('닉네임 변경 API 응답:', res.status, errorText);
           throw new Error(`닉네임 저장 실패: ${res.status} ${res.statusText}`);
         }
-        
+
         // 성공 시 처리
         setNickname(value);
         localStorage.setItem('nickname', value);
         show('닉네임이 변경되었습니다.');
-        
 
-        
+
+
         // 모달 닫기
         setNickModalOpen(false);
-        
+
         // 닉네임 상태 강제 업데이트 (UI 리렌더링 보장)
         setTimeout(() => {
           setNickname(value);
@@ -924,7 +925,7 @@ export default function ReservePage() {
 
       // 셀프 수령 API 호출 (예약 ID 사용)
       const res = await selfPickReservation(product.reservationId);
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || '셀프 수령 신청에 실패했습니다.');
@@ -964,7 +965,7 @@ export default function ReservePage() {
                 <span className="text-lg">✕</span>
               ) : (
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               )}
             </button>
@@ -978,7 +979,7 @@ export default function ReservePage() {
               className="text-lg font-bold text-gray-800 hover:underline"
               aria-label="메인으로 이동"
             >
-              {storeTitle}
+              {theme.displayName}
             </button>
             {branchName ? <div className="text-xs text-gray-600">- {branchName} -</div> : null}
           </div>
@@ -1010,27 +1011,33 @@ export default function ReservePage() {
             </div>
 
             <nav className="mt-2 space-y-2 text-sm">
+              {theme.links.kakaoOpenChat && (
+                <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
+                  href={theme.links.kakaoOpenChat} target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
+              )}
+              {theme.links.kakaoSupport && (
+                <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
+                  href={theme.links.kakaoSupport} target="_blank" rel="noreferrer">{theme.displayName} 문제해결사</a>
+              )}
               <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://open.kakao.com/o/gX73w4Yg" target="_blank" rel="noreferrer">카카오톡 오픈채팅</a>
-              <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://open.kakao.com/o/sfAUFYeh" target="_blank" rel="noreferrer">과일맛집 문제해결사</a>
-              <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="tel:01030299238">점장 문의</a>
-              <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
-                 href="https://naver.me/FmfPi8Y8" target="_blank" rel="noreferrer">찾아오시는 길</a>
+                href={`tel:${theme.contact.phone.replace(/-/g, '')}`}>점장 문의</a>
+              {theme.links.directions && (
+                <a className="block h-10 rounded border px-3 flex items-center hover:bg-orange-50"
+                  href={theme.links.directions} target="_blank" rel="noreferrer">찾아오시는 길</a>
+              )}
             </nav>
 
-            <div className="mt-6 text-xs text-gray-400">© 2025 과일맛집</div>
-            
+            <div className="mt-6 text-xs text-gray-400">{theme.copyright}</div>
+
             {/* Footer 내용을 aside로 이동 */}
             <div className="mt-6 text-xs text-gray-400 space-y-1">
-              <p className="font-semibold text-gray-500">과일맛집</p>
-              <p>대표: 김지훈</p>
-              <p>사업자등록번호: 131-47-00411</p>
-              <p>문의: 02-2666-7412</p>
+              <p className="font-semibold text-gray-500">{theme.displayName}</p>
+              <p>대표: {theme.contact.representative}</p>
+              <p>사업자등록번호: {theme.contact.businessNumber}</p>
+              <p>문의: {theme.contact.phone}</p>
               <p className="mt-1">&copy; 2025 All rights reserved.</p>
             </div>
-            
+
             {/* 개인정보처리방침 링크 */}
             <div className="mt-4">
               <button
@@ -1089,9 +1096,9 @@ export default function ReservePage() {
       <section className="w-full max-w-md">
         {/* 안내 카드 */}
         <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
-          <h1 className="text-base font-bold text-gray-800">🎁과일맛집1995 현장예약🎁</h1>
+          <h1 className="text-base font-bold text-gray-800">{theme.tagline}</h1>
           <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-center">
-            
+
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⚠</span>
               <span>판매일 <strong className="text-orange-900">20시까지 매장을 방문</strong>하셔야</span>
@@ -1099,7 +1106,7 @@ export default function ReservePage() {
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span><strong className="text-orange-900">예약 상품 구매가 가능</strong>합니다</span>
             </p>
-            
+
             <p className="text-xs text-orange-900 mt-0.5 text-center">
               [20시 기준 미수령 예약 자동 취소]
             </p>
@@ -1156,18 +1163,18 @@ export default function ReservePage() {
                 );
               })}
             </div>
-            
+
             {/* 수령 가능 안내 문구 */}
             <div className="px-3 mt-2">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   <span className="text-xs font-medium text-green-700">
                     매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 판매하는 상품이에요
-                  </span>                  
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
                   {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
                   <span className="text-xs font-medium text-green-700">
                     <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약이 가능해요
@@ -1175,152 +1182,150 @@ export default function ReservePage() {
                 </div>
               </div>
             </div>
-        {/* 검색 칩 */}
-        {allProductDates.length > 0 && (
-          <div className="mt-2 px-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크','할인','딸기','특가']).map(keyword => {
-                const isActive = activeChip === keyword;
-                return (
-                  <button
-                    key={keyword}
-                    onClick={(e) => { 
-                      e.preventDefault(); 
-                      if (isActive) {
-                        setActiveChip(null);
-                        setSearch('');
-                      } else {
-                        setActiveChip(keyword);
-                        setSearch(keyword);
-                      }
-                    }}
-                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                      isActive
-                        ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
-                        : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    {keyword}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+            {/* 검색 칩 */}
+            {allProductDates.length > 0 && (
+              <div className="mt-2 px-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크', '할인', '딸기', '특가']).map(keyword => {
+                    const isActive = activeChip === keyword;
+                    return (
+                      <button
+                        key={keyword}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (isActive) {
+                            setActiveChip(null);
+                            setSearch('');
+                          } else {
+                            setActiveChip(keyword);
+                            setSearch(keyword);
+                          }
+                        }}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${isActive
+                          ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
+                          : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+                          }`}
+                      >
+                        {keyword}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
-        <div className="space-y-2 mb-6">
-          {productsOfDay.map((item) => (
-            <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-              <img
-                src={item.imageUrl}
-                alt={item.name}
-                className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
-                onClick={() => openDetail(item.id)}
-                role="button"
-                aria-label={`${item.name} 상세보기`}
-              />
-              <div className="p-2">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <h2
-                    className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
-                    onClick={() => openDetail(item.id)}
-                    role="button"
-                  >
-                    <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
-                  </h2>
-                  <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
-                </div>
-                {item.stock > 0 && (
-                  <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
-                    <div>
-                      {item.selfPickAllowed === false && (
-                        <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
-                      )}
-                    </div>
-                    <span className="text-l">
-                      {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                    </span>
-                  </div>
-                )}
-              
-                <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
-                    <button
-                      onClick={() => handleQuantity(item.id, -1)}
-                      className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
-                      disabled={item.quantity <= 0}
-                      aria-label="수량 감소"
-                    >
-                      -
-                    </button>
-                    <span className="w-2/3 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => handleQuantity(item.id, 1)}
-                      className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
-                      disabled={item.quantity >= item.stock}
-                      aria-label="수량 증가"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
-                  <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
-                    <button
+          <div className="space-y-2 mb-6">
+            {productsOfDay.map((item) => (
+              <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
+                  onClick={() => openDetail(item.id)}
+                  role="button"
+                  aria-label={`${item.name} 상세보기`}
+                />
+                <div className="p-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h2
+                      className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
                       onClick={() => openDetail(item.id)}
-                      className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
-                      type="button"
+                      role="button"
                     >
-                      자세히 보기
-                    </button>
-                    <button
-                      onClick={() => handleReserve(item)}
-                      disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
-                      className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
-                    >
-                      {item.stock === 0
-                        ? '품절'
-                        : (reservingProductId !== null
+                      <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
+                    </h2>
+                    <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
+                  </div>
+                  {item.stock > 0 && (
+                    <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
+                      <div>
+                        {item.selfPickAllowed === false && (
+                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
+                        )}
+                      </div>
+                      <span className="text-l">
+                        {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
+                      <button
+                        onClick={() => handleQuantity(item.id, -1)}
+                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        disabled={item.quantity <= 0}
+                        aria-label="수량 감소"
+                      >
+                        -
+                      </button>
+                      <span className="w-2/3 text-center">{item.quantity}</span>
+                      <button
+                        onClick={() => handleQuantity(item.id, 1)}
+                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        disabled={item.quantity >= item.stock}
+                        aria-label="수량 증가"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
+                    <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
+                      <button
+                        onClick={() => openDetail(item.id)}
+                        className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
+                        type="button"
+                      >
+                        자세히 보기
+                      </button>
+                      <button
+                        onClick={() => handleReserve(item)}
+                        disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
+                        className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                      >
+                        {item.stock === 0
+                          ? '품절'
+                          : (reservingProductId !== null
                             ? '예약 중...'
                             : (isReservationTimeOpen(item, timeOffsetMs)
-                                ? '예약하기'
-                                : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`))}
-                    </button>
+                              ? '예약하기'
+                              : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`))}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
 
-      </section>      
+      </section>
       <FloatingActions
-        orderPath="/me/orders"  
+        orderPath="/me/orders"
       />
 
       {/* FAB 통합 검색/필터 초기화 버튼 */}
       <button
         onClick={search ? clearSearch : handleOpenSearchModalClick}
-        className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
-          search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        } ${shakeButton ? 'animate-shake' : ''}`}
+        className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
+          } ${shakeButton ? 'animate-shake' : ''}`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
       >
         {search ? (
           // 필터 초기화 아이콘 (필터)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
           // 검색 아이콘 (돋보기)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
         )}
         <span className="text-sm font-bold text-gray-900">
@@ -1343,18 +1348,17 @@ export default function ReservePage() {
                 <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다!
               </p>
             </div>
-            
-            
+
+
             <div className="flex gap-3">
-              
+
               <button
                 onClick={() => handleSelfPick(selfPickDialog.product!)}
                 disabled={selfPickDialog.product?.selfPickAllowed === false}
-                className={`flex-1 h-12 rounded-lg font-medium text-sm ${
-                  selfPickDialog.product?.selfPickAllowed === false
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-orange-500 hover:bg-orange-600 text-white'
-                }`}
+                className={`flex-1 h-12 rounded-lg font-medium text-sm ${selfPickDialog.product?.selfPickAllowed === false
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
               >
                 <span className="whitespace-pre-line">
                   {selfPickDialog.product?.selfPickAllowed === false
@@ -1405,18 +1409,18 @@ export default function ReservePage() {
                   ✕
                 </button>
               </div>
-              
+
               <div className="text-sm text-gray-700 space-y-4 leading-relaxed">
                 <div className="text-right text-gray-500">
                   <p>업데이트 일자: 2025년 8월 15일</p>
                 </div>
-                
+
                 <p>
-                  주식회사 과일맛집(이하 "회사")는 이용자의 개인정보를 소중히 여기며 「개인정보 보호법」 등 관련 법령을 준수하고 있습니다. 
-                  본 개인정보처리방침은 회사가 운영하는 공동구매 플랫폼 서비스에 적용되며, 개인정보가 어떤 방식으로 수집되고 이용되는지, 
+                  주식회사 과일맛집(이하 "회사")는 이용자의 개인정보를 소중히 여기며 「개인정보 보호법」 등 관련 법령을 준수하고 있습니다.
+                  본 개인정보처리방침은 회사가 운영하는 공동구매 플랫폼 서비스에 적용되며, 개인정보가 어떤 방식으로 수집되고 이용되는지,
                   어떤 보호 조치가 시행되고 있는지를 설명합니다.
                 </p>
-                
+
                 <p>
                   회사는 개인정보처리방침을 수시로 개정할 수 있으며, 변경사항은 플랫폼 내 공지사항을 통해 사전에 안내합니다.
                 </p>
@@ -1424,13 +1428,13 @@ export default function ReservePage() {
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-2">1. 수집하는 개인정보 항목 및 수집 방법</h3>
                   <p className="mb-2">회사는 다음과 같은 목적으로 최소한의 개인정보를 수집합니다.</p>
-                  
+
                   <h4 className="font-medium text-gray-700 mb-1">수집 항목</h4>
                   <ul className="list-disc list-inside space-y-1 ml-4">
                     <li>오류 문의 시: 고객명(필수), 휴대폰 번호(필수)</li>
                     <li>카카오 로그인: 이름(필수)</li>
                   </ul>
-                  
+
                   <h4 className="font-medium text-gray-700 mb-1 mt-3">수집 방법</h4>
                   <p>회원가입, 고객 문의 접수, 카카오 로그인, 서비스 이용 과정에서 자동 또는 수동으로 수집</p>
                 </div>
@@ -1449,7 +1453,7 @@ export default function ReservePage() {
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-2">3. 개인정보 보유 및 이용 기간</h3>
                   <p className="mb-2">회사는 수집된 개인정보를 목적 달성 후 즉시 파기하며, 관련 법령에 따라 아래와 같이 일정 기간 보관할 수 있습니다.</p>
-                  
+
                   <div className="overflow-x-auto">
                     <table className="min-w-full border border-gray-200 text-xs">
                       <thead>
@@ -1490,56 +1494,56 @@ export default function ReservePage() {
                     <li>긴급한 생명 및 안전 보호가 요구되는 경우</li>
                   </ul>
                 </div>
-                  
-                  <p className="mt-2">
-                    회사는 위탁계약을 통해 개인정보 보호법에 따른 보호조치를 적용하고 있으며, 
-                    위탁사항이 변경될 경우 본 방침을 통해 안내합니다.
-                  </p>
-                </div>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">5. 이용자의 권리 및 행사 방법</h3>
-                  <p className="mb-2">이용자는 언제든지 다음 권리를 행사할 수 있습니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>개인정보 열람 요청</li>
-                    <li>정정 요청</li>
-                    <li>삭제 요청</li>
-                    <li>처리 정지 요청</li>
-                  </ul>
-                  <p className="mt-2">
-                    요청은 서면, 이메일 등을 통해 제출할 수 있으며, 법정대리인이나 위임을 받은 자를 통해서도 가능합니다.
-                  </p>
-                </div>
+                <p className="mt-2">
+                  회사는 위탁계약을 통해 개인정보 보호법에 따른 보호조치를 적용하고 있으며,
+                  위탁사항이 변경될 경우 본 방침을 통해 안내합니다.
+                </p>
+              </div>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">6. 개인정보 파기 절차 및 방법</h3>
-                  <p className="mb-2">회사는 개인정보 보유기간 경과 또는 처리 목적 달성 시 다음 절차에 따라 파기합니다.</p>
-                  
-                  <h4 className="font-medium text-gray-700 mb-1">파기 절차</h4>
-                  <p className="mb-2">보유 목적 달성 후 내부 방침 및 관련 법령에 따라 즉시 삭제</p>
-                  
-                  <h4 className="font-medium text-gray-700 mb-1">파기 방법</h4>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>종이 출력물: 분쇄 또는 소각</li>
-                    <li>전자 파일: 복구 불가능한 방식으로 영구 삭제</li>
-                  </ul>
-                </div>
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-2">5. 이용자의 권리 및 행사 방법</h3>
+                <p className="mb-2">이용자는 언제든지 다음 권리를 행사할 수 있습니다.</p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>개인정보 열람 요청</li>
+                  <li>정정 요청</li>
+                  <li>삭제 요청</li>
+                  <li>처리 정지 요청</li>
+                </ul>
+                <p className="mt-2">
+                  요청은 서면, 이메일 등을 통해 제출할 수 있으며, 법정대리인이나 위임을 받은 자를 통해서도 가능합니다.
+                </p>
+              </div>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">7. 개인정보의 안전성 확보 조치</h3>
-                  <p className="mb-2">회사는 다음과 같은 조치로 개인정보를 보호하고 있습니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>비밀번호 및 계정 정보 암호화</li>
-                    <li>개인정보 접근 제한 및 담당자 교육</li>
-                    <li>침입 탐지 시스템 및 보안 솔루션 운영</li>
-                    <li>해킹/바이러스 등 외부 위협에 대한 예방 대책</li>
-                  </ul>
-                </div>
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-2">6. 개인정보 파기 절차 및 방법</h3>
+                <p className="mb-2">회사는 개인정보 보유기간 경과 또는 처리 목적 달성 시 다음 절차에 따라 파기합니다.</p>
 
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">8. 개인정보 보호책임자 및 열람청구 접수 부서</h3>
-                  <p className="mb-2">이용자의 개인정보 보호와 관련한 문의사항은 아래 담당자에게 문의하실 수 있습니다.</p>
-                  
+                <h4 className="font-medium text-gray-700 mb-1">파기 절차</h4>
+                <p className="mb-2">보유 목적 달성 후 내부 방침 및 관련 법령에 따라 즉시 삭제</p>
+
+                <h4 className="font-medium text-gray-700 mb-1">파기 방법</h4>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>종이 출력물: 분쇄 또는 소각</li>
+                  <li>전자 파일: 복구 불가능한 방식으로 영구 삭제</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-2">7. 개인정보의 안전성 확보 조치</h3>
+                <p className="mb-2">회사는 다음과 같은 조치로 개인정보를 보호하고 있습니다.</p>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>비밀번호 및 계정 정보 암호화</li>
+                  <li>개인정보 접근 제한 및 담당자 교육</li>
+                  <li>침입 탐지 시스템 및 보안 솔루션 운영</li>
+                  <li>해킹/바이러스 등 외부 위협에 대한 예방 대책</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-2">8. 개인정보 보호책임자 및 열람청구 접수 부서</h3>
+                <p className="mb-2">이용자의 개인정보 보호와 관련한 문의사항은 아래 담당자에게 문의하실 수 있습니다.</p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-medium text-gray-700 mb-2">개인정보 보호책임자, 개인정보 열람청구 접수부서</h4>
@@ -1549,8 +1553,8 @@ export default function ReservePage() {
                       <p><span className="font-medium">전화번호:</span> 010-3029-9238</p>
                     </div>
                   </div>
-                  </div>
-                
+                </div>
+
 
                 <div>
                   <h3 className="font-semibold text-gray-800 mb-2">10. 개인정보 침해 신고 및 상담 기관</h3>
@@ -1593,7 +1597,7 @@ export default function ReservePage() {
                 ✕
               </button>
             </div>
-            
+
             {/* 검색 입력 */}
             <div className="p-4">
               <div className="relative">
@@ -1623,7 +1627,7 @@ export default function ReservePage() {
                 )}
               </div>
             </div>
-            
+
             {/* 날짜별 검색 결과 미리보기 */}
             {tempSearch && !selectedDateForProducts && (
               <div className="px-4 pb-4">
@@ -1631,10 +1635,10 @@ export default function ReservePage() {
                   {availableDates.map(date => {
                     const count = getFilteredCountByDate(date, tempSearch);
                     if (count === 0) return null;
-                    
+
                     return (
-                      <div 
-                        key={date} 
+                      <div
+                        key={date}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => {
                           setSelectedDateForProducts(date);
@@ -1650,7 +1654,7 @@ export default function ReservePage() {
                     );
                   })}
                 </div>
-                
+
                 {/* 검색 결과 없음 */}
                 {availableDates.every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
                   <div className="text-center text-gray-500 py-6">
@@ -1710,7 +1714,7 @@ export default function ReservePage() {
                 </div>
               </div>
             )}
-            
+
             {/* 버튼 영역 */}
             <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button
@@ -1726,7 +1730,7 @@ export default function ReservePage() {
                 검색 적용
               </button>
             </div>
-            
+
           </div>
         </div>
       )}
@@ -1757,7 +1761,7 @@ export default function ReservePage() {
                 onClick={async () => {
                   const messageId = messageDialog.messageId;
                   setMessageDialog({ isOpen: false, messageId: null, title: '', body: '' });
-                  
+
                   if (messageId) {
                     try {
                       await markMessageAsRead(messageId);

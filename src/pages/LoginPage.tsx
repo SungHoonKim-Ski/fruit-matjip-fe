@@ -4,6 +4,7 @@ import { getCurrentEnvironment } from '../utils/environment';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../utils/environment';
+import { logo, theme } from '../brand';
 
 declare global { interface Window { Kakao: any } }
 
@@ -275,10 +276,11 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
         <div className="text-center">
-          <img src="/onuljang.png" alt="과일맛집 로고" className="mx-auto w-16 h-16" />
-          <h1 className="mt-3 text-xl font-bold">🎁과일맛집1995 현장예약🎁</h1>
-          <p className="mt-1 text text-gray-600">더욱 혜택넘치는 가격으로</p>
-          <p className="mt-1 text text-gray-600">우리들끼리 예약하고 먹자구요🤣</p>
+          <img src={logo} alt={`${theme.displayName} 로고`} className="mx-auto w-16 h-16" />
+          <h1 className="mt-3 text-xl font-bold">{theme.tagline}</h1>
+          {theme.description.split('\n').map((line: string, i: number) => (
+            <p key={i} className="mt-1 text text-gray-600">{line}</p>
+          ))}
         </div>
 
         {busy && (

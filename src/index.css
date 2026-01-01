@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 
+ * Brand CSS Variables
+ * These are injected at runtime by src/brand.ts based on REACT_APP_BRAND
+ * Variables: --color-primary-50 through --color-primary-950
+ * Used by Tailwind's orange-* classes (see tailwind.config.js)
+ */
+
 @layer components {
   /* 기본 버튼 골격 */
   .btn {
