@@ -62,7 +62,7 @@ export const theme: BrandTheme = {
         kakaoJsKey: process.env.REACT_APP_JS_KAKAO_KEY || '',
         redirectUri: process.env.REACT_APP_REDIRECT_URI || '',
         gaKey: process.env.REACT_APP_GA_KEY || '',
-        imgUrl: 'https://onuljang.store',
+        imgUrl: process.env.REACT_APP_IMG_URL || 'https://onuljang.store',
     },
     colors: {
         primary: {

@@ -62,7 +62,7 @@ export const theme: BrandTheme = {
         kakaoJsKey: process.env.REACT_APP_JS_KAKAO_KEY || '',
         redirectUri: process.env.REACT_APP_REDIRECT_URI || '',
         gaKey: process.env.REACT_APP_GA_KEY || '',
-        imgUrl: 'https://freshmarket.example.com',
+        imgUrl: process.env.REACT_APP_IMG_URL || 'https://freshmarket.example.com',
     },
     colors: {
         primary: {

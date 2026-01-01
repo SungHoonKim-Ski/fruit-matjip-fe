@@ -348,7 +348,7 @@ export default function ReservePage() {
             quantity: 0,
             price: p.price,
             stock: p.stock,
-            imageUrl: p.image_url ? `${process.env.REACT_APP_IMG_URL}/${p.image_url}` : p.imageUrl,
+            imageUrl: p.image_url ? `${theme.config.imgUrl}/${p.image_url}` : p.imageUrl,
             // sell_date 필드명으로 매핑
             sellDate: p.sell_date || p.sellDate || dates[i % dates.length],
             // 누적 판매량 필드명: total_sold
