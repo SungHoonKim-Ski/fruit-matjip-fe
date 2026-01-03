@@ -173,21 +173,12 @@ export default function ProductCreatePage() {
         expiresIn?: number;
       } = await presignedUrlRes.json();
 
-      const { url, key, method, contentType } = presignedData;
+      const { url, key, method } = presignedData;
       if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
 
-      // 3) S3 업로드 (Content-Type 헤더를 명시적으로 포함해야 presigned URL 서명과 일치)
-      const uploadHeaders: HeadersInit = {};
-      if (contentType) {
-        uploadHeaders['Content-Type'] = contentType;
-      } else {
-        // fallback: 파일의 실제 타입 사용
-        uploadHeaders['Content-Type'] = fileToUpload.type;
-      }
-
+      // 3) S3 업로드 (Content-Type은 URL에 서명으로 포함되어 있으므로 보통 헤더 설정 불필요)
       const uploadResponse = await fetch(url, {
         method: (method || 'PUT').toUpperCase(),
-        headers: uploadHeaders,
         body: fileToUpload,
         mode: 'cors',
       });
