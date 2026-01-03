@@ -26,7 +26,7 @@ function getKstTodayStr() {
 export default function ProductCreatePage() {
   const { show } = useSnackbar();
   const nav = useNavigate();
-
+  
   // 오늘 날짜를 기본값으로 설정 (KST 기준)
   const today = (() => {
     const now = new Date();
@@ -34,7 +34,7 @@ export default function ProductCreatePage() {
     const kstNow = now;
     return kstNow.toISOString().split('T')[0];
   })();
-
+  
   const [form, setForm] = useState<ProductForm>({
     name: '',
     price: 0, // step 1000 사용 시 자연스럽도록 기본 1000
@@ -165,28 +165,31 @@ export default function ProductCreatePage() {
         throw new Error(`이미지 업로드 URL 발급 실패: ${presignedUrlRes.status} ${presignedUrlRes.statusText} - ${errorText}`);
       }
 
-      const presignedData: any = await presignedUrlRes.json();
+      const presignedData: {
+        url: string;
+        key: string;
+        method?: string;
+        contentType?: string;
+        expiresIn?: number;
+      } = await presignedUrlRes.json();
 
-      const url: string = presignedData.url || presignedData.uploadUrl;
-      const key: string = presignedData.key;
-      const method: string = presignedData.method || 'PUT';
-      // 서버가 snake_case 또는 camelCase로 반환할 수 있음
-      const contentType: string | undefined = presignedData.content_type || presignedData.contentType;
-
+      const { url, key, method, contentType } = presignedData;
       if (!url || !key) throw new Error('Presigned 응답에 url 또는 key가 없습니다.');
 
-      // 3) S3 업로드
-      // IMPORTANT: presigned URL에 서명된 Content-Type만 사용해야 함
-      // 서버에서 content_type을 제공하지 않으면 헤더를 설정하지 않음 (URL에 이미 포함됨)
+      // 3) S3 업로드 (Content-Type 헤더를 명시적으로 포함해야 presigned URL 서명과 일치)
       const uploadHeaders: HeadersInit = {};
       if (contentType) {
         uploadHeaders['Content-Type'] = contentType;
+      } else {
+        // fallback: 파일의 실제 타입 사용
+        uploadHeaders['Content-Type'] = fileToUpload.type;
       }
 
       const uploadResponse = await fetch(url, {
-        method: method.toUpperCase(),
+        method: (method || 'PUT').toUpperCase(),
         headers: uploadHeaders,
         body: fileToUpload,
+        mode: 'cors',
       });
       if (!uploadResponse.ok) {
         throw new Error(`S3 업로드 실패: ${uploadResponse.status} ${uploadResponse.statusText}`);
@@ -226,13 +229,13 @@ export default function ProductCreatePage() {
       <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">📦 상품 등록</h1>
-
+          
           {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
           <div className="relative">
 
           </div>
         </div>
-
+        
         <div className="space-y-2">
           <label className="block text-sm font-medium">상품명 <span className="text-red-500">*</span></label>
           <input
