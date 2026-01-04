@@ -38,6 +38,15 @@ export interface BrandTheme {
             950: string;
         };
     };
+    metadata: {
+        title: string;
+        description: string;
+        ogTitle: string;
+        ogDescription: string;
+        themeColor: string;
+        manifestName: string;
+        manifestFullName: string;
+    };
 }
 
 export const theme: BrandTheme = {
@@ -78,6 +87,15 @@ export const theme: BrandTheme = {
             900: '#7c2d12',
             950: '#431407',
         },
+    },
+    metadata: {
+        title: '과일맛집 1995',
+        description: '🎁과일맛집1995 현장예약🎁 더욱 혜택넘치는 가격으로 우리들끼리 예약하고 먹자구요!',
+        ogTitle: '과일맛집 1995 현장예약',
+        ogDescription: '신선한 과일을 가장 합리적인 가격에 이웃과 함께! 지금 예약하세요.',
+        themeColor: '#f97316',
+        manifestName: '과일맛집',
+        manifestFullName: '과일맛집 1995 현장예약',
     },
 };
 

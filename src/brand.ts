@@ -28,10 +28,51 @@ try {
 
 export { theme, cssVariables, logo };
 
+// Helper function to update or create a meta tag
+function updateMetaTag(attrName: 'name' | 'property', attrValue: string, content: string): void {
+    let element = document.querySelector(`meta[${attrName}="${attrValue}"]`);
+    if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attrName, attrValue);
+        document.head.appendChild(element);
+    }
+    element.setAttribute('content', content);
+}
+
+// Helper function to update or create a link tag
+function updateLinkTag(rel: string, href: string): void {
+    let element = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement;
+    if (!element) {
+        element = document.createElement('link');
+        element.setAttribute('rel', rel);
+        document.head.appendChild(element);
+    }
+    element.href = href;
+}
+
 // Helper function to inject CSS variables into the document
 export function injectBrandStyles(): void {
     const root = document.documentElement;
     Object.entries(cssVariables).forEach(([key, value]) => {
         root.style.setProperty(key, value);
     });
+}
+
+// Helper function to inject brand metadata into the document
+export function injectBrandMetadata(): void {
+    const { metadata } = theme;
+
+    // Update document title
+    document.title = metadata.title;
+
+    // Update meta tags
+    updateMetaTag('name', 'description', metadata.description);
+    updateMetaTag('name', 'theme-color', metadata.themeColor);
+    updateMetaTag('property', 'og:title', metadata.ogTitle);
+    updateMetaTag('property', 'og:description', metadata.ogDescription);
+    updateMetaTag('property', 'og:image', logo);
+
+    // Update favicon and icons using the brand-specific logo
+    updateLinkTag('icon', logo);
+    updateLinkTag('apple-touch-icon', logo);
 }

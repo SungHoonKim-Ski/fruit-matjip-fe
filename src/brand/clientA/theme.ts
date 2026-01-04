@@ -38,6 +38,15 @@ export interface BrandTheme {
             950: string;
         };
     };
+    metadata: {
+        title: string;
+        description: string;
+        ogTitle: string;
+        ogDescription: string;
+        themeColor: string;
+        manifestName: string;
+        manifestFullName: string;
+    };
 }
 
 export const theme: BrandTheme = {
@@ -78,6 +87,15 @@ export const theme: BrandTheme = {
             900: '#7f1d1d',
             950: '#450a0a',
         },
+    },
+    metadata: {
+        title: 'Fresh Market - Premium Selection',
+        description: '🍓Fresh Market - Premium Selection🍓 Experience the finest quality fresh produce at unbeatable prices!',
+        ogTitle: 'Fresh Market - Premium Selection',
+        ogDescription: 'Experience the finest quality fresh produce. Your trusted partner for premium fruits and vegetables.',
+        themeColor: '#ef4444',
+        manifestName: 'Fresh Market',
+        manifestFullName: 'Fresh Market - Premium Selection',
     },
 };
 
