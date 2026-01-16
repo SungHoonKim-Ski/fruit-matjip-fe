@@ -25,7 +25,7 @@ const BASE_BACKOFF_MS = 300;
 
 // === 공통 Retry 상태 (API 키별 관리) ===
 const apiRetryCounts = new Map<string, number>();
-const makeApiKey = (scope: 'ADMIN'|'USER'|'GEN', method: string, url: string) => `${scope}:${method.toUpperCase()}:${url}`;
+const makeApiKey = (scope: 'ADMIN' | 'USER' | 'GEN', method: string, url: string) => `${scope}:${method.toUpperCase()}:${url}`;
 
 export const getApiRetryCount = (apiKey: string) => apiRetryCounts.get(apiKey) || 0;
 export const canRetryApi = (apiKey: string) => (apiRetryCounts.get(apiKey) || 0) < MAX_RETRY_PER_API;
@@ -55,7 +55,7 @@ const shouldRetry = (method: string, errorOrResponse: unknown): boolean => {
 const getAccessToken = () => localStorage.getItem('access');
 
 // === 공통 에러 메시지 저장 ===
-const pushUiError = (message: string, type: 'error'|'admin'|'user' = 'error') => {
+const pushUiError = (message: string, type: 'error' | 'admin' | 'user' = 'error') => {
   // 구 UI/신 UI 동시 호환
   localStorage.setItem('api-error-message', message);
   localStorage.setItem('api-error-type', 'error');
@@ -641,7 +641,7 @@ export const warnReservation = async (id: number) => {
 };
 
 // 일자별 매출 집계 요약 API
-export const getSalesSummary = async (from?: string, to?: string)  => {
+export const getSalesSummary = async (from?: string, to?: string) => {
   const key = 'getSalesSummary';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
@@ -649,7 +649,7 @@ export const getSalesSummary = async (from?: string, to?: string)  => {
     if (from && to) {
       url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     }
-    
+
     const res = await adminFetch(url, { cache: 'no-store' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -970,27 +970,27 @@ export const getServerTime = async (): Promise<number> => {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
-    
+
     // LocalDateTime 문자열 응답을 받아서 epoch milliseconds로 변환
     const localDateTimeStr = await res.text();
     const cleanedDateTimeStr = localDateTimeStr
       .replace(/^"|"$/g, '') // 앞뒤 따옴표 제거
       .replace(/\.(\d{3})\d+/, '.$1'); // 마이크로초를 밀리초로 제한
-    
-    
+
+
     // LocalDateTime을 Date 객체로 변환 (KST 기준)
     const date = new Date(cleanedDateTimeStr + '+09:00'); // KST 타임존 추가
     const epochMs = date.getTime();
-    
+
     if (isNaN(epochMs)) {
       throw new Error(`LocalDateTime 파싱 실패: ${localDateTimeStr}`);
     }
-    
+
     if (res.ok) resetApiRetryCount(key);
     return epochMs;
-  } catch (e) { 
-    incrementApiRetryCount(key); 
-    throw e; 
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
   }
 };
 
@@ -1029,7 +1029,7 @@ export const getCustomers = async (
       totalWarnCount: Number(u.total_warn_count || 0),
       isFirstTimeBuyer: Boolean(u.first_time_buyer),
     })) : [];
-    
+
     const nextCursor = data.pagination?.next_cursor || null;
     return { users, cursor: nextCursor };
   } catch (e) {
@@ -1102,9 +1102,9 @@ export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem
     const data = await res.json();
     const warns: CustomerWarnItem[] = Array.isArray(data.response)
       ? data.response.map((w: any) => ({
-          reason: w.reason as UserWarnReason,
-          warnAt: String(w.warn_at || w.warnAt || ''),
-        }))
+        reason: w.reason as UserWarnReason,
+        warnAt: String(w.warn_at || w.warnAt || ''),
+      }))
       : [];
     return warns;
   } catch (e) {
@@ -1163,17 +1163,61 @@ export const deleteAdminProductKeyword = async (keyword: string) => {
 };
 
 // 순서 일괄 업데이트 (드래그앤드롭 후 저장)
-export const updateAdminProductKeywordOrder = async (keywords: string[]) => {
+export type KeywordItem = { keyword: string; keywordUrl?: string };
+
+export const updateAdminProductKeywordOrder = async (keywords: KeywordItem[]) => {
   const key = 'updateAdminProductKeywordOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [...] }
+    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [{keyword, keywordUrl}] }
     const res = await adminFetch('/api/admin/products/keywords', {
       method: 'PATCH',
       body: JSON.stringify({ keywords }),
     }, true);
 
     if (!res.ok) throw new Error('추천 검색어 순서 저장 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 키워드 이미지 업로드용 presigned URL 발급
+export const getKeywordPresignedUrl = async (filename: string, contentType: string): Promise<Response> => {
+  const key = 'getKeywordPresignedUrl';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    if (!contentType || typeof contentType !== 'string') throw new Error(`Invalid contentType: ${contentType}`);
+    const cleanContentType = contentType.trim();
+    if (!cleanContentType) throw new Error('contentType cannot be empty after trimming');
+
+    const body = { file_name: filename, content_type: cleanContentType };
+    const res = await adminFetch('/api/admin/keyword/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+
+    if (res.status === 403) {
+      try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
+    }
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 키워드 추가 (이미지 URL 포함)
+export const addAdminProductKeywordWithImage = async (keyword: string, keywordUrl?: string) => {
+  const key = 'addAdminProductKeywordWithImage';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const body: { keyword: string; keyword_url?: string } = { keyword };
+    if (keywordUrl) body.keyword_url = keywordUrl;
+
+    const res = await adminFetch('/api/admin/products/keyword', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }, true);
+
+    if (!res.ok) throw new Error('추천 검색어 추가 실패');
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) {

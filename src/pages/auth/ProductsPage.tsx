@@ -7,7 +7,7 @@ import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
-import { theme, logoText } from '../../brand';
+import { theme, logoText, defaultKeywordImage } from '../../brand';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
 
@@ -219,8 +219,9 @@ export default function ReservePage() {
   // 활성화된 추천 검색 칩
   const [activeChip, setActiveChip] = useState<string | null>(null);
 
-  // 추천 키워드
-  const [recommendedKeywords, setRecommendedKeywords] = useState<string[]>([]);
+  // 추천 키워드 타입
+  type KeywordItem = { keyword: string; keywordUrl?: string };
+  const [recommendedKeywords, setRecommendedKeywords] = useState<KeywordItem[]>([]);
 
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
@@ -244,7 +245,17 @@ export default function ReservePage() {
       try {
         const data = await getProductKeywords();
         if (data && Array.isArray(data.response)) {
-          setRecommendedKeywords(data.response);
+          // 문자열 배열 또는 객체 배열 모두 지원
+          const list = data.response.map((item: string | any) => {
+            if (typeof item === 'string') {
+              return { keyword: item, keywordUrl: undefined };
+            }
+            return {
+              keyword: item.keyword || '',
+              keywordUrl: item.keywordUrl || item.keyword_url || undefined,
+            };
+          });
+          setRecommendedKeywords(list);
         }
       } catch (e) {
         console.error('상품 키워드 불러오기 실패:', e);
@@ -561,7 +572,8 @@ export default function ReservePage() {
     setSearchModalOpen(false);
 
     // tempSearch가 추천 키워드인지 확인하여 activeChip 설정
-    setActiveChip(recommendedKeywords.includes(tempSearch) ? tempSearch : null);
+    const keywordStrings = recommendedKeywords.map(k => k.keyword);
+    setActiveChip(keywordStrings.includes(tempSearch) ? tempSearch : null);
 
     // 검색 결과가 있으면 해당 날짜로 이동
     const closestDate = findClosestDateWithResults(tempSearch);
@@ -1182,28 +1194,43 @@ export default function ReservePage() {
             {/* 검색 칩 */}
             {allProductDates.length > 0 && (
               <div className="mt-2 px-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(recommendedKeywords.length > 0 ? recommendedKeywords : ['케이크', '할인', '딸기', '특가']).map(keyword => {
-                    const isActive = activeChip === keyword;
+                <div className="flex items-start gap-4 flex-wrap">
+                  {(recommendedKeywords.length > 0 ? recommendedKeywords : [
+                    { keyword: '케이크', keywordUrl: undefined },
+                    { keyword: '할인', keywordUrl: undefined },
+                    { keyword: '딸기', keywordUrl: undefined },
+                    { keyword: '특가', keywordUrl: undefined }
+                  ]).map(item => {
+                    const isActive = activeChip === item.keyword;
                     return (
                       <button
-                        key={keyword}
+                        key={item.keyword}
                         onClick={(e) => {
                           e.preventDefault();
                           if (isActive) {
                             setActiveChip(null);
                             setSearch('');
                           } else {
-                            setActiveChip(keyword);
-                            setSearch(keyword);
+                            setActiveChip(item.keyword);
+                            setSearch(item.keyword);
                           }
                         }}
-                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${isActive
-                          ? 'bg-blue-500 text-white border border-blue-500 hover:bg-blue-600'
-                          : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
-                          }`}
+                        className="flex flex-col items-center gap-1 min-w-[50px]"
                       >
-                        {keyword}
+                        {/* 이미지 원형 */}
+                        <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
+                          }`}>
+                          {item.keywordUrl ? (
+                            <img src={item.keywordUrl} alt={item.keyword} className="w-full h-full object-cover" />
+                          ) : (
+                            <img src={defaultKeywordImage} alt={item.keyword} className="w-full h-full object-contain p-1" />
+                          )}
+                        </div>
+                        {/* 키워드 텍스트 */}
+                        <span className={`text-xs font-medium whitespace-nowrap ${isActive ? 'text-orange-500' : 'text-gray-700'
+                          }`}>
+                          {item.keyword}
+                        </span>
                       </button>
                     );
                   })}

@@ -8,6 +8,7 @@ let theme: any;
 let cssVariables: Record<string, string>;
 let logo: string;
 let logoText: string;
+let defaultKeywordImage: string;
 
 try {
     // Import theme configuration
@@ -24,6 +25,13 @@ try {
     } catch {
         logoText = logo;
     }
+
+    // Import default keyword image (fallback to logo if not available)
+    try {
+        defaultKeywordImage = require(`./brand/${brandName}/default_keyword.png`);
+    } catch {
+        defaultKeywordImage = logo;
+    }
 } catch (error) {
     console.error(`Failed to load brand "${brandName}", falling back to fruit-matjip`, error);
 
@@ -37,9 +45,14 @@ try {
     } catch {
         logoText = logo;
     }
+    try {
+        defaultKeywordImage = require('./brand/fruit-matjip/default_keyword.png');
+    } catch {
+        defaultKeywordImage = logo;
+    }
 }
 
-export { theme, cssVariables, logo, logoText };
+export { theme, cssVariables, logo, logoText, defaultKeywordImage };
 
 // Helper function to update or create a meta tag
 function updateMetaTag(attrName: 'name' | 'property', attrValue: string, content: string): void {
