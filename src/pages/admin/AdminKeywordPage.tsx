@@ -259,17 +259,17 @@ export default function AdminKeywordPage() {
         </div>
 
         <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-6">
+          <div className="flex gap-4 items-start">
             {/* 이미지 선택 부분 */}
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex-shrink-0">
               <div className="relative group">
-                <div className={`w-20 h-20 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition-colors ${selectedImage ? 'border-orange-400' : 'border-gray-200'}`}>
+                <div className={`w-16 h-16 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-50 transition-colors ${selectedImage ? 'border-orange-400' : 'border-gray-200'}`}>
                   {previewUrl ? (
                     <img src={previewUrl} alt="미리보기" className="w-full h-full object-cover" />
                   ) : (
                     <div className="flex flex-col items-center text-gray-400">
-                      <span className="text-xl">📷</span>
-                      <span className="text-[10px] mt-1 text-center">아이콘<br />추가</span>
+                      <span className="text-lg">📷</span>
+                      <span className="text-[9px] leading-tight mt-0.5 text-center">이미지</span>
                     </div>
                   )}
                 </div>
@@ -295,7 +295,7 @@ export default function AdminKeywordPage() {
                         setPreviewUrl(null);
                       }
                     }}
-                    className="absolute -top-1 -right-1 bg-white border shadow-sm rounded-full w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-600 z-10"
+                    className="absolute -top-1 -right-1 bg-white border shadow-sm rounded-full w-5 h-5 flex items-center justify-center text-red-500 hover:text-red-600 z-10 text-sm"
                     title="제거"
                   >
                     ×
@@ -305,22 +305,22 @@ export default function AdminKeywordPage() {
             </div>
 
             {/* 텍스트 입력 및 추가 버튼 */}
-            <div className="flex-1 flex flex-col justify-end gap-3">
-              <div className="flex flex-col gap-1.5 font-medium">
-                <label className="text-sm text-gray-600 ml-1">키워드 명칭</label>
+            <div className="flex-1 flex flex-col gap-2 min-w-0 pt-0.5">
+              <div className="flex flex-col gap-1 font-medium">
+                <label className="text-xs text-gray-500 ml-1">키워드 명칭</label>
                 <div className="flex gap-2">
                   <input
                     value={input}
                     onChange={e => setInput(e.target.value.replace(/\s/g, '').slice(0, 5))}
                     maxLength={5}
                     placeholder="최대 5자"
-                    className="flex-1 h-12 px-4 rounded-lg border-2 border-gray-100 focus:border-orange-400 focus:outline-none text-base transition-colors"
+                    className="w-24 flex-1 h-11 px-3 rounded-lg border-2 border-gray-100 focus:border-orange-400 focus:outline-none text-base transition-colors"
                     disabled={adding || keywords.length >= 10}
                   />
                   <button
                     onClick={handleAdd}
                     disabled={!canAdd || adding}
-                    className={`h-12 px-6 rounded-lg text-white font-bold transition-all shadow-sm ${canAdd && !adding
+                    className={`h-11 px-4 rounded-lg text-white font-bold transition-all shadow-sm flex-shrink-0 ${canAdd && !adding
                       ? 'bg-orange-500 hover:bg-orange-600 hover:shadow active:scale-95'
                       : 'bg-gray-300 cursor-not-allowed'
                       }`}
@@ -328,9 +328,9 @@ export default function AdminKeywordPage() {
                     {adding ? '...' : '추가'}
                   </button>
                 </div>
-                <div className="flex justify-between items-center mt-1 px-1">
-                  <p className="text-[11px] text-gray-400">* 공백 제외 5자 이내</p>
-                  <p className="text-[11px] text-gray-400">{input.length}/5</p>
+                <div className="flex justify-between items-center mt-0.5 px-1">
+                  <p className="text-[10px] text-gray-400">* 5자 이내</p>
+                  <p className="text-[10px] text-gray-400">{input.length}/5</p>
                 </div>
               </div>
             </div>
@@ -338,7 +338,7 @@ export default function AdminKeywordPage() {
         </div>
 
         <div className="bg-gray-50 border-t px-6 py-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 키워드 목록 ({keywords.length}/10개 등록됨)</div>
+          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 키워드 목록 ({keywords.length} / 10)</div>
           {loading ? <div className="text-gray-500">로딩 중...</div> :
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={keywordList} strategy={verticalListSortingStrategy}>
@@ -352,7 +352,7 @@ export default function AdminKeywordPage() {
             </DndContext>
           }
         </div>
-        <p className="text-xs text-gray-500 mt-5"> * 중복 불가, 추가/삭제 및 순서 변경 시 자동 저장 (드래그로 이동 가능)</p>
+        <p className="text-xs text-gray-500 px-6 py-4 mt-5"> * 중복 불가, 추가/삭제 및 순서 변경 시 자동 저장 (드래그로 이동 가능)</p>
       </div>
     </main>
   );
