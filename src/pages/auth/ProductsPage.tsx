@@ -1193,8 +1193,8 @@ export default function ReservePage() {
             </div>
             {/* 검색 칩 */}
             {allProductDates.length > 0 && (
-              <div className="mt-2 px-3">
-                <div className="flex items-start gap-4 flex-wrap">
+              <div className="mt-2 px-3 pb-2">
+                <div className="grid grid-cols-5 gap-y-3 gap-x-2">
                   {(recommendedKeywords.length > 0 ? recommendedKeywords : [
                     { keyword: '케이크', keywordUrl: undefined },
                     { keyword: '할인', keywordUrl: undefined },
@@ -1215,7 +1215,7 @@ export default function ReservePage() {
                             setSearch(item.keyword);
                           }
                         }}
-                        className="flex flex-col items-center gap-1 min-w-[50px]"
+                        className="flex flex-col items-center gap-1"
                       >
                         {/* 이미지 원형 */}
                         <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
