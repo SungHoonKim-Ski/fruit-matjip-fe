@@ -7,7 +7,7 @@ import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
-import { theme } from '../../brand';
+import { theme, logoText } from '../../brand';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
 
@@ -971,15 +971,15 @@ export default function ReservePage() {
             </button>
           </div>
 
-          {/* 중: 상호/지점 (클릭 시 메인으로 이동) */}
+          {/* 중: 로고 이미지 (클릭 시 메인으로 이동) */}
           <div className="flex-1 flex flex-col items-center leading-tight">
             <button
               type="button"
               onClick={() => nav('/products')}
-              className="text-lg font-bold text-gray-800 hover:underline"
+              className="hover:opacity-80"
               aria-label="메인으로 이동"
             >
-              {theme.displayName}
+              <img src={logoText} alt={theme.displayName} className="h-8 object-contain" />
             </button>
             {branchName ? <div className="text-xs text-gray-600">- {branchName} -</div> : null}
           </div>

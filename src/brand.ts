@@ -7,6 +7,7 @@ const brandName = process.env.REACT_APP_BRAND || 'fruit-matjip';
 let theme: any;
 let cssVariables: Record<string, string>;
 let logo: string;
+let logoText: string;
 
 try {
     // Import theme configuration
@@ -16,6 +17,13 @@ try {
 
     // Import logo
     logo = require(`./brand/${brandName}/logo.png`);
+
+    // Import text logo (fallback to main logo if not available)
+    try {
+        logoText = require(`./brand/${brandName}/logo_text.png`);
+    } catch {
+        logoText = logo;
+    }
 } catch (error) {
     console.error(`Failed to load brand "${brandName}", falling back to fruit-matjip`, error);
 
@@ -24,9 +32,14 @@ try {
     theme = defaultBrand.theme;
     cssVariables = defaultBrand.cssVariables;
     logo = require('./brand/fruit-matjip/logo.png');
+    try {
+        logoText = require('./brand/fruit-matjip/logo_text.png');
+    } catch {
+        logoText = logo;
+    }
 }
 
-export { theme, cssVariables, logo };
+export { theme, cssVariables, logo, logoText };
 
 // Helper function to update or create a meta tag
 function updateMetaTag(attrName: 'name' | 'property', attrValue: string, content: string): void {
@@ -70,7 +83,12 @@ export function injectBrandMetadata(): void {
     updateMetaTag('name', 'theme-color', metadata.themeColor);
     updateMetaTag('property', 'og:title', metadata.ogTitle);
     updateMetaTag('property', 'og:description', metadata.ogDescription);
-    updateMetaTag('property', 'og:image', logo);
+
+    // Use absolute URL for og:image (required for KakaoTalk link preview)
+    const ogImageUrl = `${window.location.origin}/og-image.jpg`;
+    updateMetaTag('property', 'og:image', ogImageUrl);
+    updateMetaTag('property', 'og:image:width', '1200');
+    updateMetaTag('property', 'og:image:height', '630');
 
     // Update favicon and icons using the brand-specific logo
     updateLinkTag('icon', logo);
