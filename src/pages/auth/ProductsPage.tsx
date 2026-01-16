@@ -1155,10 +1155,27 @@ export default function ReservePage() {
         {allProductDates.length > 0 && availableDates.length === 0 && search && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             <div className="text-sm">
-              <span className="font-medium text-orange-600">"{search}"</span>상품이 존재하지 않습니다.
+              <span
+                className="font-medium text-orange-600 cursor-pointer hover:underline"
+                onClick={clearSearch}
+                role="button"
+                aria-label="필터 초기화"
+              >
+                "{search}"
+              </span>
+              상품이 존재하지 않습니다.
             </div>
-            <div className="text-xs text-gray-400 mt-1">
-              <strong className="font-medium text-red-500">우측 하단 초기화 버튼</strong>을 눌러 모든 상품을 볼 수 있습니다.
+            <div className="text-xs text-gray-400 mt-1"
+              onClick={clearSearch}
+              role="button"
+              aria-label="필터 초기화"
+            >
+              <strong
+                className="font-medium text-red-500 cursor-pointer hover:underline decoration-red-400"
+              >
+                초기화
+              </strong>
+              를 눌러 모든 상품을 볼 수 있습니다.
             </div>
           </div>
         )}
