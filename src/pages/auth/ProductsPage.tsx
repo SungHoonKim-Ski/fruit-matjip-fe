@@ -1151,7 +1151,7 @@ export default function ReservePage() {
                     className={
                       'px-2 py-1.5 rounded-lg border text-xs whitespace-nowrap transition ' +
                       (active
-                        ? 'bg-orange-500 text-white border-orange-500 shadow'
+                        ? 'bg-primary-500 text-white border-primary-500 shadow'
                         : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
                     }
                   >
@@ -1164,25 +1164,7 @@ export default function ReservePage() {
               })}
             </div>
 
-            {/* 수령 가능 안내 문구 */}
-            <div className="px-3 mt-2">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                  <span className="text-xs font-medium text-green-700">
-                    매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 판매하는 상품이에요
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                  {/* <div className="w-2 h-2 bg-green-500 rounded-full"></div> */}
-                  <span className="text-xs font-medium text-green-700">
-                    <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약이 가능해요
-                  </span>
-                </div>
-              </div>
-            </div>
-            {/* 검색 칩 */}
+            {/* 추천 검색 칩 */}
             {allProductDates.length > 0 && (
               <div className="mt-2 px-3">
                 <div className="flex items-center gap-2 flex-wrap">
