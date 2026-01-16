@@ -1156,7 +1156,7 @@ export default function ReservePage() {
                     }
                   >
                     <div className="font-semibold text-xs">{prettyKdate(date)}</div>
-                    <div className="text-[11px] mt-0.5 text-center text-gray-600">
+                    <div className={`text-[11px] mt-0.5 text-center ${active ? 'text-white/90' : 'text-gray-600'}`}>
                       {countOf(date)}개 예약중
                     </div>
                   </button>
