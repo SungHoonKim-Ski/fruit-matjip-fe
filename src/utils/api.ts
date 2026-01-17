@@ -1169,10 +1169,15 @@ export const updateAdminProductKeywordOrder = async (keywords: KeywordItem[]) =>
   const key = 'updateAdminProductKeywordOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [{keyword, keywordUrl}] }
+    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [{keyword, keyword_url}] }
     const res = await adminFetch('/api/admin/products/keywords', {
       method: 'PATCH',
-      body: JSON.stringify({ keywords }),
+      body: JSON.stringify({
+        keywords: keywords.map(k => ({
+          keyword: k.keyword,
+          keyword_url: k.keywordUrl
+        }))
+      }),
     }, true);
 
     if (!res.ok) throw new Error('추천 검색어 순서 저장 실패');
