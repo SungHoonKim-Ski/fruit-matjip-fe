@@ -1108,7 +1108,7 @@ export default function ReservePage() {
       <section className="w-full max-w-md">
         {/* 안내 카드 */}
         <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
-          <h1 className="text-base font-bold text-gray-800">{theme.tagline}</h1>
+          {!theme.config.hideTagline && <h1 className="text-base font-bold text-gray-800">{theme.tagline}</h1>}
           <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
 
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
@@ -1128,6 +1128,12 @@ export default function ReservePage() {
               <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
               <span className="text-xs font-medium text-green-700">
                 매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 판매하는 상품이에요
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+              <span className="text-xs font-medium text-green-700">
+                <strong>[{prettydate(activeDate)} 19:00]까지 </strong> 예약 취소, 수정이 가능해요
               </span>
             </div>
             <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@ export interface BrandTheme {
         redirectUri: string;
         gaKey: string;
         imgUrl: string;
+        hideTagline?: boolean;
     };
     colors: {
         primary: {
@@ -72,6 +73,7 @@ export const theme: BrandTheme = {
         redirectUri: process.env.REACT_APP_REDIRECT_URI || '',
         gaKey: process.env.REACT_APP_GA_KEY || '',
         imgUrl: process.env.REACT_APP_IMG_URL || 'https://onuljang.store',
+        hideTagline: true,
     },
     colors: {
         primary: {
