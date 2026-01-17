@@ -1113,33 +1113,35 @@ export default function ReservePage() {
 
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span className="text-orange-600">⚠</span>
-              <span>판매일 <strong className="text-orange-900">20시까지 매장을 방문</strong>하셔야</span>
+              <span>판매일 <strong className="text-orange-900">{theme.config.pickupDeadline.split(':')[0]}시까지 매장을 방문</strong>하셔야</span>
             </p>
             <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
               <span><strong className="text-orange-900">예약 상품 구매가 가능</strong>합니다</span>
             </p>
 
             <p className="text-xs text-orange-900 mt-0.5 text-center">
-              [20시 기준 미수령 예약 자동 취소]
+              [{theme.config.pickupDeadline.split(':')[0]}시 기준 미수령 예약 자동 취소]
             </p>
           </div>
           <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
               <span className="text-xs font-medium text-green-700">
-                매장에서 <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong>에 판매하는 상품이에요
+                <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong> 매장 판매 상품이에요
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
               <span className="text-xs font-medium text-green-700">
-                <strong>[{prettydate(activeDate)} 19:00]까지 </strong> 예약 취소, 수정이 가능해요
+                예약 마감 <strong>[{theme.config.reservationDeadline}]</strong>
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+
               <span className="text-xs font-medium text-green-700">
-                <strong>[{prettydate(activeDate)} 19:30]까지 </strong>예약이 가능해요
+
+                ※ <strong>[{theme.config.cancellationDeadline}] 이후에는 예약 수정/취소가 불가능합니다</strong>
+
               </span>
             </div>
           </div>
@@ -1291,7 +1293,7 @@ export default function ReservePage() {
                     <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
                       <div>
                         {item.selfPickAllowed === false && (
-                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">20시 이후 수령 불가</span>
+                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">{theme.config.pickupDeadline.split(':')[0]}시 이후 수령 불가</span>
                         )}
                       </div>
                       <span className="text-l">
@@ -1409,8 +1411,8 @@ export default function ReservePage() {
               >
                 <span className="whitespace-pre-line">
                   {selfPickDialog.product?.selfPickAllowed === false
-                    ? '셀프 수령 불가'
-                    : '20시 이후 방문\n(셀프수령)'}
+                    ? '영업 중 방문\n(매장수령)'
+                    : `${theme.config.pickupDeadline.split(':')[0]}시 이후 방문\n(셀프수령)`}
                 </span>
               </button>
               <button

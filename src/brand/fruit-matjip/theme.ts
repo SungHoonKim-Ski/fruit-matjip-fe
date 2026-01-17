@@ -23,6 +23,9 @@ export interface BrandTheme {
         gaKey: string;
         imgUrl: string;
         hideTagline?: boolean;
+        reservationDeadline: string;
+        cancellationDeadline: string;
+        pickupDeadline: string;
     };
     colors: {
         primary: {
@@ -74,6 +77,9 @@ export const theme: BrandTheme = {
         gaKey: process.env.REACT_APP_GA_KEY || '',
         imgUrl: process.env.REACT_APP_IMG_URL || 'https://onuljang.store',
         hideTagline: true,
+        reservationDeadline: '19:30',
+        cancellationDeadline: '19:00',
+        pickupDeadline: '20:00',
     },
     colors: {
         primary: {
