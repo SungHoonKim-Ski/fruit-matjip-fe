@@ -1197,10 +1197,10 @@ export default function ReservePage() {
                   className="flex flex-col items-center gap-1"
                 >
                   <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${!activeChip ? 'border-orange-500' : 'border-gray-200'}`}>
-                    <img src={defaultKeywordImage} alt="전체" className="w-full h-full object-contain p-2 bg-gray-50" />
+                    <img src={defaultKeywordImage} alt="ALL" className="w-full h-full object-contain p-2 bg-gray-50" />
                   </div>
                   <span className={`text-xs font-medium whitespace-nowrap ${!activeChip ? 'text-orange-500' : 'text-gray-700'}`}>
-                    전체
+                    ALL
                   </span>
                 </button>
                 {((recommendedKeywords.length > 0 ? recommendedKeywords : [
@@ -1208,7 +1208,7 @@ export default function ReservePage() {
                   { keyword: '할인', keywordUrl: undefined },
                   { keyword: '딸기', keywordUrl: undefined },
                   { keyword: '특가', keywordUrl: undefined }
-                ]).filter(k => k.keyword !== '전체')).map(item => {
+                ]).filter(k => k.keyword !== 'ALL')).map(item => {
                   const isActive = activeChip === item.keyword;
                   return (
                     <button
