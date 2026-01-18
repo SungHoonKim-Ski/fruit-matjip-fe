@@ -27,6 +27,9 @@ type KeywordItem = {
   keywordUrl?: string;
 };
 
+// 상단 설정
+const MAX_KEYWORD_COUNT = 9;
+
 // 이미지 URL 절대경로 변환 유틸
 const getDisplayUrl = (url?: string) => {
   if (!url) return defaultKeywordImage;
@@ -127,7 +130,7 @@ export default function AdminKeywordPage() {
     input.trim().length > 0 &&
     input.trim().length <= 5 &&
     !keywordList.includes(input.trim()) &&
-    keywords.length < 10
+    keywords.length < MAX_KEYWORD_COUNT
   );
 
   // 이미지 선택 핸들러
@@ -279,7 +282,7 @@ export default function AdminKeywordPage() {
                   accept="image/png, image/jpeg"
                   onChange={handleImageChange}
                   className="hidden"
-                  disabled={adding || keywords.length >= 10}
+                  disabled={adding || keywords.length >= MAX_KEYWORD_COUNT}
                 />
                 <label
                   htmlFor="keyword-image"
@@ -315,7 +318,7 @@ export default function AdminKeywordPage() {
                     maxLength={5}
                     placeholder="최대 5자"
                     className="w-24 flex-1 h-11 px-3 rounded-lg border-2 border-gray-100 focus:border-orange-400 focus:outline-none text-base transition-colors"
-                    disabled={adding || keywords.length >= 10}
+                    disabled={adding || keywords.length >= MAX_KEYWORD_COUNT}
                   />
                   <button
                     onClick={handleAdd}
@@ -338,7 +341,7 @@ export default function AdminKeywordPage() {
         </div>
 
         <div className="bg-gray-50 border-t px-6 py-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 키워드 목록 ({keywords.length} / 10)</div>
+          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 키워드 목록 ({keywords.length} / {MAX_KEYWORD_COUNT})</div>
           {loading ? <div className="text-gray-500">로딩 중...</div> :
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={keywordList} strategy={verticalListSortingStrategy}>
