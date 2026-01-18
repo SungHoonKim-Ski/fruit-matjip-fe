@@ -1158,38 +1158,8 @@ export default function ReservePage() {
           </div>
         )}
 
-
-        {/* 검색 결과 없음 */}
-        {allProductDates.length > 0 && availableDates.length === 0 && search && (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-            <div className="text-sm">
-              <span
-                className="font-medium text-orange-600 cursor-pointer hover:underline"
-                onClick={clearSearch}
-                role="button"
-                aria-label="필터 초기화"
-              >
-                "{search}"
-              </span>
-              상품이 존재하지 않습니다.
-            </div>
-            <div className="text-xs text-gray-400 mt-1"
-              onClick={clearSearch}
-              role="button"
-              aria-label="필터 초기화"
-            >
-              <strong
-                className="font-medium text-red-500 cursor-pointer hover:underline decoration-red-400"
-              >
-                초기화
-              </strong>
-              를 눌러 모든 상품을 볼 수 있습니다.
-            </div>
-          </div>
-        )}
-
         {/* 날짜 탭 (상품 없는 날짜는 비노출) */}
-        {availableDates.length > 0 && (
+        {allProductDates.length > 0 && (
           <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-2 mb-4">
             <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
               {availableDates.map(date => {
@@ -1217,51 +1187,92 @@ export default function ReservePage() {
               })}
             </div>
             {/* 검색 칩 */}
-            {allProductDates.length > 0 && (
-              <div className="mt-2 px-3 pb-2">
-                <div className="grid grid-cols-5 gap-y-3 gap-x-2">
-                  {(recommendedKeywords.length > 0 ? recommendedKeywords : [
-                    { keyword: '케이크', keywordUrl: undefined },
-                    { keyword: '할인', keywordUrl: undefined },
-                    { keyword: '딸기', keywordUrl: undefined },
-                    { keyword: '특가', keywordUrl: undefined }
-                  ]).map(item => {
-                    const isActive = activeChip === item.keyword;
-                    return (
-                      <button
-                        key={item.keyword}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (isActive) {
-                            setActiveChip(null);
-                            setSearch('');
-                          } else {
-                            setActiveChip(item.keyword);
-                            setSearch(item.keyword);
-                          }
-                        }}
-                        className="flex flex-col items-center gap-1"
-                      >
-                        {/* 이미지 원형 */}
-                        <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
-                          }`}>
-                          {item.keywordUrl ? (
-                            <img src={item.keywordUrl} alt={item.keyword} className="w-full h-full object-cover" />
-                          ) : (
-                            <img src={defaultKeywordImage} alt={item.keyword} className="w-full h-full object-contain p-1" />
-                          )}
-                        </div>
-                        {/* 키워드 텍스트 */}
-                        <span className={`text-xs font-medium whitespace-nowrap ${isActive ? 'text-orange-500' : 'text-gray-700'
-                          }`}>
-                          {item.keyword}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+            <div className="mt-2 px-3 pb-2">
+              <div className="grid grid-cols-5 gap-y-3 gap-x-2">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    clearSearch();
+                  }}
+                  className="flex flex-col items-center gap-1"
+                >
+                  <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${!activeChip ? 'border-orange-500' : 'border-gray-200'}`}>
+                    <img src={defaultKeywordImage} alt="전체" className="w-full h-full object-contain p-2 bg-gray-50" />
+                  </div>
+                  <span className={`text-xs font-medium whitespace-nowrap ${!activeChip ? 'text-orange-500' : 'text-gray-700'}`}>
+                    전체
+                  </span>
+                </button>
+                {((recommendedKeywords.length > 0 ? recommendedKeywords : [
+                  { keyword: '케이크', keywordUrl: undefined },
+                  { keyword: '할인', keywordUrl: undefined },
+                  { keyword: '딸기', keywordUrl: undefined },
+                  { keyword: '특가', keywordUrl: undefined }
+                ]).filter(k => k.keyword !== '전체')).map(item => {
+                  const isActive = activeChip === item.keyword;
+                  return (
+                    <button
+                      key={item.keyword}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isActive) {
+                          setActiveChip(null);
+                          setSearch('');
+                        } else {
+                          setActiveChip(item.keyword);
+                          setSearch(item.keyword);
+                        }
+                      }}
+                      className="flex flex-col items-center gap-1"
+                    >
+                      {/* 이미지 원형 */}
+                      <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
+                        }`}>
+                        {item.keywordUrl ? (
+                          <img src={item.keywordUrl} alt={item.keyword} className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={defaultKeywordImage} alt={item.keyword} className="w-full h-full object-contain p-1" />
+                        )}
+                      </div>
+                      {/* 키워드 텍스트 */}
+                      <span className={`text-xs font-medium whitespace-nowrap ${isActive ? 'text-orange-500' : 'text-gray-700'
+                        }`}>
+                        {item.keyword}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          </div>
+        )}
+
+        {/* 검색 결과 없음 */}
+        {allProductDates.length > 0 && availableDates.length === 0 && search && (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            <div className="text-sm">
+              <span
+                className="font-medium text-orange-600 cursor-pointer hover:underline"
+                onClick={clearSearch}
+                role="button"
+                aria-label="필터 초기화"
+              >
+                "{search}"
+              </span>
+              상품이 존재하지 않습니다.
+            </div>
+            <div className="text-xs text-gray-400 mt-1"
+              onClick={clearSearch}
+              role="button"
+              aria-label="필터 초기화"
+            >
+              <strong
+                className="font-medium text-red-500 cursor-pointer hover:underline decoration-red-400"
+              >
+                초기화
+              </strong>
+              를 눌러 모든 상품을 볼 수 있습니다.
+            </div>
           </div>
         )}
 
