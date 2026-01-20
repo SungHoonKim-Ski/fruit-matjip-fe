@@ -1218,8 +1218,8 @@ export const updateAdminProductCategoryOrder = async (categories: { id: number; 
   const key = 'updateAdminProductCategoryOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    // 서버는 PATCH /api/admin/products/categories, Body: { categories: [{id, name, image_url}] }
-    const res = await adminFetch('/api/admin/products/categories', {
+    // 서버는 PATCH /api/admin/products/categories/order, Body: { categories: [{id, name, imageUrl}] }
+    const res = await adminFetch('/api/admin/products/categories/order', {
       method: 'PATCH',
       body: JSON.stringify({
         categories: categories.map(c => ({
@@ -1282,23 +1282,6 @@ export const getProductCategoriesForProduct = async (productId: number) => {
   }
 };
 
-export const updateProductCategories = async (productId: number, categoryIds: number[]) => {
-  const key = 'updateProductCategories';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch(`/api/admin/products/${productId}/categories`, {
-      method: 'PUT',
-      body: JSON.stringify({ category_ids: categoryIds }),
-    }, true);
-
-    if (!res.ok) throw new Error('상품 카테고리 업데이트 실패');
-    if (res.ok) resetApiRetryCount(key);
-    return res;
-  } catch (e) {
-    incrementApiRetryCount(key);
-    throw e;
-  }
-};
 
 export const addCategoryToProduct = async (productId: number, categoryId: number) => {
   const key = 'addCategoryToProduct';
