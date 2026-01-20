@@ -96,8 +96,7 @@ export default function CategoryProductDialog({ categoryId, categoryName, initia
                 {/* Header */}
                 <div className="px-6 py-4 border-b flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-800">상품 연결 관리</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">카테고리: <span className="text-orange-600 font-semibold">{categoryName}</span></p>
+                        <h2 className="text-lg font-bold text-gray-800"><span className="text-orange-600 font-semibold">"{categoryName}"</span> 카테고리 상품 추가</h2>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +109,7 @@ export default function CategoryProductDialog({ categoryId, categoryName, initia
                 <div className="px-6 py-3 bg-gray-50 border-b">
                     <input
                         type="text"
-                        placeholder="상품명 검색..."
+                        placeholder="상품명 검색"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
@@ -183,7 +182,7 @@ export default function CategoryProductDialog({ categoryId, categoryName, initia
                             disabled={saving}
                             className="flex-2 flex-[2] py-3 rounded-xl font-bold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 transition-all shadow-md active:scale-95 flex items-center justify-center"
                         >
-                            {saving ? '저장 중...' : `${selectedIds.length}개 상품 연결 저장`}
+                            {saving ? '저장 중...' : `${selectedIds.length}개 추가`}
                         </button>
                     </div>
                 </div>
