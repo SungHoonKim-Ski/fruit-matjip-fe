@@ -254,6 +254,7 @@ export default function AdminCategoryPage() {
     setCategories(reordered);
     try {
       await updateAdminProductCategoryOrder(reordered.map(c => ({ id: c.id, name: c.name, imageUrl: c.imageUrl })));
+      show('저장되었습니다.', { variant: 'success' });
     } catch (e: any) {
       show(e.message, { variant: 'error' });
     }
