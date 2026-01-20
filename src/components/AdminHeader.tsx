@@ -48,15 +48,15 @@ export default function AdminHeader() {
       existingMenu.remove();
       return;
     }
-    
+
     const button = event.currentTarget as HTMLElement;
     const rect = button.getBoundingClientRect();
-    
+
     const menu = document.createElement('div');
     menu.className = 'fixed w-48 rounded-lg border bg-white shadow-lg overflow-hidden z-50';
     menu.style.left = `${rect.right - 192}px`; // 192px = w-48 (48 * 4)
     menu.style.top = `${rect.bottom + 8}px`; // 버튼 아래쪽에 8px 간격으로 배치
-    
+
     // 상품 관리 버튼
     const productsBtn = document.createElement('button');
     productsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -65,7 +65,7 @@ export default function AdminHeader() {
       goProducts();
       menu.remove();
     };
-    
+
     // 상품 등록 버튼
     const newProductBtn = document.createElement('button');
     newProductBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -74,7 +74,7 @@ export default function AdminHeader() {
       goNewProduct();
       menu.remove();
     };
-    
+
     // 판매일 변경 버튼
     const bulkSellDateBtn = document.createElement('button');
     bulkSellDateBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -83,7 +83,7 @@ export default function AdminHeader() {
       goBulkSellDate();
       menu.remove();
     };
-    
+
     // 노출순서 변경 버튼
     const productOrderBtn = document.createElement('button');
     productOrderBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -92,7 +92,7 @@ export default function AdminHeader() {
       goProductOrder();
       menu.remove();
     };
-    
+
     // 예약 확인 버튼
     const reservationsBtn = document.createElement('button');
     reservationsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -101,7 +101,7 @@ export default function AdminHeader() {
       goReservations();
       menu.remove();
     };
-    
+
     // 판매량 확인 버튼
     const salesBtn = document.createElement('button');
     salesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -110,7 +110,7 @@ export default function AdminHeader() {
       goSales();
       menu.remove();
     };
-    
+
     // 고객 관리 버튼
     const customersBtn = document.createElement('button');
     customersBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -119,16 +119,16 @@ export default function AdminHeader() {
       goCustomers();
       menu.remove();
     };
-    
+
     // 추천 검색어 관리 버튼
     const keywordBtn = document.createElement('button');
     keywordBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    keywordBtn.innerHTML = '🔎 추천 검색어';
+    keywordBtn.innerHTML = '🔎 카테고리 관리';
     keywordBtn.onclick = () => {
       navigate('/admin/keywords');
       menu.remove();
     };
-    
+
     // 버튼들을 메뉴에 추가
     menu.appendChild(productsBtn);
     menu.appendChild(newProductBtn);
@@ -138,10 +138,10 @@ export default function AdminHeader() {
     menu.appendChild(salesBtn);
     menu.appendChild(customersBtn);
     menu.appendChild(keywordBtn);
-    
+
     menu.classList.add('admin-header-menu');
     document.body.appendChild(menu);
-    
+
     // 메뉴 외부 클릭시 닫기
     const closeMenu = () => {
       menu.remove();

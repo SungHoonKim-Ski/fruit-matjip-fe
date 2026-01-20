@@ -83,7 +83,7 @@ function SortableItem({ item, onDelete, onEdit, onManageProducts, deleting }: So
 
       <div className="flex-1 min-w-0">
         <div className="font-bold text-gray-800 truncate">{item.name}</div>
-        <div className="text-[10px] text-gray-500">연결: <span className="text-orange-600 font-semibold">{item.productIds?.length || 0}개</span></div>
+        <div className="text-[10px] text-gray-500">상품수: <span className="text-orange-600 font-semibold">{item.productIds?.length || 0}개</span></div>
       </div>
 
       <div className="flex flex-wrap gap-1.5 items-center ml-auto">

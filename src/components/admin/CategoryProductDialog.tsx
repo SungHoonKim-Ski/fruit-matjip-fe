@@ -169,7 +169,7 @@ export default function CategoryProductDialog({ categoryId, categoryName, initia
                             : 'bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-100'
                             }`}
                     >
-                        {isAllSelected ? '검색 결과 전체 해제' : '검색 결과 전체 선택 (넣기)'}
+                        {isAllSelected ? '전체 선택 해제' : '전체 선택'}
                     </button>
                     <div className="flex gap-3">
                         <button
