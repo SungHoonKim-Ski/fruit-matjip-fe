@@ -82,19 +82,19 @@ export default function AdminProductPage() {
   const [search, setSearch] = useState('');
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [tempSearch, setTempSearch] = useState('');
-  
+
   // 필터링된 판매일 (검색 결과에서 날짜 클릭 시)
   const [filteredSellDate, setFilteredSellDate] = useState<string | null>(null);
-  
+
   const visibleProducts = useMemo(() => {
     let filtered = products;
-    
+
     // 검색어 필터링
     const q = search.trim();
     if (q) {
       filtered = filtered.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
     }
-    
+
     // 판매일 필터링
     if (filteredSellDate) {
       // 오늘 날짜 계산 (KST)
@@ -107,10 +107,10 @@ export default function AdminProductPage() {
       const thirtyDaysAgo = new Date(kstNow);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-      
+
       filtered = filtered.filter(p => {
         let sellDate = p.sellDate || '미설정';
-        
+
         // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
         if (sellDate !== '미설정' && sellDate < thirtyDaysAgoStr) {
           sellDate = '과거 상품+';
@@ -119,18 +119,18 @@ export default function AdminProductPage() {
         else if (sellDate !== '미설정' && sellDate < sevenDaysAgoStr) {
           sellDate = '과거 상품';
         }
-        
+
         return sellDate === filteredSellDate;
       });
     }
-    
+
     return filtered;
   }, [products, search, filteredSellDate]);
 
   // 판매일별로 그룹화 (7일 전 상품은 "과거 상품", 30일 전 상품은 "과거 상품+" 카테고리로)
   const groupedProducts = useMemo(() => {
     const groups: { [key: string]: Product[] } = {};
-    
+
     // 오늘 날짜 계산 (KST)
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -141,10 +141,10 @@ export default function AdminProductPage() {
     const thirtyDaysAgo = new Date(kstNow);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-    
+
     visibleProducts.forEach(product => {
       let sellDate = product.sellDate || '미설정';
-      
+
       // 30일 전 이전의 상품들은 "과거 상품+" 카테고리로
       if (sellDate !== '미설정' && sellDate < thirtyDaysAgoStr) {
         sellDate = '과거 상품+';
@@ -153,7 +153,7 @@ export default function AdminProductPage() {
       else if (sellDate !== '미설정' && sellDate < sevenDaysAgoStr) {
         sellDate = '과거 상품';
       }
-      
+
       if (!groups[sellDate]) {
         groups[sellDate] = [];
       }
@@ -183,11 +183,11 @@ export default function AdminProductPage() {
     if (sellDate === '미설정') return { text: '미설정', color: 'bg-gray-100 text-gray-600' };
     if (sellDate === '과거 상품') return { text: '7일+', color: 'bg-gray-200 text-gray-700' };
     if (sellDate === '과거 상품+') return { text: '30일+', color: 'bg-gray-300 text-gray-800' };
-    
+
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     const todayStr = kstNow.toISOString().split('T')[0];
-    
+
     if (sellDate > todayStr) return { text: '판매예정', color: 'bg-blue-100 text-blue-700' };
     if (sellDate === todayStr) return { text: '판매당일', color: 'bg-green-100 text-green-700' };
     return { text: '판매종료', color: 'bg-red-100 text-red-700' };
@@ -196,11 +196,11 @@ export default function AdminProductPage() {
   // 검색 관련 함수들
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim()) return text;
-    
+
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <mark key={index} className="bg-yellow-200 px-1 rounded">{part}</mark>
       ) : part
@@ -220,7 +220,7 @@ export default function AdminProductPage() {
   const applySearch = () => {
     setSearch(tempSearch);
     setSearchModalOpen(false);
-    
+
     // 검색 적용 시 모든 그룹을 펼치기
     if (tempSearch.trim()) {
       const availableDates = getAvailableDates(tempSearch);
@@ -238,14 +238,14 @@ export default function AdminProductPage() {
   const getFilteredProductsByTempSearch = (searchQuery: string) => {
     const query = searchQuery.trim().toLowerCase();
     if (query === '') return products;
-    
+
     return products.filter(p => p.name.toLowerCase().includes(query));
   };
 
   // 날짜별 필터링된 상품 개수 (검색 모달용)
   const getFilteredCountByDate = (sellDate: string, searchQuery: string) => {
     const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
-    
+
     // 과거 상품 카테고리 처리
     if (sellDate === '과거 상품') {
       const now = new Date();
@@ -256,13 +256,13 @@ export default function AdminProductPage() {
       const thirtyDaysAgo = new Date(kstNow);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-      
+
       return filteredProducts.filter(p => {
         const productSellDate = p.sellDate || '미설정';
         return productSellDate !== '미설정' && productSellDate < sevenDaysAgoStr && productSellDate >= thirtyDaysAgoStr;
       }).length;
     }
-    
+
     // 과거 상품+ 카테고리 처리
     if (sellDate === '과거 상품+') {
       const now = new Date();
@@ -270,20 +270,20 @@ export default function AdminProductPage() {
       const thirtyDaysAgo = new Date(kstNow);
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-      
+
       return filteredProducts.filter(p => {
         const productSellDate = p.sellDate || '미설정';
         return productSellDate !== '미설정' && productSellDate < thirtyDaysAgoStr;
       }).length;
     }
-    
+
     return filteredProducts.filter(p => (p.sellDate || '미설정') === sellDate).length;
   };
 
   // 검색 결과가 있는 날짜들 (검색 모달용)
   const getAvailableDates = (searchQuery: string) => {
     const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
-    
+
     // 7일 전, 30일 전 카테고리 처리
     const now = new Date();
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -293,9 +293,9 @@ export default function AdminProductPage() {
     const thirtyDaysAgo = new Date(kstNow);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-    
+
     const dates = new Set<string>();
-    
+
     filteredProducts.forEach(p => {
       const productSellDate = p.sellDate || '미설정';
       if (productSellDate !== '미설정' && productSellDate < thirtyDaysAgoStr) {
@@ -306,7 +306,7 @@ export default function AdminProductPage() {
         dates.add(productSellDate);
       }
     });
-    
+
     return Array.from(dates).sort((a, b) => {
       if (a === '미설정') return 1;
       if (b === '미설정') return -1;
@@ -489,15 +489,15 @@ export default function AdminProductPage() {
             {search ? `"${search}"에 대한 검색 결과가 없습니다.` : '등록된 상품이 없습니다.'}
           </div>
         )}
-        
+
         {Object.entries(groupedProducts).map(([sellDate, products]) => {
           const isExpanded = expandedGroups.has(sellDate);
           const status = getSellDateStatus(sellDate);
-          
+
           return (
             <div key={sellDate} className="bg-white rounded-lg shadow">
               {/* 그룹 헤더 */}
-              <div 
+              <div
                 className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
                 onClick={() => toggleGroup(sellDate)}
               >
@@ -513,17 +513,17 @@ export default function AdminProductPage() {
                   <span className="text-sm text-gray-500">
                     {countOf(sellDate)}개 상품
                   </span>
-                  <svg 
+                  <svg
                     className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                    fill="none" 
-                    stroke="currentColor" 
+                    fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>
               </div>
-              
+
               {/* 상품 목록 (펼쳐진 경우에만) */}
               {isExpanded && (
                 <div className="border-t">
@@ -574,7 +574,7 @@ export default function AdminProductPage() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* 조작 버튼들 */}
                       <div className="mt-3 space-y-2">
                         <div className="grid grid-cols-2 gap-2">
@@ -652,9 +652,8 @@ export default function AdminProductPage() {
                   programmaticCloseDialog();
                   await handleToggleSelfPick(productId, newAllowed);
                 }}
-                className={`flex-1 h-10 rounded text-white font-medium ${
-                  toggleSelfPickDialog.newAllowed ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
-                }`}
+                className={`flex-1 h-10 rounded text-white font-medium ${toggleSelfPickDialog.newAllowed ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
+                  }`}
               >
                 확인
               </button>
@@ -724,9 +723,8 @@ export default function AdminProductPage() {
                   programmaticCloseDialog();
                   await handleToggleStatus(productId, newStatus);
                 }}
-                className={`flex-1 h-10 rounded text-white font-medium ${
-                  toggleStatusDialog.newStatus === 'active' ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
-                }`}
+                className={`flex-1 h-10 rounded text-white font-medium ${toggleStatusDialog.newStatus === 'active' ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
+                  }`}
               >
                 확인
               </button>
@@ -738,21 +736,20 @@ export default function AdminProductPage() {
       {/* FAB 검색 버튼 */}
       <button
         onClick={search ? clearSearch : openSearchModal}
-        className={`fixed bottom-4 right-4 z-[60] bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
-          search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        }`}
+        className={`fixed bottom-4 right-4 z-[60] bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
+          }`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
       >
         {search ? (
           // 필터 초기화 아이콘 (필터)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
           // 검색 아이콘 (돋보기)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
           </svg>
         )}
         <span className="text-sm font-bold text-gray-900">
@@ -780,7 +777,7 @@ export default function AdminProductPage() {
                 ✕
               </button>
             </div>
-            
+
             {/* 검색 입력 */}
             <div className="p-4">
               <div className="relative">
@@ -810,7 +807,7 @@ export default function AdminProductPage() {
                 )}
               </div>
             </div>
-            
+
             {/* 검색 결과 날짜별 미리보기 */}
             {tempSearch && (
               <div className="px-4 pb-4">
@@ -818,12 +815,12 @@ export default function AdminProductPage() {
                   {getAvailableDates(tempSearch).map(sellDate => {
                     const count = getFilteredCountByDate(sellDate, tempSearch);
                     if (count === 0) return null;
-                    
+
                     const status = getSellDateStatus(sellDate);
-                    
+
                     return (
-                      <div 
-                        key={sellDate} 
+                      <div
+                        key={sellDate}
                         className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => {
                           setSearch(tempSearch);
@@ -847,7 +844,7 @@ export default function AdminProductPage() {
                     );
                   })}
                 </div>
-                
+
                 {/* 검색 결과 없음 */}
                 {getAvailableDates(tempSearch).every(sellDate => getFilteredCountByDate(sellDate, tempSearch) === 0) && (
                   <div className="text-center text-gray-500 py-6">
@@ -861,7 +858,7 @@ export default function AdminProductPage() {
                 )}
               </div>
             )}
-            
+
             {/* 버튼 영역 */}
             <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button

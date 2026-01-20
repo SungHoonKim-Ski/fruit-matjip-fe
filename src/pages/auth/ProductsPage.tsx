@@ -216,12 +216,15 @@ export default function ReservePage() {
   // 임시 검색어 (모달에서 입력 중인 검색어)
   const [tempSearch, setTempSearch] = useState('');
 
-  // 활성화된 추천 검색 칩
+  // 활성화된 카테고리 ID (null = 전체)
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+
+  // 활성화된 추천 검색 칩 (화면 표시용)
   const [activeChip, setActiveChip] = useState<string | null>(null);
 
-  // 추천 키워드 타입
-  type KeywordItem = { keyword: string; keywordUrl?: string };
-  const [recommendedKeywords, setRecommendedKeywords] = useState<KeywordItem[]>([]);
+  // 추천 카테고리 타입
+  type CategoryItem = { id: number; keyword: string; keywordUrl?: string };
+  const [recommendedKeywords, setRecommendedKeywords] = useState<CategoryItem[]>([]);
 
   // 선택된 날짜의 상품 목록 표시 상태
   const [selectedDateForProducts, setSelectedDateForProducts] = useState<string | null>(null);
@@ -239,29 +242,30 @@ export default function ReservePage() {
     return () => clearInterval(id);
   }, []);
 
-  // 추천 키워드 로드
+  // 추천 카테고리 로드
   useEffect(() => {
-    const fetchKeywords = async () => {
+    const fetchCategories = async () => {
       try {
         const data = await getProductKeywords();
         if (data && Array.isArray(data.response)) {
-          // 문자열 배열 또는 객체 배열 모두 지원
-          const list = data.response.map((item: string | any) => {
+          // 카테고리 배열 (id, name, imageUrl 또는 이전 형식 모두 지원)
+          const list = data.response.map((item: any) => {
             if (typeof item === 'string') {
-              return { keyword: item, keywordUrl: undefined };
+              return { id: 0, keyword: item, keywordUrl: undefined };
             }
             return {
-              keyword: item.keyword || '',
-              keywordUrl: item.keywordUrl || item.keyword_url || undefined,
+              id: item.id || 0,
+              keyword: item.name || item.keyword || '',
+              keywordUrl: item.image_url || item.imageUrl || item.keywordUrl || item.keyword_url || undefined,
             };
           });
           setRecommendedKeywords(list);
         }
       } catch (e) {
-        console.error('상품 키워드 불러오기 실패:', e);
+        console.error('카테고리 불러오기 실패:', e);
       }
     };
-    fetchKeywords();
+    fetchCategories();
   }, []);
 
   // 초기화 버튼이 활성화되었을 때 주기적으로 진동 애니메이션 표시
@@ -331,7 +335,7 @@ export default function ReservePage() {
           toDate.setDate(start.getDate() + MAX_DAYS - 1);
           const toStr = formatKstYmd(toDate);
 
-          const res = await getProducts(fromStr, toStr);
+          const res = await getProducts(fromStr, toStr, activeCategoryId ?? undefined);
           if (!res.ok) {
             // 401, 403 에러는 통합 에러 처리로 위임
             if (res.status === 401 || res.status === 403) {
@@ -375,7 +379,7 @@ export default function ReservePage() {
       }
     };
     loadProducts();
-  }, [show, dates]);
+  }, [show, dates, activeCategoryId]);
 
   // 사용자 메시지 확인 (페이지 진입 시)
   useEffect(() => {
@@ -1151,6 +1155,101 @@ export default function ReservePage() {
 
 
 
+
+        {/* 날짜 탭 + 검색 칩 (항상 표시) */}
+        <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-2 mb-4">
+          <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
+            {availableDates.length > 0 ? availableDates.map(date => {
+              const active = activeDate === date;
+              return (
+                <button
+                  key={date}
+                  onClick={() => {
+                    setActiveDate(date);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={
+                    'px-2 py-1.5 rounded-lg border text-xs whitespace-nowrap transition ' +
+                    (active
+                      ? 'bg-orange-500 text-white border-orange-500 shadow'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
+                  }
+                >
+                  <div className="font-semibold text-xs">{prettyKdate(date)}</div>
+                  <div className={`text-[11px] mt-0.5 text-center ${active ? 'text-white/90' : 'text-gray-600'}`}>
+                    {countOf(date)}개 예약중
+                  </div>
+                </button>
+              );
+            }) : (
+              <div className="text-gray-400 text-xs py-2">
+                {allProductDates.length === 0 ? '판매 예정 상품 준비 중' : '카테고리에 해당하는 상품이 없습니다'}
+              </div>
+            )}
+          </div>
+          {/* 검색 칩 */}
+          <div className="mt-2 px-3 pb-2">
+            <div className="grid grid-cols-5 gap-y-3 gap-x-2">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  clearSearch();
+                  setActiveCategoryId(null); // 카테고리 필터도 초기화
+                }}
+                className="flex flex-col items-center gap-1"
+              >
+                <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${!activeChip ? 'border-orange-500' : 'border-gray-200'}`}>
+                  <img src={defaultKeywordImage} alt="ALL" className="w-full h-full object-contain p-2 bg-gray-50" />
+                </div>
+                <span className={`text-xs font-medium whitespace-nowrap ${!activeChip ? 'text-orange-500' : 'text-gray-700'}`}>
+                  ALL
+                </span>
+              </button>
+              {((recommendedKeywords.length > 0 ? recommendedKeywords : [
+                { id: 0, keyword: '케이크', keywordUrl: undefined },
+                { id: 0, keyword: '할인', keywordUrl: undefined },
+                { id: 0, keyword: '딸기', keywordUrl: undefined },
+                { id: 0, keyword: '특가', keywordUrl: undefined }
+              ]).filter(k => k.keyword !== 'ALL')).map(item => {
+                const isActive = activeChip === item.keyword;
+                return (
+                  <button
+                    key={item.keyword}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (isActive) {
+                        // 칩 선택 해제 → 전체 상품 조회
+                        setActiveChip(null);
+                        setActiveCategoryId(null);
+                      } else {
+                        // 칩 선택 → 카테고리 ID로 상품 조회
+                        setActiveChip(item.keyword);
+                        setActiveCategoryId(item.id || null);
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    {/* 이미지 원형 */}
+                    <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
+                      }`}>
+                      {item.keywordUrl ? (
+                        <img src={item.keywordUrl} alt={item.keyword} className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={defaultKeywordImage} alt={item.keyword} className="w-full h-full object-contain p-1" />
+                      )}
+                    </div>
+                    {/* 키워드 텍스트 */}
+                    <span className={`text-xs font-medium whitespace-nowrap ${isActive ? 'text-orange-500' : 'text-gray-700'
+                      }`}>
+                      {item.keyword}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         {/* 전체 비어있을 때 안내 */}
         {allProductDates.length === 0 && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
@@ -1158,92 +1257,11 @@ export default function ReservePage() {
           </div>
         )}
 
-        {/* 날짜 탭 (상품 없는 날짜는 비노출) */}
-        {allProductDates.length > 0 && (
-          <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-2 mb-4">
-            <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
-              {availableDates.map(date => {
-                const active = activeDate === date;
-                return (
-                  <button
-                    key={date}
-                    onClick={() => {
-                      setActiveDate(date);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={
-                      'px-2 py-1.5 rounded-lg border text-xs whitespace-nowrap transition ' +
-                      (active
-                        ? 'bg-orange-500 text-white border-orange-500 shadow'
-                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
-                    }
-                  >
-                    <div className="font-semibold text-xs">{prettyKdate(date)}</div>
-                    <div className={`text-[11px] mt-0.5 text-center ${active ? 'text-white/90' : 'text-gray-600'}`}>
-                      {countOf(date)}개 예약중
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {/* 검색 칩 */}
-            <div className="mt-2 px-3 pb-2">
-              <div className="grid grid-cols-5 gap-y-3 gap-x-2">
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    clearSearch();
-                  }}
-                  className="flex flex-col items-center gap-1"
-                >
-                  <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${!activeChip ? 'border-orange-500' : 'border-gray-200'}`}>
-                    <img src={defaultKeywordImage} alt="ALL" className="w-full h-full object-contain p-2 bg-gray-50" />
-                  </div>
-                  <span className={`text-xs font-medium whitespace-nowrap ${!activeChip ? 'text-orange-500' : 'text-gray-700'}`}>
-                    ALL
-                  </span>
-                </button>
-                {((recommendedKeywords.length > 0 ? recommendedKeywords : [
-                  { keyword: '케이크', keywordUrl: undefined },
-                  { keyword: '할인', keywordUrl: undefined },
-                  { keyword: '딸기', keywordUrl: undefined },
-                  { keyword: '특가', keywordUrl: undefined }
-                ]).filter(k => k.keyword !== 'ALL')).map(item => {
-                  const isActive = activeChip === item.keyword;
-                  return (
-                    <button
-                      key={item.keyword}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (isActive) {
-                          setActiveChip(null);
-                          setSearch('');
-                        } else {
-                          setActiveChip(item.keyword);
-                          setSearch(item.keyword);
-                        }
-                      }}
-                      className="flex flex-col items-center gap-1"
-                    >
-                      {/* 이미지 원형 */}
-                      <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
-                        }`}>
-                        {item.keywordUrl ? (
-                          <img src={item.keywordUrl} alt={item.keyword} className="w-full h-full object-cover" />
-                        ) : (
-                          <img src={defaultKeywordImage} alt={item.keyword} className="w-full h-full object-contain p-1" />
-                        )}
-                      </div>
-                      {/* 키워드 텍스트 */}
-                      <span className={`text-xs font-medium whitespace-nowrap ${isActive ? 'text-orange-500' : 'text-gray-700'
-                        }`}>
-                        {item.keyword}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+        {/* 필터링 결과 없음 (검색어 없는 경우 - 카테고리 등) */}
+        {allProductDates.length > 0 && availableDates.length === 0 && !search && (
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            조회된 상품이 없습니다.
+            <div className="text-xs text-gray-400 mt-2">다른 카테고리를 선택해 보세요.</div>
           </div>
         )}
 

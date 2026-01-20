@@ -372,12 +372,22 @@ export const handleApiResponse = async (response: Response) => {
 };
 
 // === 편의 함수들 ===
-export const getProducts = async (from?: string, to?: string) => {
+export const getProducts = async (from?: string, to?: string, categoryId?: number) => {
   const key = 'getProducts';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     let url = '/api/auth/products';
-    if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    const params = [];
+    if (from && to) {
+      params.push(`from=${encodeURIComponent(from)}`);
+      params.push(`to=${encodeURIComponent(to)}`);
+    }
+    if (categoryId) {
+      params.push(`categoryId=${categoryId}`);
+    }
+    if (params.length > 0) {
+      url += '?' + params.join('&');
+    }
     const res = await userFetch(url);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -394,11 +404,11 @@ export const getProduct = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getProductKeywords = async () => {
-  const key = 'getKeywords';
+export const getProductCategories = async () => {
+  const key = 'getCategories';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/products/keywords');
+    const res = await userFetch('/api/auth/products/categories');
     if (res.ok) resetApiRetryCount(key);
     return res.json();
   } catch (e) {
@@ -406,6 +416,9 @@ export const getProductKeywords = async () => {
     throw e;
   }
 };
+
+// 레거시: 기존 키워드 API를 카테고리로 매핑 (하위 호환성)
+export const getProductKeywords = getProductCategories;
 
 export const createReservation = async (data: any) => {
   const key = 'createReservation';
@@ -1114,29 +1127,36 @@ export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem
 };
 
 
-// === Admin Keyword 관리 API ===
-export const getAdminProductKeywords = async () => {
-  const key = 'getAdminKeywords';
+// === Admin Category 관리 API ===
+export const getAdminProductCategories = async () => {
+  const key = 'getAdminCategories';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products/keywords', {}, true);
+    const res = await adminFetch('/api/admin/products/categories', {}, true);
     if (res.ok) resetApiRetryCount(key);
-    return res.json(); // ProductKeywordResponse 반환
+    return res.json(); // ProductCategoryResponse 반환
   } catch (e) {
     incrementApiRetryCount(key);
     throw e;
   }
 };
 
-export const addAdminProductKeyword = async (keyword: string) => {
-  const key = 'addAdminProductKeyword';
+// 레거시: 하위 호환성
+export const getAdminProductKeywords = getAdminProductCategories;
+
+export const addAdminProductCategory = async (name: string, imageUrl?: string) => {
+  const key = 'addAdminProductCategory';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/keyword?keyword=${keyword}`, {
+    const body: { name: string; image_url?: string } = { name };
+    if (imageUrl) body.image_url = imageUrl;
+
+    const res = await adminFetch('/api/admin/products/category', {
       method: 'POST',
+      body: JSON.stringify(body),
     }, true);
 
-    if (!res.ok) throw new Error('추천 검색어 추가 실패');
+    if (!res.ok) throw new Error('카테고리 추가 실패');
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) {
@@ -1145,15 +1165,41 @@ export const addAdminProductKeyword = async (keyword: string) => {
   }
 };
 
-export const deleteAdminProductKeyword = async (keyword: string) => {
-  const key = 'deleteAdminProductKeyword';
+export const updateAdminProductCategory = async (id: number, name?: string, imageUrl?: string) => {
+  const key = 'updateAdminProductCategory';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/keyword?keyword=${keyword}`, {
+    const body: { name?: string; image_url?: string } = {};
+    if (name) body.name = name;
+    if (imageUrl) body.image_url = imageUrl;
+
+    const res = await adminFetch(`/api/admin/products/category/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }, true);
+
+    if (!res.ok) throw new Error('카테고리 수정 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 레거시: 하위 호환성
+export const addAdminProductKeyword = (keyword: string) => addAdminProductCategory(keyword);
+export const addAdminProductKeywordWithImage = (keyword: string, keywordUrl?: string) => addAdminProductCategory(keyword, keywordUrl);
+
+export const deleteAdminProductCategory = async (name: string) => {
+  const key = 'deleteAdminProductCategory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/category?keyword=${encodeURIComponent(name)}`, {
       method: 'DELETE',
     }, true);
 
-    if (!res.ok) throw new Error('추천 검색어 제거 실패');
+    if (!res.ok) throw new Error('카테고리 삭제 실패');
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) {
@@ -1162,25 +1208,29 @@ export const deleteAdminProductKeyword = async (keyword: string) => {
   }
 };
 
-// 순서 일괄 업데이트 (드래그앤드롭 후 저장)
-export type KeywordItem = { keyword: string; keywordUrl?: string };
+// 레거시: 하위 호환성
+export const deleteAdminProductKeyword = deleteAdminProductCategory;
 
-export const updateAdminProductKeywordOrder = async (keywords: KeywordItem[]) => {
-  const key = 'updateAdminProductKeywordOrder';
+// 순서 일괄 업데이트 (드래그앤드롭 후 저장)
+export type CategoryItem = { keyword: string; keywordUrl?: string };
+
+export const updateAdminProductCategoryOrder = async (categories: { id: number; name: string; imageUrl?: string }[]) => {
+  const key = 'updateAdminProductCategoryOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    // 서버는 PATCH /api/admin/products/keywords, Body: { keywords: [{keyword, keyword_url}] }
-    const res = await adminFetch('/api/admin/products/keywords', {
+    // 서버는 PATCH /api/admin/products/categories, Body: { categories: [{id, name, image_url}] }
+    const res = await adminFetch('/api/admin/products/categories', {
       method: 'PATCH',
       body: JSON.stringify({
-        keywords: keywords.map(k => ({
-          keyword: k.keyword,
-          keyword_url: k.keywordUrl
+        categories: categories.map(c => ({
+          id: c.id,
+          name: c.name,
+          image_url: c.imageUrl
         }))
       }),
     }, true);
 
-    if (!res.ok) throw new Error('추천 검색어 순서 저장 실패');
+    if (!res.ok) throw new Error('카테고리 순서 저장 실패');
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) {
@@ -1189,9 +1239,13 @@ export const updateAdminProductKeywordOrder = async (keywords: KeywordItem[]) =>
   }
 };
 
-// 키워드 이미지 업로드용 presigned URL 발급
-export const getKeywordPresignedUrl = async (filename: string, contentType: string): Promise<Response> => {
-  const key = 'getKeywordPresignedUrl';
+// 레거시: 하위 호환성
+export type KeywordItem = CategoryItem;
+export const updateAdminProductKeywordOrder = updateAdminProductCategoryOrder;
+
+// 카테고리 이미지 업로드용 presigned URL 발급
+export const getCategoryPresignedUrl = async (filename: string, contentType: string): Promise<Response> => {
+  const key = 'getCategoryPresignedUrl';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     if (!contentType || typeof contentType !== 'string') throw new Error(`Invalid contentType: ${contentType}`);
@@ -1199,6 +1253,7 @@ export const getKeywordPresignedUrl = async (filename: string, contentType: stri
     if (!cleanContentType) throw new Error('contentType cannot be empty after trimming');
 
     const body = { file_name: filename, content_type: cleanContentType };
+    // 카테고리 전용 presigned-url 엔드포인트 (기존 keyword와 동일할 수 있으나 명칭 정리)
     const res = await adminFetch('/api/admin/keyword/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
 
     if (res.status === 403) {
@@ -1209,20 +1264,87 @@ export const getKeywordPresignedUrl = async (filename: string, contentType: stri
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-// 키워드 추가 (이미지 URL 포함)
-export const addAdminProductKeywordWithImage = async (keyword: string, keywordUrl?: string) => {
-  const key = 'addAdminProductKeywordWithImage';
+// 레거시: 하위 호환성
+export const getKeywordPresignedUrl = getCategoryPresignedUrl;
+
+// === 상품-카테고리 연결 API ===
+export const getProductCategoriesForProduct = async (productId: number) => {
+  const key = 'getProductCategoriesForProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const body: { keyword: string; keyword_url?: string } = { keyword };
-    if (keywordUrl) body.keyword_url = keywordUrl;
+    // 카테고리 목록 조회 + 상품 정보에서 카테고리 연결 확인
+    const res = await adminFetch('/api/admin/products/categories', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res.json();
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
 
-    const res = await adminFetch('/api/admin/products/keyword', {
-      method: 'POST',
-      body: JSON.stringify(body),
+export const updateProductCategories = async (productId: number, categoryIds: number[]) => {
+  const key = 'updateProductCategories';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/${productId}/categories`, {
+      method: 'PUT',
+      body: JSON.stringify({ category_ids: categoryIds }),
     }, true);
 
-    if (!res.ok) throw new Error('추천 검색어 추가 실패');
+    if (!res.ok) throw new Error('상품 카테고리 업데이트 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const addCategoryToProduct = async (productId: number, categoryId: number) => {
+  const key = 'addCategoryToProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/${productId}/categories/${categoryId}`, {
+      method: 'POST',
+    }, true);
+
+    if (!res.ok) throw new Error('카테고리 연결 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const removeCategoryFromProduct = async (productId: number, categoryId: number) => {
+  const key = 'removeCategoryFromProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/${productId}/categories/${categoryId}`, {
+      method: 'DELETE',
+    }, true);
+
+    if (!res.ok) throw new Error('카테고리 연결 해제 실패');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+// 카테고리에 상품들 일괄 할당
+export const updateCategoryProducts = async (categoryId: number, productIds: number[]) => {
+  const key = 'updateCategoryProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/products/categories/${categoryId}/products`, {
+      method: 'PUT',
+      body: JSON.stringify({ product_ids: productIds }),
+    }, true);
+
+    if (!res.ok) throw new Error('카테고리 상품 할당 실패');
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) {
