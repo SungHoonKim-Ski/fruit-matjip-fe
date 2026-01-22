@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { createAdminProduct, getUploadUrl } from '../../utils/api';
+import { addCategoryToProduct, createAdminProduct, getAdminProductCategories, getUploadUrl } from '../../utils/api';
 import { compressImage } from '../../utils/image-compress';
 
 type ProductForm = {
@@ -15,6 +15,11 @@ type ProductForm = {
   visible: boolean;  // NotNull
 };
 const PRICE_MAX = 1_000_000;
+type CategoryItem = {
+  id: number;
+  name: string;
+  imageUrl?: string;
+};
 
 // KST 기준 오늘 날짜 반환 함수
 function getKstTodayStr() {
@@ -46,11 +51,38 @@ export default function ProductCreatePage() {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCompressed, setIsCompressed] = useState(false);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
 
   // 미리보기 URL 정리
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  useEffect(() => {
+    let alive = true;
+    const loadCategories = async () => {
+      if (USE_MOCKS) {
+        if (alive) setCategories([]);
+        return;
+      }
+      try {
+        const data = await getAdminProductCategories();
+        const list = Array.isArray(data?.response) ? data.response : (Array.isArray(data) ? data : []);
+        if (alive) {
+          setCategories(list.map((c: any) => ({
+            id: Number(c.id),
+            name: String(c.name ?? ''),
+            imageUrl: c.imageUrl ?? c.image_url ?? undefined,
+          })));
+        }
+      } catch (err) {
+        safeErrorLog(err, 'ProductCreatePage - loadCategories');
+      }
+    };
+    loadCategories();
+    return () => { alive = false; };
+  }, []);
 
   const handleNumberInput = (e: React.FormEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -202,10 +234,32 @@ export default function ProductCreatePage() {
         throw new Error(`상품 등록 실패: ${res.status} ${res.statusText}`);
       }
 
+      let createdId: number | null = null;
+      try {
+        const body = await res.json();
+        if (typeof body === 'number') {
+          createdId = body;
+        } else if (body && typeof body === 'object') {
+          createdId = Number(body.id ?? body.product_id ?? body.productId ?? 0) || null;
+        }
+      } catch {
+        createdId = null;
+      }
+
+      if (createdId && selectedCategoryIds.length > 0) {
+        try {
+          await Promise.all(selectedCategoryIds.map(id => addCategoryToProduct(createdId as number, id)));
+        } catch (err) {
+          safeErrorLog(err, 'ProductCreatePage - attach categories');
+          show('카테고리 연결 중 오류가 발생했습니다.', { variant: 'error' });
+        }
+      }
+
       show('상품이 등록되었습니다!', { variant: 'success' });
       setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true });
       if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
       setIsCompressed(false);
+      setSelectedCategoryIds([]);
       nav('/admin/products', { replace: true });
     } catch (err: any) {
       safeErrorLog(err, 'ProductCreatePage - handleSubmit');
@@ -275,6 +329,40 @@ export default function ProductCreatePage() {
               required
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">카테고리</label>
+          {categories.length === 0 ? (
+            <div className="text-xs text-gray-500">등록된 카테고리가 없습니다.</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {categories.map(category => {
+                const active = selectedCategoryIds.includes(category.id);
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryIds(prev =>
+                        prev.includes(category.id)
+                          ? prev.filter(id => id !== category.id)
+                          : [...prev, category.id]
+                      );
+                    }}
+                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                      active
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-xs text-gray-400">여러 개 선택 가능합니다.</p>
         </div>
 
         <div className="space-y-2">
