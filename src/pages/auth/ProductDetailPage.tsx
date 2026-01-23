@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById } from '../../mocks/products';
@@ -168,14 +169,25 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
               </div>
 
               <div className="mt-4">
-                
-
                 {product.description && (
                   <div 
                     className="mt-3 text-sm text-gray-700 break-keep leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: renderSafeHTML(product.description) }}
                   />
                 )}
+
+                <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-2">
+                  <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>서비스 제공 기간: 수령일 당일 수령/배달(배달 12~20시)</li>
+                    <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
+                    <li>정기결제: 제공하지 않습니다.</li>
+                  </ul>
+                  <div className="flex flex-wrap gap-3 text-blue-600">
+                    <Link to="/refund" className="hover:underline">교환/환불 정책</Link>
+                    <Link to="/terms" className="hover:underline">이용약관</Link>
+                  </div>
+                </div>
 
                 {/* 추가 이미지 */}
                 {product.detail_images && product.detail_images.length > 0 && (

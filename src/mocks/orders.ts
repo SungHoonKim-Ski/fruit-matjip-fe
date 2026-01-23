@@ -13,8 +13,12 @@ export type OrderItem = {
 export type OrderRow = {
   id: number;
   date: string;           // YYYY-MM-DD
-  status: 'pending' | 'picked' | 'self_pick' | 'self_pick_ready' | 'canceled';
+  status: 'pending' | 'picked' | 'canceled';
   items: OrderItem[];
+  delivery?: {
+    status?: string;
+    deliveryHour?: number;
+  };
 };
 
 export const mockOrders: OrderRow[] = [
@@ -38,7 +42,7 @@ export const mockOrders: OrderRow[] = [
   {
     id: 103,
     date: '2025-08-13',
-    status: 'self_pick_ready',
+    status: 'pending',
     items: [
       { id: 4, name: '제주 감귤 3kg', quantity: 1, price: 5000, imageUrl: '/images/image4.png' },
     ],
@@ -54,7 +58,7 @@ export const mockOrders: OrderRow[] = [
   {
     id: 105,
     date: '2025-08-15',
-    status: 'self_pick',
+    status: 'pending',
     items: [
       { id: 6, name: '친환경 바나나 1송이', quantity: 1, price: 4500, imageUrl: '/images/image6.png' },
     ],
@@ -62,7 +66,7 @@ export const mockOrders: OrderRow[] = [
   {
     id: 106,
     date: '2025-08-16',
-    status: 'self_pick_ready',
+    status: 'pending',
     items: [
       { id: 7, name: '신선한 딸기 500g', quantity: 2, price: 8000, imageUrl: '/images/image7.png' },
     ],

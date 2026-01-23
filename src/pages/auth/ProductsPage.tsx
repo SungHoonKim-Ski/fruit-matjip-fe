@@ -5,8 +5,9 @@ import FloatingActions from '../../components/FloatingActions';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, selfPickReservation, checkCanSelfPick, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
+import Footer from '../../components/Footer';
 import { theme, logoText, defaultKeywordImage } from '../../brand';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
@@ -20,10 +21,9 @@ type Product = {
   imageUrl: string;
   sellDate: string; // YYYY-MM-DD
   totalSold?: number;
-  reservationId?: number; // 예약 ID (셀프 수령 신청 시 사용)
   orderIndex?: number; // 노출 순서
   sellTime?: string; // 예약 시작 시간 (HH:mm, KST) - 선택값
-  selfPickAllowed?: boolean; // 서버 self_pick
+  deliveryAvailable?: boolean; // 서버 delivery_available
 };
 
 const formatPrice = (price: number) =>
@@ -126,15 +126,6 @@ export default function ReservePage() {
     productId: number;
   }>({ isOpen: false, productId: 0 });
 
-  // 개인정보처리방침 dialog 상태
-  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
-
-  // 셀프 수령 확인 dialog 상태
-  const [selfPickDialog, setSelfPickDialog] = useState<{
-    isOpen: boolean;
-    product: Product | null;
-  }>({ isOpen: false, product: null });
-
   // 닉네임 + 모달
   const [nickname, setNickname] = useState<string>(() => {
     const saved = localStorage.getItem('nickname');
@@ -159,9 +150,9 @@ export default function ReservePage() {
   // 예약 처리 중인 상품 ID 추적
   const [reservingProductId, setReservingProductId] = useState<number | null>(null);
 
-  // 모달(상세/닉네임/개인정보/셀프수령/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
+  // 모달(상세/닉네임/개인정보/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
-    const anyOpen = detailDialog.isOpen || nickModalOpen || privacyDialogOpen || selfPickDialog.isOpen || searchModalOpen || messageDialog.isOpen;
+    const anyOpen = detailDialog.isOpen || nickModalOpen || searchModalOpen || messageDialog.isOpen;
     if (anyOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -169,7 +160,7 @@ export default function ReservePage() {
         document.body.style.overflow = prev || '';
       };
     }
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen, messageDialog.isOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, searchModalOpen, messageDialog.isOpen]);
   // 뒤로가기(popstate) 핸들링
   useEffect(() => {
     const onPopState = () => {
@@ -179,14 +170,6 @@ export default function ReservePage() {
       }
       if (nickModalOpen) {
         setNickModalOpen(false);
-        return;
-      }
-      if (privacyDialogOpen) {
-        setPrivacyDialogOpen(false);
-        return;
-      }
-      if (selfPickDialog.isOpen) {
-        setSelfPickDialog({ isOpen: false, product: null });
         return;
       }
       if (searchModalOpen) {
@@ -204,7 +187,7 @@ export default function ReservePage() {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [detailDialog.isOpen, nickModalOpen, privacyDialogOpen, selfPickDialog.isOpen, searchModalOpen, messageDialog.isOpen]);
+  }, [detailDialog.isOpen, nickModalOpen, searchModalOpen, messageDialog.isOpen]);
 
   // 날짜 탭
   const dates = useMemo(() => getNext10Days(), []);
@@ -370,7 +353,9 @@ export default function ReservePage() {
             totalSold: p.total_sold ?? 0,
             orderIndex: p.order_index ?? 0,
             sellTime: p.sell_time || p.sellTime, // 선택적 시간 필드 매핑
-            selfPickAllowed: typeof p.self_pick === 'boolean' ? Boolean(p.self_pick) : undefined,
+            deliveryAvailable: typeof p.delivery_available === 'boolean'
+              ? Boolean(p.delivery_available)
+              : (typeof p.deliveryAvailable === 'boolean' ? Boolean(p.deliveryAvailable) : true),
           })));
         } catch (e: any) {
           safeErrorLog(e, 'ShopPage - loadProducts');
@@ -648,39 +633,6 @@ export default function ReservePage() {
           )
         );
 
-        // 셀프 수령 가능 여부 미리 확인 (Mock 모드)
-        try {
-          const canPick = await checkCanSelfPick();
-          if (!canPick) {
-            // 셀프 수령이 불가능한 경우 dialog 없이 처리
-            show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
-          } else {
-            // 셀프 수령이 가능한 경우에만 dialog 표시
-            let reservationId = mockReservationResponse.id;
-            if (!reservationId) {
-              console.error('Mock 모드 - reservationId가 설정되지 않음, 임시 ID 사용');
-              reservationId = Date.now(); // 임시 ID 사용
-            }
-
-            const productWithReservationId = { ...product, reservationId };
-
-            // 이미 dialog가 열려있지 않은 경우에만 열기
-            if (!selfPickDialog.isOpen) {
-              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-              window.history.pushState({ modal: 'selfPick' }, '');
-            }
-          }
-        } catch (e: any) {
-          // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
-          let reservationId = mockReservationResponse.id || Date.now();
-          const productWithReservationId = { ...product, reservationId };
-
-          // 이미 dialog가 열려있지 않은 경우에만 열기
-          if (!selfPickDialog.isOpen) {
-            setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-            window.history.pushState({ modal: 'selfPick' }, '');
-          }
-        }
       } else {
         // 실제 예약 API 호출
         const reservationData = {
@@ -724,32 +676,6 @@ export default function ReservePage() {
             )
           );
 
-          // 셀프 수령 가능 여부 미리 확인
-          try {
-            const canPick = await checkCanSelfPick();
-            if (!canPick) {
-              // 셀프 수령이 불가능한 경우 dialog 없이 처리
-              // show('셀프 수령 신청 후 미수령 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'info' });
-            } else {
-              // 셀프 수령이 가능한 경우에만 dialog 표시
-              const productWithReservationId = { ...product, reservationId };
-
-              // 이미 dialog가 열려있지 않은 경우에만 열기
-              if (!selfPickDialog.isOpen) {
-                setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-                window.history.pushState({ modal: 'selfPick' }, '');
-              }
-            }
-          } catch (e: any) {
-            // 에러 발생 시에도 dialog 표시 (사용자가 직접 시도할 수 있도록)
-            const productWithReservationId = { ...product, reservationId };
-
-            // 이미 dialog가 열려있지 않은 경우에만 열기
-            if (!selfPickDialog.isOpen) {
-              setSelfPickDialog({ isOpen: true, product: productWithReservationId });
-              window.history.pushState({ modal: 'selfPick' }, '');
-            }
-          }
         }
       }
     } catch (e: any) {
@@ -923,41 +849,8 @@ export default function ReservePage() {
     window.history.pushState({ modal: 'product', productId }, '');
   };
 
-  // 셀프 수령 신청 처리
-  const handleSelfPick = async (product: Product) => {
-    if (!product.reservationId) {
-      show('예약 정보를 찾을 수 없습니다.', { variant: 'error' });
-      return;
-    }
-
-    try {
-      // 전역 허용 + 상품 자체 허용 둘 다 필요
-      const canPick = await checkCanSelfPick();
-      if (!canPick || product.selfPickAllowed !== true) {
-        show('셀프 수령 불가 상품이거나, 노쇼 누적으로 셀프 수령 신청이 불가능합니다.', { variant: 'error' });
-        setSelfPickDialog({ isOpen: false, product: null });
-        return;
-      }
-
-      // 셀프 수령 API 호출 (예약 ID 사용)
-      const res = await selfPickReservation(product.reservationId);
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || '셀프 수령 신청에 실패했습니다.');
-      }
-
-      show(`${product.name}의 셀프 수령을 준비합니다.`);
-      setSelfPickDialog({ isOpen: false, product: null });
-    } catch (e: any) {
-      safeErrorLog(e, 'ProductsPage - handleSelfPick');
-      show(getSafeErrorMessage(e, '셀프 수령 신청 중 오류가 발생했습니다.'), { variant: 'error' });
-      setSelfPickDialog({ isOpen: false, product: null });
-    }
-  };
-
   return (
-    <main className="bg-[#f6f6f6] min-h-screen flex justify-center px-4 sm:px-6 lg:px-8 pt-16 pb-24">
+    <main className="bg-[#f6f6f6] min-h-screen flex flex-col items-center px-4 sm:px-6 lg:px-8 pt-16 pb-24">
       {/* 상단 바: 3등분 레이아웃로 균등 분배 */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
         <div className="mx-auto w-full max-w-md h-14 flex items-center px-4">
@@ -1054,15 +947,6 @@ export default function ReservePage() {
               <p className="mt-1">&copy; 2025 All rights reserved.</p>
             </div>
 
-            {/* 개인정보처리방침 링크 */}
-            <div className="mt-4">
-              <button
-                onClick={() => setPrivacyDialogOpen(true)}
-                className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                개인정보처리방침
-              </button>
-            </div>
           </aside>
         </>
       )}
@@ -1321,8 +1205,8 @@ export default function ReservePage() {
                   {item.stock > 0 && (
                     <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
                       <div>
-                        {item.selfPickAllowed === false && (
-                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">{theme.config.pickupDeadline.split(':')[0]}시 이후 수령 불가</span>
+                        {item.deliveryAvailable === false && (
+                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">배달 불가</span>
                         )}
                       </div>
                       <span className="text-l">
@@ -1411,53 +1295,6 @@ export default function ReservePage() {
         </span>
       </button>
 
-      {/* 셀프 수령 확인 Dialog */}
-      {selfPickDialog.isOpen && selfPickDialog.product && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelfPickDialog({ isOpen: false, product: null })} />
-          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-6">
-            <div className="text-center mb-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">🎉 예약 완료!</h2>
-              <p className="text-sm text-gray-600">
-                <strong>{selfPickDialog.product.name}</strong> {selfPickDialog.product.quantity}개가 예약되었습니다!
-              </p>
-            </div>
-
-
-            <div className="flex gap-3">
-
-              <button
-                onClick={() => handleSelfPick(selfPickDialog.product!)}
-                disabled={selfPickDialog.product?.selfPickAllowed === false}
-                className={`flex-1 h-12 rounded-lg font-medium text-sm ${selfPickDialog.product?.selfPickAllowed === false
-                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  : 'bg-orange-500 hover:bg-orange-600 text-white'
-                  }`}
-              >
-                <span className="whitespace-pre-line">
-                  {selfPickDialog.product?.selfPickAllowed === false
-                    ? '영업 중 방문\n(매장수령)'
-                    : `${theme.config.pickupDeadline.split(':')[0]}시 이후 방문\n(셀프수령)`}
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setSelfPickDialog({ isOpen: false, product: null });
-                  // show('우측 하단 주문 내역에서 변경할 수 있습니다.');
-                }}
-                className="flex-1 h-12 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 상품 상세 Dialog */}
       {detailDialog.isOpen && (
         <ProductDetailPage
@@ -1467,193 +1304,7 @@ export default function ReservePage() {
         />
       )}
 
-      {/* 개인정보처리방침 Dialog */}
-      {privacyDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center p-4"
-          aria-modal="true"
-          role="dialog"
-        >
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPrivacyDialogOpen(false)} />
-          <div className="relative z-10 w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-xl border overflow-hidden">
-            <div className="p-6 overflow-y-auto max-h-[90vh]">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-800">개인정보처리방침</h2>
-                <button
-                  onClick={() => setPrivacyDialogOpen(false)}
-                  className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
-                  aria-label="닫기"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="text-sm text-gray-700 space-y-4 leading-relaxed">
-                <div className="text-right text-gray-500">
-                  <p>업데이트 일자: 2025년 8월 15일</p>
-                </div>
-
-                <p>
-                  주식회사 과일맛집(이하 "회사")는 이용자의 개인정보를 소중히 여기며 「개인정보 보호법」 등 관련 법령을 준수하고 있습니다.
-                  본 개인정보처리방침은 회사가 운영하는 공동구매 플랫폼 서비스에 적용되며, 개인정보가 어떤 방식으로 수집되고 이용되는지,
-                  어떤 보호 조치가 시행되고 있는지를 설명합니다.
-                </p>
-
-                <p>
-                  회사는 개인정보처리방침을 수시로 개정할 수 있으며, 변경사항은 플랫폼 내 공지사항을 통해 사전에 안내합니다.
-                </p>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">1. 수집하는 개인정보 항목 및 수집 방법</h3>
-                  <p className="mb-2">회사는 다음과 같은 목적으로 최소한의 개인정보를 수집합니다.</p>
-
-                  <h4 className="font-medium text-gray-700 mb-1">수집 항목</h4>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>오류 문의 시: 고객명(필수), 휴대폰 번호(필수)</li>
-                    <li>카카오 로그인: 이름(필수)</li>
-                  </ul>
-
-                  <h4 className="font-medium text-gray-700 mb-1 mt-3">수집 방법</h4>
-                  <p>회원가입, 고객 문의 접수, 카카오 로그인, 서비스 이용 과정에서 자동 또는 수동으로 수집</p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">2. 개인정보의 이용 목적</h3>
-                  <p className="mb-2">회사는 수집한 개인정보를 다음 목적을 위해 이용합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>오류 문의 및 응답 처리</li>
-                    <li>카카오 로그인을 통한 본인 인증</li>
-                    <li>공동구매 주문 승인, 주문 취소 등과 관련된 알림톡 발송</li>
-                    <li>서비스 이용 통계 및 마케팅 자료 분석 (비식별 데이터 기준)</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">3. 개인정보 보유 및 이용 기간</h3>
-                  <p className="mb-2">회사는 수집된 개인정보를 목적 달성 후 즉시 파기하며, 관련 법령에 따라 아래와 같이 일정 기간 보관할 수 있습니다.</p>
-
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-200 text-xs">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-200 p-2 text-left">항목</th>
-                          <th className="border border-gray-200 p-2 text-left">보유 기간</th>
-                          <th className="border border-gray-200 p-2 text-left">관련 법령</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td className="border border-gray-200 p-2">표시/광고에 관한 기록</td>
-                          <td className="border border-gray-200 p-2">6개월</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                        <tr>
-                          <td className="border border-gray-200 p-2">계약 또는 청약철회 기록</td>
-                          <td className="border border-gray-200 p-2">5년</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                        <tr>
-                          <td className="border border-gray-200 p-2">대금결제 및 재화 등의 공급 기록</td>
-                          <td className="border border-gray-200 p-2">5년</td>
-                          <td className="border border-gray-200 p-2">전자상거래법</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">4. 개인정보의 제3자 제공</h3>
-                  <p className="mb-2">회사는 이용자의 동의 없이 개인정보를 외부에 제공하지 않습니다. 다만 아래의 경우는 예외로 합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>사전에 이용자의 동의를 받은 경우</li>
-                    <li>법령에 따라 수사기관의 요청이 있는 경우</li>
-                    <li>서비스 제공에 따른 요금 정산이 필요한 경우</li>
-                    <li>긴급한 생명 및 안전 보호가 요구되는 경우</li>
-                  </ul>
-                </div>
-
-                <p className="mt-2">
-                  회사는 위탁계약을 통해 개인정보 보호법에 따른 보호조치를 적용하고 있으며,
-                  위탁사항이 변경될 경우 본 방침을 통해 안내합니다.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-2">5. 이용자의 권리 및 행사 방법</h3>
-                <p className="mb-2">이용자는 언제든지 다음 권리를 행사할 수 있습니다.</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>개인정보 열람 요청</li>
-                  <li>정정 요청</li>
-                  <li>삭제 요청</li>
-                  <li>처리 정지 요청</li>
-                </ul>
-                <p className="mt-2">
-                  요청은 서면, 이메일 등을 통해 제출할 수 있으며, 법정대리인이나 위임을 받은 자를 통해서도 가능합니다.
-                </p>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-2">6. 개인정보 파기 절차 및 방법</h3>
-                <p className="mb-2">회사는 개인정보 보유기간 경과 또는 처리 목적 달성 시 다음 절차에 따라 파기합니다.</p>
-
-                <h4 className="font-medium text-gray-700 mb-1">파기 절차</h4>
-                <p className="mb-2">보유 목적 달성 후 내부 방침 및 관련 법령에 따라 즉시 삭제</p>
-
-                <h4 className="font-medium text-gray-700 mb-1">파기 방법</h4>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>종이 출력물: 분쇄 또는 소각</li>
-                  <li>전자 파일: 복구 불가능한 방식으로 영구 삭제</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-2">7. 개인정보의 안전성 확보 조치</h3>
-                <p className="mb-2">회사는 다음과 같은 조치로 개인정보를 보호하고 있습니다.</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>비밀번호 및 계정 정보 암호화</li>
-                  <li>개인정보 접근 제한 및 담당자 교육</li>
-                  <li>침입 탐지 시스템 및 보안 솔루션 운영</li>
-                  <li>해킹/바이러스 등 외부 위협에 대한 예방 대책</li>
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-2">8. 개인정보 보호책임자 및 열람청구 접수 부서</h3>
-                <p className="mb-2">이용자의 개인정보 보호와 관련한 문의사항은 아래 담당자에게 문의하실 수 있습니다.</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium text-gray-700 mb-2">개인정보 보호책임자, 개인정보 열람청구 접수부서</h4>
-                    <div className="space-y-1 text-sm">
-                      <p><span className="font-medium">이름:</span> 김지훈</p>
-                      <p><span className="font-medium">소속:</span> 과일맛집</p>
-                      <p><span className="font-medium">전화번호:</span> 010-3029-9238</p>
-                    </div>
-                  </div>
-                </div>
-
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">10. 개인정보 침해 신고 및 상담 기관</h3>
-                  <p className="mb-2">아래 기관을 통해 개인정보 침해에 대한 상담 및 신고가 가능합니다.</p>
-                  <ul className="list-disc list-inside space-y-1 ml-4">
-                    <li>개인정보침해신고센터 (국번 없이 118) – <a href="https://privacy.kisa.or.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://privacy.kisa.or.kr</a></li>
-                    <li>대검찰청 사이버범죄수사과 (국번 없이 1301) – <a href="https://www.spo.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://www.spo.go.kr</a></li>
-                    <li>경찰청 사이버범죄 신고시스템 (국번 없이 182) – <a href="https://cyberbureau.police.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://cyberbureau.police.go.kr</a></li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-800 mb-2">11. 개인정보처리방침 변경에 대한 고지</h3>
-                  <p>본 방침은 2025년 8월 15일부터 적용됩니다.</p>
-                  <p className="mt-2">내용 변경 시 최소 7일 전에 홈페이지 공지사항을 통해 안내합니다.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <Footer />
 
       {/* 검색 모달 */}
       {searchModalOpen && (

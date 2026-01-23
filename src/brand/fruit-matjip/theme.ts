@@ -10,6 +10,7 @@ export interface BrandTheme {
         representative: string;
         businessNumber: string;
         phone: string;
+        address?: string;
     };
     links: {
         kakaoOpenChat?: string;
@@ -58,12 +59,13 @@ export const theme: BrandTheme = {
     displayName: '과일맛집 1995',
     tagline: '🎁과일맛집1995 현장예약🎁',
     description: '더욱 혜택넘치는 가격으로\n우리들끼리 예약하고 먹자구요🤣',
-    companyName: '주식회사 과일맛집',
-    copyright: '© 2025 과일맛집',
+    companyName: '과일맛집 1995',
+    copyright: '© 과일맛집 1995',
     contact: {
         representative: '김지훈',
         businessNumber: '131-47-00411',
         phone: '02-2666-7412',
+        address: '',
     },
     links: {
         kakaoOpenChat: 'https://open.kakao.com/o/gX73w4Yg',

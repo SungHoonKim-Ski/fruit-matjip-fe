@@ -504,7 +504,7 @@ export default function AdminCustomerPage() {
                   적용
                 </button>
               </div>
-              <div className="text-sm font-medium text-gray-500">* 해제시 셀프 수령 가능</div>
+              <div className="text-sm font-medium text-gray-500">* 해제 시 이용 제한이 해제됩니다.</div>
             </div>
 
             {/* 닫기 버튼 */}
@@ -522,4 +522,3 @@ export default function AdminCustomerPage() {
     </main>
   );
 }
-

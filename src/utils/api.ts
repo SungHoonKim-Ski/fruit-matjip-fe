@@ -440,13 +440,159 @@ export const cancelReservation = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const selfPickReservation = async (id: number) => {
-  const key = 'selfPickReservation';
+
+export type DeliveryInfo = {
+  phone: string;
+  postalCode: string;
+  address1: string;
+  address2?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type DeliveryConfig = {
+  storeLat: number;
+  storeLng: number;
+  maxDistanceKm: number;
+  feeDistanceKm: number;
+  minAmount: number;
+  feeNear: number;
+  feePer100m: number;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+};
+
+export const getDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
+  const key = 'getDeliveryConfig';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/self-pick/${id}`, { method: 'PATCH' });
+    const res = await userFetch('/api/auth/deliveries/config');
+    if (!res.ok) {
+      incrementApiRetryCount(key);
+      return null;
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    if (!data) return null;
+    return {
+      storeLat: Number(data.store_lat ?? data.storeLat ?? 0),
+      storeLng: Number(data.store_lng ?? data.storeLng ?? 0),
+      maxDistanceKm: Number(data.max_distance_km ?? data.maxDistanceKm ?? 0),
+      feeDistanceKm: Number(data.fee_distance_km ?? data.feeDistanceKm ?? 0),
+      minAmount: Number(data.min_amount ?? data.minAmount ?? 0),
+      feeNear: Number(data.fee_near ?? data.feeNear ?? 0),
+      feePer100m: Number(data.fee_per_100m ?? data.feePer100m ?? 0),
+      startHour: Number(data.start_hour ?? data.startHour ?? 0),
+      startMinute: Number(data.start_minute ?? data.startMinute ?? 0),
+      endHour: Number(data.end_hour ?? data.endHour ?? 0),
+      endMinute: Number(data.end_minute ?? data.endMinute ?? 0),
+    };
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const getDeliveryInfo = async (): Promise<DeliveryInfo | null> => {
+  const key = 'getDeliveryInfo';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/deliveries/info');
+    if (res.status === 204) return null;
+    const data = await res.json();
     if (res.ok) resetApiRetryCount(key);
-    return validateJsonResponse(res);
+    if (!data) return null;
+    return {
+      phone: String(data.phone || ''),
+      postalCode: String(data.postal_code || data.postalCode || ''),
+      address1: String(data.address1 || ''),
+      address2: data.address2 ? String(data.address2) : '',
+      latitude: Number(data.latitude || 0),
+      longitude: Number(data.longitude || 0),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const saveDeliveryInfo = async (info: DeliveryInfo) => {
+  const key = 'saveDeliveryInfo';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/deliveries/info', {
+      method: 'PUT',
+      body: JSON.stringify({
+        phone: info.phone,
+        postal_code: info.postalCode,
+        address1: info.address1,
+        address2: info.address2 || '',
+        latitude: info.latitude,
+        longitude: info.longitude,
+      }),
+    });
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const createDeliveryPaymentReady = async (data: {
+  reservationIds: number[];
+  deliveryHour: number;
+  phone: string;
+  postalCode: string;
+  address1: string;
+  address2?: string;
+  latitude?: number;
+  longitude?: number;
+}) => {
+  const key = 'createDeliveryPaymentReady';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/deliveries/ready', {
+      method: 'POST',
+      body: JSON.stringify({
+        reservation_ids: data.reservationIds,
+        delivery_hour: data.deliveryHour,
+        phone: data.phone,
+        postal_code: data.postalCode,
+        address1: data.address1,
+        address2: data.address2 || '',
+        latitude: data.latitude,
+        longitude: data.longitude,
+      }),
+    });
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const approveDeliveryPayment = async (orderId: number, pgToken: string) => {
+  const key = 'approveDeliveryPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch(`/api/auth/deliveries/approve?orderId=${orderId}&pg_token=${encodeURIComponent(pgToken)}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const cancelDeliveryPayment = async (orderId: number) => {
+  const key = 'cancelDeliveryPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch(`/api/auth/deliveries/cancel?orderId=${orderId}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const failDeliveryPayment = async (orderId: number) => {
+  const key = 'failDeliveryPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch(`/api/auth/deliveries/fail?orderId=${orderId}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
@@ -458,14 +604,6 @@ export const minusQuantity = async (id: number, quantity: number) => {
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
-};
-
-export const checkCanSelfPick = async (): Promise<boolean> => {
-  const res = await userFetch('/api/auth/reservation/self-pick');
-  if (!res.ok) {
-    throw new Error('셀프 수령 가능 여부 확인에 실패했습니다.');
-  }
-  return res.json();
 };
 
 export const getUserMessage = async () => {
@@ -611,12 +749,12 @@ export const toggleVisible = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-// 상품 셀프 수령 가능 여부 토글
-export const toggleSelfPickAvailable = async (id: number) => {
-  const key = 'toggleSelfPickAvailable';
+// 상품 배달 가능 여부 토글
+export const toggleDeliveryAvailable = async (id: number) => {
+  const key = 'toggleDeliveryAvailable';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/self-pick/${id}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/products/delivery-available/${id}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -632,7 +770,28 @@ export const deleteAdminProduct = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const updateReservationStatus = async (id: number, status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled' | 'no_show') => {
+export const getAdminDeliveries = async (date: string) => {
+  const key = 'getAdminDeliveries';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const url = `/api/admin/deliveries?date=${encodeURIComponent(date)}`;
+    const res = await adminFetch(url, {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminDeliveryStatus = async (id: number, status: 'out_for_delivery' | 'delivered' | 'canceled') => {
+  const key = 'updateAdminDeliveryStatus';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/deliveries/${id}/${status.toUpperCase()}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateReservationStatus = async (id: number, status: 'pending' | 'picked' | 'canceled' | 'no_show') => {
   const key = 'updateReservationStatus';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
@@ -790,7 +949,7 @@ export type AdminProductListItem = {
   sellDate?: string;
   sellTime?: string;
   orderIndex?: number;
-  selfPickAllowed?: boolean; // server: self_pick
+  deliveryAvailable?: boolean; // server: delivery_available
 };
 
 const addImgPrefix = (url?: string) => {
@@ -820,7 +979,9 @@ const mapAdminListItem = (p: any): AdminProductListItem => {
     sellDate: (p.sellDate ?? p.sell_date) || undefined,
     sellTime: (p.sellTime ?? p.sell_time) || undefined,
     orderIndex: p.order_index ? Number(p.order_index) : undefined,
-    selfPickAllowed: typeof p.self_pick === 'boolean' ? Boolean(p.self_pick) : undefined,
+    deliveryAvailable: typeof p.delivery_available === 'boolean'
+      ? Boolean(p.delivery_available)
+      : (typeof p.deliveryAvailable === 'boolean' ? Boolean(p.deliveryAvailable) : undefined),
   };
 };
 
@@ -902,7 +1063,7 @@ export const getHealth = async () => {
 };
 
 // 관리자 예약 일괄 상태 변경
-export const updateReservationsStatusBulk = async (reservationIds: number[], status: 'pending' | 'self_pick_ready' | 'picked' | 'self_pick' | 'canceled') => {
+export const updateReservationsStatusBulk = async (reservationIds: number[], status: 'pending' | 'picked' | 'canceled') => {
   const key = 'updateReservationsStatusBulk';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {

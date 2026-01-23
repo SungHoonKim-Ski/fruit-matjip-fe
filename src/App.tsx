@@ -1,8 +1,15 @@
 // src/App.tsx
-import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import ProductsPage from './pages/auth/ProductsPage';
 import OrderPage from './pages/auth/OrderPage';
+import DeliveryPage from './pages/auth/DeliveryPage';
+import DeliveryApprovePage from './pages/auth/DeliveryApprovePage';
+import DeliveryCancelPage from './pages/auth/DeliveryCancelPage';
+import DeliveryFailPage from './pages/auth/DeliveryFailPage';
+import TermsPage from './pages/terms/TermsPage';
+import PrivacyPage from './pages/terms/PrivacyPage';
+import RefundPolicyPage from './pages/terms/RefundPolicyPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminRegisterPage from './pages/admin/AdminRegisterPage';
 import AdminProductPage from './pages/admin/AdminProductPage';
@@ -18,6 +25,8 @@ import Error404Page from './pages/error/Error404Page';
 import Error403Page from './pages/error/Error403Page';
 import RequireAdmin from './routes/RequireAdmin';
 import { AdminSessionProvider } from './contexts/AdminSessionContext';
+import { AdminDeliveryAlertProvider } from './contexts/AdminDeliveryAlertContext';
+import AdminDeliveriesPage from './pages/admin/AdminDeliveriesPage';
 
 export default function App() {
   return (
@@ -26,13 +35,22 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/products" element={<ProductsPage />} />
       <Route path="/me/orders" element={<OrderPage />} />
+      <Route path="/me/delivery" element={<DeliveryPage />} />
+      <Route path="/deliveries/approve" element={<DeliveryApprovePage />} />
+      <Route path="/deliveries/cancel" element={<DeliveryCancelPage />} />
+      <Route path="/deliveries/fail" element={<DeliveryFailPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/refund" element={<RefundPolicyPage />} />
 
       <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/register" element={<AdminRegisterPage />} />
       <Route element={
         <AdminSessionProvider>
-          <RequireAdmin />
+          <AdminDeliveryAlertProvider>
+            <RequireAdmin />
+          </AdminDeliveryAlertProvider>
         </AdminSessionProvider>
       }>
         <Route path="/admin/products" element={<AdminProductPage />} />
@@ -41,6 +59,7 @@ export default function App() {
         <Route path="/admin/products/order" element={<AdminProductOrderPage />} />
         <Route path="/admin/sales" element={<AdminSalesPage />} />
         <Route path="/admin/reservations" element={<AdminReservationsPage />} />
+        <Route path="/admin/deliveries" element={<AdminDeliveriesPage />} />
         <Route path="/admin/customers" element={<AdminCustomerPage />} />
         <Route path="/admin/keywords" element={<AdminCategoryPage />} />
         <Route path="/admin/categories" element={<AdminCategoryPage />} />

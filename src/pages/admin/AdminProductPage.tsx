@@ -5,7 +5,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { toggleVisible as apiToggleVisible, deleteAdminProduct, getAdminProductsMapped, AdminProductListItem, toggleSelfPickAvailable as apiToggleSelfPickAvailable } from '../../utils/api';
+import { toggleVisible as apiToggleVisible, deleteAdminProduct, getAdminProductsMapped, AdminProductListItem, toggleDeliveryAvailable as apiToggleDeliveryAvailable } from '../../utils/api';
 import { useLocation } from 'react-router-dom';
 import AdminHeader from '../../components/AdminHeader';
 
@@ -52,7 +52,7 @@ export default function AdminProductPage() {
   };
 
   // --- Dialog 상태들 ---
-  const [toggleSelfPickDialog, setToggleSelfPickDialog] = useState<{
+  const [toggleDeliveryDialog, setToggleDeliveryDialog] = useState<{
     isOpen: boolean;
     productId: number;
     productName: string;
@@ -345,9 +345,9 @@ export default function AdminProductPage() {
     window.history.pushState({ modal: true }, '');
   };
 
-  const openToggleSelfPickDialog = (id: number, name: string, currentAllowed?: boolean) => {
+  const openToggleDeliveryDialog = (id: number, name: string, currentAllowed?: boolean) => {
     const nextAllowed = !(currentAllowed ?? false);
-    setToggleSelfPickDialog({ isOpen: true, productId: id, productName: name, newAllowed: nextAllowed });
+    setToggleDeliveryDialog({ isOpen: true, productId: id, productName: name, newAllowed: nextAllowed });
     pushDialogState();
   };
 
@@ -374,33 +374,33 @@ export default function AdminProductPage() {
         suppressNextPop.current = false;
         return;
       }
-      if (toggleStatusDialog.isOpen || deleteProductDialog.isOpen || toggleSelfPickDialog.isOpen) {
+      if (toggleStatusDialog.isOpen || deleteProductDialog.isOpen || toggleDeliveryDialog.isOpen) {
         setToggleStatusDialog({ isOpen: false, productId: 0, productName: '', newStatus: 'inactive' });
         setDeleteProductDialog({ isOpen: false, productId: 0, productName: '' });
-        setToggleSelfPickDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
+        setToggleDeliveryDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
       }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [toggleStatusDialog.isOpen, deleteProductDialog.isOpen, toggleSelfPickDialog.isOpen]);
+  }, [toggleStatusDialog.isOpen, deleteProductDialog.isOpen, toggleDeliveryDialog.isOpen]);
 
 
 
   // --- API 실행 핸들러들 (Confirm에서 즉시 호출) ---
-  const handleToggleSelfPick = async (id: number, newAllowed: boolean) => {
+  const handleToggleDeliveryAvailable = async (id: number, newAllowed: boolean) => {
     try {
       if (USE_MOCKS) {
-        setProducts(prev => prev.map(p => (p.id === id ? { ...p, selfPickAllowed: newAllowed } : p)));
-        show(`셀프 수령이 ${newAllowed ? '가능' : '불가'} 처리되었습니다.`, { variant: 'success' });
+        setProducts(prev => prev.map(p => (p.id === id ? { ...p, deliveryAvailable: newAllowed } : p)));
+        show(`배달이 ${newAllowed ? '가능' : '불가'} 처리되었습니다.`, { variant: 'success' });
       } else {
-        const res = await apiToggleSelfPickAvailable(id);
-        if (!res.ok) throw new Error('셀프 수령 상태 변경에 실패했습니다.');
-        setProducts(prev => prev.map(p => (p.id === id ? { ...p, selfPickAllowed: newAllowed } : p)));
-        show(`셀프 수령이 ${newAllowed ? '가능' : '불가'} 처리되었습니다.`, { variant: 'success' });
+        const res = await apiToggleDeliveryAvailable(id);
+        if (!res.ok) throw new Error('배달 가능 여부 변경에 실패했습니다.');
+        setProducts(prev => prev.map(p => (p.id === id ? { ...p, deliveryAvailable: newAllowed } : p)));
+        show(`배달이 ${newAllowed ? '가능' : '불가'} 처리되었습니다.`, { variant: 'success' });
       }
     } catch (e: any) {
-      safeErrorLog(e, 'AdminProductPage - handleToggleSelfPick');
-      show(getSafeErrorMessage(e, '셀프 수령 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+      safeErrorLog(e, 'AdminProductPage - handleToggleDeliveryAvailable');
+      show(getSafeErrorMessage(e, '배달 가능 여부 변경 중 오류가 발생했습니다.'), { variant: 'error' });
     }
   };
 
@@ -452,7 +452,7 @@ export default function AdminProductPage() {
           imageUrl: p.imageUrl,
           sellDate: p.sellDate,
           sellTime: p.sellTime,
-          selfPickAllowed: true,
+          deliveryAvailable: true,
         }));
         setProducts(mapped);
       } else {
@@ -587,11 +587,11 @@ export default function AdminProductPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => openToggleSelfPickDialog(product.id, product.name, !!product.selfPickAllowed)}
+                            onClick={() => openToggleDeliveryDialog(product.id, product.name, !!product.deliveryAvailable)}
                             className={`h-8 w-full rounded font-medium transition text-sm
-                              ${product.selfPickAllowed ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
+                              ${product.deliveryAvailable ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
                           >
-                            {product.selfPickAllowed ? '셀프 수령 가능' : '셀프 수령 불가'}
+                            {product.deliveryAvailable ? '배달 가능' : '배달 불가'}
                           </button>
                         </div>
 
@@ -626,19 +626,19 @@ export default function AdminProductPage() {
 
       {/* === 다이얼로그 3종 === */}
 
-      {/* 셀프 수령 상태 변경 Dialog */}
-      {toggleSelfPickDialog.isOpen && (
+      {/* 배달 가능 여부 변경 Dialog */}
+      {toggleDeliveryDialog.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">셀프 수령 상태 변경</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">배달 가능 여부 변경</h3>
             <p className="text-gray-600 mb-6">
-              <span className="font-medium">"{toggleSelfPickDialog.productName}"</span> 상품을
-              {toggleSelfPickDialog.newAllowed ? ' 셀프 수령 가능' : ' 셀프 수령 불가'} 처리합니다.
+              <span className="font-medium">"{toggleDeliveryDialog.productName}"</span> 상품을
+              {toggleDeliveryDialog.newAllowed ? ' 배달 가능' : ' 배달 불가'} 처리합니다.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setToggleSelfPickDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
+                  setToggleDeliveryDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
                   programmaticCloseDialog();
                 }}
                 className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50"
@@ -647,12 +647,12 @@ export default function AdminProductPage() {
               </button>
               <button
                 onClick={async () => {
-                  const { productId, newAllowed } = toggleSelfPickDialog;
-                  setToggleSelfPickDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
+                  const { productId, newAllowed } = toggleDeliveryDialog;
+                  setToggleDeliveryDialog({ isOpen: false, productId: 0, productName: '', newAllowed: true });
                   programmaticCloseDialog();
-                  await handleToggleSelfPick(productId, newAllowed);
+                  await handleToggleDeliveryAvailable(productId, newAllowed);
                 }}
-                className={`flex-1 h-10 rounded text-white font-medium ${toggleSelfPickDialog.newAllowed ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
+                className={`flex-1 h-10 rounded text-white font-medium ${toggleDeliveryDialog.newAllowed ? 'bg-green-500 hover:bg-green-600' : 'bg-rose-500 hover:bg-rose-600'
                   }`}
               >
                 확인

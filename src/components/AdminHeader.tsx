@@ -20,6 +20,11 @@ export default function AdminHeader() {
       navigate('/admin/reservations');
     }
   };
+  const goDeliveries = () => {
+    if (location !== '/admin/deliveries') {
+      navigate('/admin/deliveries');
+    }
+  };
   const goSales = () => {
     if (location !== '/admin/sales') {
       navigate('/admin/sales');
@@ -102,6 +107,15 @@ export default function AdminHeader() {
       menu.remove();
     };
 
+    // 배달 관리 버튼
+    const deliveriesBtn = document.createElement('button');
+    deliveriesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
+    deliveriesBtn.innerHTML = '🚚 배달 관리';
+    deliveriesBtn.onclick = () => {
+      goDeliveries();
+      menu.remove();
+    };
+
     // 판매량 확인 버튼
     const salesBtn = document.createElement('button');
     salesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -135,6 +149,7 @@ export default function AdminHeader() {
     menu.appendChild(bulkSellDateBtn);
     menu.appendChild(productOrderBtn);
     menu.appendChild(reservationsBtn);
+    menu.appendChild(deliveriesBtn);
     menu.appendChild(salesBtn);
     menu.appendChild(customersBtn);
     menu.appendChild(keywordBtn);
@@ -152,7 +167,7 @@ export default function AdminHeader() {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold text-gray-800">메뉴</span>
         {/* 햄버거 버튼 */}
         <button
