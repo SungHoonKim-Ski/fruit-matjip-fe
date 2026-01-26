@@ -12,6 +12,7 @@ type DeliveryAlertPayload = {
   productSummary: string;
   deliveryDate: string;
   deliveryHour: number;
+  deliveryMinute: number;
   type: 'paid' | 'upcoming';
 };
 
@@ -77,6 +78,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           productSummary: String(data.product_summary || ''),
           deliveryDate: String(data.delivery_date || ''),
           deliveryHour: Number(data.delivery_hour || 0),
+          deliveryMinute: Number(data.delivery_minute ?? data.deliveryMinute ?? 0),
           type: 'paid',
         });
       } catch (e) {
@@ -109,6 +111,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
               productSummary: String(latest.product_summary || ''),
               deliveryDate: String(latest.delivery_date || ''),
               deliveryHour: Number(latest.delivery_hour || 0),
+              deliveryMinute: Number(latest.delivery_minute ?? latest.deliveryMinute ?? 0),
               type: 'paid',
             });
           }
@@ -119,8 +122,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
             if (status !== 'PAID' && status !== 'OUT_FOR_DELIVERY') return false;
             const date = String(r.delivery_date || '');
             const hour = Number(r.delivery_hour || 0);
+            const minute = Number(r.delivery_minute ?? r.deliveryMinute ?? 0);
             if (!date || !hour) return false;
-            const targetMs = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00+09:00`).getTime();
+            const targetMs = new Date(`${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`).getTime();
             const diff = targetMs - nowMs;
             return diff <= 30 * 60 * 1000 && diff > 0;
           });
@@ -133,6 +137,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
               productSummary: String(r.product_summary || ''),
               deliveryDate: String(r.delivery_date || ''),
               deliveryHour: Number(r.delivery_hour || 0),
+              deliveryMinute: Number(r.delivery_minute ?? r.deliveryMinute ?? 0),
               type: 'upcoming',
             });
           });
@@ -154,6 +159,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
   const modal = useMemo(() => {
     if (!alert) return null;
+    const timeLabel = alert.deliveryMinute && alert.deliveryMinute > 0
+      ? `${alert.deliveryHour}시 ${String(alert.deliveryMinute).padStart(2, '0')}분`
+      : `${alert.deliveryHour}시`;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white w-full max-w-sm rounded-lg shadow-lg p-5">
@@ -165,7 +173,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
               ? `${alert.buyerName}님의 배달이 30분 이내로 예정되어 있습니다.`
               : `${alert.buyerName}님이 ${alert.productSummary} 배달 결제를 완료했습니다.`}
             <br />
-            수령 예정: {alert.deliveryDate} {alert.deliveryHour}시
+            수령 예정: {alert.deliveryDate} {timeLabel}
           </p>
           <div className="mt-4 flex gap-2">
             <button

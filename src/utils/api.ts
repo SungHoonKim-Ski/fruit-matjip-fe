@@ -538,6 +538,7 @@ export const saveDeliveryInfo = async (info: DeliveryInfo) => {
 export const createDeliveryPaymentReady = async (data: {
   reservationIds: number[];
   deliveryHour: number;
+  deliveryMinute: number;
   phone: string;
   postalCode: string;
   address1: string;
@@ -553,6 +554,7 @@ export const createDeliveryPaymentReady = async (data: {
       body: JSON.stringify({
         reservation_ids: data.reservationIds,
         delivery_hour: data.deliveryHour,
+        delivery_minute: data.deliveryMinute,
         phone: data.phone,
         postal_code: data.postalCode,
         address1: data.address1,

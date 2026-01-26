@@ -142,6 +142,7 @@ export default function OrdersPage() {
                 ? {
                     status: r.delivery.status ?? r.delivery_status ?? r.deliveryStatus,
                     deliveryHour: Number(r.delivery.delivery_hour ?? r.delivery.deliveryHour ?? r.deliveryHour ?? 0),
+                    deliveryMinute: Number(r.delivery.delivery_minute ?? r.delivery.deliveryMinute ?? r.deliveryMinute ?? 0),
                   }
                 : undefined;
 

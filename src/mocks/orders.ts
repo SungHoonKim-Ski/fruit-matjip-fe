@@ -18,6 +18,7 @@ export type OrderRow = {
   delivery?: {
     status?: string;
     deliveryHour?: number;
+    deliveryMinute?: number;
   };
 };
 

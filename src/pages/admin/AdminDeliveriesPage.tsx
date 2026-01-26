@@ -13,6 +13,7 @@ interface DeliveryRow {
   totalQuantity: number;
   deliveryDate: string;
   deliveryHour: number;
+  deliveryMinute: number;
   deliveryFee: number;
   totalAmount: number;
   status: string;
@@ -27,6 +28,9 @@ export default function AdminDeliveriesPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }));
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const { show } = useSnackbar();
+
+  const formatTime = (hour: number, minute: number) =>
+    minute && minute > 0 ? `${hour}시 ${String(minute).padStart(2, '0')}분` : `${hour}시`;
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -71,6 +75,7 @@ export default function AdminDeliveriesPage() {
           totalQuantity: Number(r.total_quantity || 0),
           deliveryDate: String(r.delivery_date || ''),
           deliveryHour: Number(r.delivery_hour || 0),
+          deliveryMinute: Number(r.delivery_minute ?? r.deliveryMinute ?? 0),
           deliveryFee: Number(r.delivery_fee || 0),
           totalAmount: Number(r.total_amount || 0),
           status: String(r.status || ''),
@@ -147,7 +152,7 @@ export default function AdminDeliveriesPage() {
                 {rows.map(r => (
                   <tr key={r.id} className="border-b">
                     <td className="py-2 pr-3">
-                      <div className="text-base font-semibold text-gray-900">{r.deliveryHour}시 수령 예정</div>
+                      <div className="text-base font-semibold text-gray-900">{formatTime(r.deliveryHour, r.deliveryMinute)} 수령 예정</div>
                     </td>
                     <td className="py-2 pr-3">
                       <div className="text-base font-semibold text-gray-900">{r.productSummary}</div>
@@ -221,7 +226,7 @@ export default function AdminDeliveriesPage() {
                   </div>
                   <span className="text-xs text-gray-500">{getStatusLabel(r.status)}</span>
                 </div>
-                <div className="mt-2 text-base font-semibold text-gray-900">{r.deliveryHour}시 수령 예정</div>
+                <div className="mt-2 text-base font-semibold text-gray-900">{formatTime(r.deliveryHour, r.deliveryMinute)} 수령 예정</div>
                 <div className="mt-2 text-base font-semibold text-gray-900">{r.productSummary} · {r.totalQuantity}개</div>
                 <div className="mt-1 text-sm text-gray-700">{r.address1} {r.address2}</div>
                 <div className="mt-1 text-sm text-gray-700">{r.postalCode}</div>

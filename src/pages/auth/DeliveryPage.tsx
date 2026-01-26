@@ -112,7 +112,7 @@ export default function DeliveryPage() {
     const now = getKstNow();
     const h = now.getHours();
     const m = now.getMinutes();
-    return h > config.endHour || (h === config.endHour && m >= config.endMinute);
+    return h > config.endHour || (h === config.endHour && m > config.endMinute);
   }, [serverTimeOffsetMs, config.endHour, config.endMinute]);
   const isBeforeStart = useMemo(() => {
     const now = getKstNow();
@@ -394,7 +394,7 @@ export default function DeliveryPage() {
     const tooEarly = currentHour < config.startHour
       || (currentHour === config.startHour && currentMinute < config.startMinute);
     const tooLate = currentHour > config.endHour
-      || (currentHour === config.endHour && currentMinute >= config.endMinute);
+      || (currentHour === config.endHour && currentMinute > config.endMinute);
     if (tooEarly || tooLate) {
       const startLabel = config.startMinute ? `${config.startHour}시 ${config.startMinute}분` : `${config.startHour}시`;
       const endLabel = config.endMinute ? `${config.endHour}시 ${config.endMinute}분` : `${config.endHour}시`;
@@ -422,6 +422,7 @@ export default function DeliveryPage() {
         const res = await createDeliveryPaymentReady({
           reservationIds: selectedIds,
           deliveryHour: currentHour,
+          deliveryMinute: currentMinute,
           phone: deliveryInfo.phone,
           postalCode: deliveryInfo.postalCode,
           address1: deliveryInfo.address1,
