@@ -28,7 +28,7 @@ export default function TermsPage() {
             <li>상호명: {theme.companyName}</li>
             <li>대표자: {theme.contact.representative}</li>
             <li>사업자등록번호: {theme.contact.businessNumber}</li>
-            {theme.contact.address && <li>사업장 주소: {theme.contact.address}</li>}
+            {theme.contact.address && <li>주소: {theme.contact.address}</li>}
             <li>전화번호: {theme.contact.phone}</li>
           </ul>
         </section>

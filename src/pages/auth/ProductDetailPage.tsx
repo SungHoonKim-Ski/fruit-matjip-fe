@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { theme } from '../../brand';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getProductById } from '../../mocks/products';
@@ -51,8 +52,8 @@ const renderSafeHTML = (html: string) => {
       const fontSize = fontSizeMatch?.[1];
       const lineHeight =
         fontSize === '14px' ? '22px' :
-        fontSize === '24px' ? '34px' :
-        fontSize === '40px' ? '56px' : undefined;
+          fontSize === '24px' ? '34px' :
+            fontSize === '40px' ? '56px' : undefined;
 
       const css = [
         fontSize ? `font-size:${fontSize}` : '',
@@ -82,7 +83,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
 
   useEffect(() => {
     if (!isOpen || !productId) return;
-    
+
     let alive = true;
     (async () => {
       try {
@@ -99,7 +100,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
           const res = await getProduct(productId);
           if (!res.ok) throw new Error('상품 정보를 불러오지 못했습니다.');
           const rawData = await res.json();
-          
+
           // API 응답 매핑: 메인 이미지 + 상세 이미지(detail_images 우선)
           const imgBase = process.env.REACT_APP_IMG_URL || '';
           const toAbs = (u: string) => (u?.startsWith('http') ? u : (imgBase ? `${imgBase}/${u}` : u));
@@ -113,7 +114,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
             imageUrl: rawData.image_url ? toAbs(rawData.image_url) : (rawData.imageUrl || ''),
             detail_images: detailList.map(toAbs),
           } as Product;
-          
+
           if (alive) {
             setProduct(data);
             setActiveImage(data.imageUrl);
@@ -155,11 +156,11 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
             </div>
           ) : product ? (
             <>
-            <div>
-            <h1 className="text-xl font-bold">{product.name}</h1>
+              <div>
+                <h1 className="text-xl font-bold">{product.name}</h1>
                 <div className="mt-1 flex items-center justify-between" />
-                <span className="text-orange-600 font-semibold">{KRW(product.price)}</span>                  
-            </div>
+                <span className="text-orange-600 font-semibold">{KRW(product.price)}</span>
+              </div>
               <div>
                 <img
                   src={activeImage || product.imageUrl}
@@ -170,24 +171,11 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
 
               <div className="mt-4">
                 {product.description && (
-                  <div 
+                  <div
                     className="mt-3 text-sm text-gray-700 break-keep leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: renderSafeHTML(product.description) }}
                   />
                 )}
-
-                <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-2">
-                  <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>서비스 제공 기간: 수령일 당일 수령/배달(배달 12~20시)</li>
-                    <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
-                    <li>정기결제: 제공하지 않습니다.</li>
-                  </ul>
-                  <div className="flex flex-wrap gap-3 text-blue-600">
-                    <Link to="/refund" className="hover:underline">교환/환불 정책</Link>
-                    <Link to="/terms" className="hover:underline">이용약관</Link>
-                  </div>
-                </div>
 
                 {/* 추가 이미지 */}
                 {product.detail_images && product.detail_images.length > 0 && (
@@ -200,6 +188,28 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
                     </div>
                   </div>
                 )}
+
+                <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-2">
+                  <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>
+                      서비스 제공 기간: 수령일 당일 수령/배달(배달 {theme.config.deliveryStart || '12:00'}~{theme.config.deliveryEnd || '20:00'})
+                    </li>
+                    <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
+                  </ul>
+                  <div className="flex flex-wrap gap-3 text-blue-600">
+                    <Link to="/refund" className="hover:underline">교환/환불 정책</Link>
+                    <Link to="/terms" className="hover:underline">이용약관</Link>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-md border bg-white p-3 text-xs text-gray-600 space-y-1">
+                  <div className="font-semibold text-gray-800">{theme.companyName}</div>
+                  <div>대표자: {theme.contact.representative}</div>
+                  <div>사업자등록번호: {theme.contact.businessNumber}</div>
+                  {theme.contact.address && <div>주소: {theme.contact.address}</div>}
+                  <div>전화번호: {theme.contact.phone}</div>
+                </div>
               </div>
             </>
           ) : (

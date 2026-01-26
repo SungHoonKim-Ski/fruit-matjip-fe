@@ -10,7 +10,7 @@ export default function Footer() {
         <div className="space-y-1">
           <div>대표자: {theme.contact.representative}</div>
           <div>사업자등록번호: {theme.contact.businessNumber}</div>
-          {theme.contact.address && <div>사업장 주소: {theme.contact.address}</div>}
+          {theme.contact.address && <div>주소: {theme.contact.address}</div>}
           <div>전화번호: {theme.contact.phone}</div>
         </div>
         <div className="flex flex-wrap gap-3 pt-2 text-gray-500">

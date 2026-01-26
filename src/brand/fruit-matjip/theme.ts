@@ -27,6 +27,8 @@ export interface BrandTheme {
         reservationDeadline: string;
         cancellationDeadline: string;
         pickupDeadline: string;
+        deliveryStart?: string;
+        deliveryEnd?: string;
     };
     colors: {
         primary: {
@@ -82,6 +84,8 @@ export const theme: BrandTheme = {
         reservationDeadline: '19:30',
         cancellationDeadline: '19:00',
         pickupDeadline: '20:00',
+        deliveryStart: '12:00',
+        deliveryEnd: '19:30',
     },
     colors: {
         primary: {

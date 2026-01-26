@@ -943,6 +943,7 @@ export default function ReservePage() {
               <p className="font-semibold text-gray-500">{theme.displayName}</p>
               <p>대표: {theme.contact.representative}</p>
               <p>사업자등록번호: {theme.contact.businessNumber}</p>
+              {theme.contact.address && <p>주소: {theme.contact.address}</p>}
               <p>문의: {theme.contact.phone}</p>
               <p className="mt-1">&copy; 2025 All rights reserved.</p>
             </div>

@@ -630,12 +630,13 @@ export default function DeliveryPage() {
           <Link to="/refund" className="hover:underline">교환/환불 정책</Link>
         </div>
         <div className="space-y-1">
-          <div className="font-semibold text-gray-800">과일맛집 1995</div>
-          <div>대표자: 김지훈</div>
-          <div>사업자등록번호: 131-47-00411</div>
-          <div>전화번호: 02-2666-7412</div>
+          <div className="font-semibold text-gray-800">{theme.companyName}</div>
+          <div>대표자: {theme.contact.representative}</div>
+          <div>사업자등록번호: {theme.contact.businessNumber}</div>
+          {theme.contact.address && <div>사업장 주소: {theme.contact.address}</div>}
+          <div>전화번호: {theme.contact.phone}</div>
         </div>
-        <div className="text-gray-400">© 2025 과일맛집 1995</div>
+        <div className="text-gray-400">{theme.copyright}</div>
       </section>
     </main>
   );
