@@ -557,29 +557,29 @@ export default function DeliveryPage() {
           {orders.map(order => (
             <label
               key={order.id}
-              className={`flex items-start gap-3 border rounded-xl p-4 ${order.deliveryAvailable ? 'cursor-pointer hover:bg-gray-50' : 'opacity-60 bg-gray-50'}`}
+              className={`flex items-center gap-3 border rounded-xl p-4 ${order.deliveryAvailable ? 'cursor-pointer hover:bg-gray-50' : 'opacity-60 bg-gray-50'}`}
             >
               <input
                 type="checkbox"
                 checked={selectedIds.includes(order.id)}
                 onChange={() => toggleSelection(order)}
-                className="mt-1"
                 disabled={!order.deliveryAvailable}
+                className="flex-shrink-0"
               />
-              <div className="flex-1">
-                <div className="mt-1 space-y-1">
-                  {order.items.map(item => (
-                    <div key={item.id} className="flex items-center justify-between text-sm text-gray-700">
-                      <span>{item.name}</span>
-                      <span className="text-gray-500">× {item.quantity}</span>
-                    </div>
-                  ))}
-                  {!order.deliveryAvailable && (
-                    <div className="text-xs text-red-600">배달 불가상품</div>
-                  )}
-                </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                {order.items.map(item => (
+                  <div key={item.id} className="text-sm text-gray-700 truncate">{item.name}</div>
+                ))}
+                {!order.deliveryAvailable && (
+                  <div className="text-xs text-red-600">배달 불가상품</div>
+                )}
               </div>
-              <div className="text-sm font-semibold text-gray-900">{KRW(totalPrice(order))}</div>
+              <div className="flex-shrink-0 text-sm text-gray-500">
+                {order.items.map(item => (
+                  <div key={item.id}>× {item.quantity}</div>
+                ))}
+              </div>
+              <div className="flex-shrink-0 text-sm font-semibold text-gray-900 whitespace-nowrap">{KRW(totalPrice(order))}</div>
             </label>
           ))}
         </div>
