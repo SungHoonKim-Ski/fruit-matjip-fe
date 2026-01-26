@@ -1,12 +1,26 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { theme } from '../../brand';
 
 export default function TermsPage() {
+  const navigate = useNavigate();
+
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="mx-auto max-w-3xl bg-white border rounded-lg p-6 space-y-4 text-sm text-gray-700">
-        <h1 className="text-xl font-semibold text-gray-800">이용약관</h1>
-        <p>본 약관은 {theme.companyName}(이하 “회사”)가 제공하는 과일 예약/구매 서비스 이용과 관련한 권리·의무를 규정합니다.</p>
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="뒤로가기"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-xl font-semibold text-gray-800">이용약관</h1>
+        </div>
+        <p>본 약관은 {theme.companyName}(이하 "회사")가 제공하는 과일 예약/구매 서비스 이용과 관련한 권리·의무를 규정합니다.</p>
 
         <section>
           <h2 className="font-semibold text-gray-800">1. 판매자 정보</h2>

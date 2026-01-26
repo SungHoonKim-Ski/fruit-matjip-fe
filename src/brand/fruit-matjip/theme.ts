@@ -65,7 +65,7 @@ export const theme: BrandTheme = {
         representative: '김지훈',
         businessNumber: '131-47-00411',
         phone: '02-2666-7412',
-        address: '',
+        address: '서울특별시 강서구 강서로341, 1동 1층 15호 과일맛집(내발산동, 창대교회)',
     },
     links: {
         kakaoOpenChat: 'https://open.kakao.com/o/gX73w4Yg',
