@@ -497,6 +497,37 @@ export const getDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   }
 };
 
+export type DeliveryFeeEstimate = {
+  distanceKm: number;
+  deliveryFee: number;
+};
+
+export const getDeliveryFeeEstimate = async (latitude: number, longitude: number): Promise<DeliveryFeeEstimate | null> => {
+  const key = 'getDeliveryFeeEstimate';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/auth/deliveries/fee', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      incrementApiRetryCount(key);
+      throw new Error(data.message || '배달비 계산에 실패했습니다.');
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    if (!data) return null;
+    return {
+      distanceKm: Number(data.distance_km ?? data.distanceKm ?? 0),
+      deliveryFee: Number(data.delivery_fee ?? data.deliveryFee ?? 0),
+    };
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
 export const getDeliveryInfo = async (): Promise<DeliveryInfo | null> => {
   const key = 'getDeliveryInfo';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -511,8 +542,8 @@ export const getDeliveryInfo = async (): Promise<DeliveryInfo | null> => {
       postalCode: String(data.postal_code || data.postalCode || ''),
       address1: String(data.address1 || ''),
       address2: data.address2 ? String(data.address2) : '',
-      latitude: Number(data.latitude || 0),
-      longitude: Number(data.longitude || 0),
+      latitude: data.latitude != null ? Number(data.latitude) : undefined,
+      longitude: data.longitude != null ? Number(data.longitude) : undefined,
     };
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };

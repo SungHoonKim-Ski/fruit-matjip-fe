@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -12,6 +12,7 @@ const KRW = (price: number) =>
 
 export default function OrdersPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { show } = useSnackbar();
   function formatDateKR(d: Date): string {
     const y = d.getFullYear();
@@ -64,6 +65,13 @@ export default function OrdersPage() {
 
   const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0);
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'delivery') {
+      setViewTab('delivery');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let alive = true;
@@ -253,11 +261,55 @@ export default function OrdersPage() {
   const totalPrice = (o: OrderRow) =>
     o.items.reduce((sum, it) => sum + it.price * it.quantity, 0);
 
-  const statusBadge = (s: OrderRow['status']) => {
-    const base = 'inline-flex items-center h-7 px-2.5 rounded-full text-xs font-medium';
-    if (s === 'pending') return `${base} bg-orange-50 text-orange-600 border border-orange-200`;
-    if (s === 'picked') return `${base} bg-green-50 text-green-700 border border-green-200`;
-    return `${base} bg-gray-100 text-gray-600 border border-gray-200`;
+  const openReservationCancel = (order: OrderRow) => {
+    if (order.status === 'pending' && !isDeliveryLocked(order)) {
+      openStatusDialog(
+        order.id,
+        order.items.map(item => item.name).join(', '),
+        order.status,
+        order.items.reduce((sum, item) => sum + item.quantity, 0)
+      );
+    }
+  };
+
+  const renderReservationStatusBadge = (order: OrderRow) => {
+    const label = getUnifiedStatusLabel(order);
+    const base = 'inline-flex items-center h-7 px-2.5 rounded-md text-xs font-semibold';
+    const isClickable = order.status === 'pending' && !isDeliveryLocked(order);
+    if (isClickable) {
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openReservationCancel(order);
+          }}
+          className={`${base} bg-white text-orange-600 border border-orange-300 shadow-sm hover:bg-orange-50`}
+        >
+          {label}
+        </button>
+      );
+    }
+    if (order.status === 'picked') {
+      return <span className={`${base} bg-green-50 text-green-700 border border-green-200`}>{label}</span>;
+    }
+    return <span className={`${base} bg-gray-100 text-gray-600 border border-gray-200`}>{label}</span>;
+  };
+
+  const renderDeliveryStatusBadge = (ordersInGroup: OrderRow[]) => {
+    const label = getDeliveryStatusLabel(ordersInGroup);
+    const status = String(ordersInGroup[0]?.delivery?.status ?? '').toUpperCase();
+    const base = 'inline-flex items-center h-7 px-2.5 rounded-md text-xs font-semibold';
+    if (status === 'PAID') {
+      return <span className={`${base} bg-white text-orange-600 border border-orange-300 shadow-sm`}>{label}</span>;
+    }
+    if (status === 'OUT_FOR_DELIVERY') {
+      return <span className={`${base} bg-indigo-50 text-indigo-700 border border-indigo-200`}>{label}</span>;
+    }
+    if (status === 'DELIVERED') {
+      return <span className={`${base} bg-green-50 text-green-700 border border-green-200`}>{label}</span>;
+    }
+    return <span className={`${base} bg-gray-100 text-gray-600 border border-gray-200`}>{label}</span>;
   };
 
   // 상태 변경 dialog 열기
@@ -670,72 +722,53 @@ export default function OrdersPage() {
           <div className="p-6 text-center text-gray-500">주문 내역이 없습니다.</div>
         )}
         {filtered.length > 0 && viewTab === 'reservation' && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr className="text-left text-sm text-gray-500">
-                  <th className="px-4 py-3">주문일</th>
-                  <th className="px-4 py-3">내역</th>
-                  <th className="px-4 py-3">금액</th>
-                  <th className="px-4 py-3">상태</th>
-                </tr>
-              </thead>
-              {groupedOrders.filter(g => !g.deliveryOrderId).map(group => (
-                <tbody key={group.key}>
-                  {group.orders.map(o => (
-                    <tr
-                      key={o.id}
-                      className={`border-t text-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
-                      onClick={() => {
-                        if (o.status === 'pending' && !isDeliveryLocked(o)) {
-                          openStatusDialog(
-                            o.id,
-                            o.items.map(item => item.name).join(', '),
-                            o.status,
-                            o.items.reduce((sum, item) => sum + item.quantity, 0)
-                          );
-                        }
-                      }}
-                      role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
-                      aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
-                    >
-                      <td className="px-4 py-3">{o.date}</td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          {o.items.map(it => (
-                            <div key={it.id} className="flex items-center gap-2">
-                              {it.imageUrl ? (
-                                <img src={it.imageUrl} alt={it.name} className="w-8 h-8 rounded object-cover border" />
-                              ) : <div className="w-8 h-8 rounded bg-gray-100 border" />}
-                              <span className="text-gray-800">{it.name}</span>
-                              <span className="text-gray-500">× {it.quantity}</span>
-                            </div>
-                          ))}
+          <div className="space-y-3">
+            {filtered.filter(o => !o.deliveryOrderId).map(o => (
+              <div
+                key={o.id}
+                className={`rounded-lg border-2 p-4 shadow-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer' : ''}`}
+                style={{
+                  borderColor: 'var(--color-primary-500)',
+                  backgroundColor: 'var(--color-primary-50)',
+                }}
+                onClick={() => openReservationCancel(o)}
+                role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
+                aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
+              >
+                <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                  <span>#{o.id}</span>
+                  {renderReservationStatusBadge(o)}
+                </div>
+                {getDeliveryProgressLabel(o) && (
+                  <div className="mt-2">
+                    <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {getDeliveryProgressLabel(o)}
+                    </span>
+                    <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
+                  </div>
+                )}
+                <div className="mt-3 space-y-3">
+                  {o.items.map(it => (
+                    <div key={it.id} className="flex gap-3 text-sm text-gray-800">
+                      {it.imageUrl ? (
+                        <img src={it.imageUrl} alt={it.name} className="w-10 h-10 rounded object-cover border" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-gray-100 border" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span>{it.name}</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`${statusBadge(o.status)} ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                          title={(o.status === 'pending' && !isDeliveryLocked(o)) ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
-                        >
-                          {getUnifiedStatusLabel(o)}
-                          {(o.status === 'pending' && !isDeliveryLocked(o)) ? ' (클릭 시 변경)' : ''}
-                        </span>
-                        {getDeliveryProgressLabel(o) && (
-                          <div className="mt-1">
-                            <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              {getDeliveryProgressLabel(o)}
-                            </span>
-                            <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                        <div className="mt-1 text-xs text-gray-500">x {it.quantity}</div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              ))}
-            </table>
+                </div>
+                <div className="mt-3 text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                  {KRW(totalPrice(o))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {filtered.length > 0 && viewTab === 'delivery' && (
@@ -751,7 +784,7 @@ export default function OrdersPage() {
               >
                 <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
                   <span>#{group.deliveryOrderId}</span>
-                  <span>{getDeliveryStatusLabel(group.orders)}</span>
+                  {renderDeliveryStatusBadge(group.orders)}
                 </div>
                 <div className="mt-3 space-y-3">
                   {getGroupItemTotals(group.orders).map(item => (
@@ -766,7 +799,7 @@ export default function OrdersPage() {
                           <span>{item.name}</span>
                           <span className="text-gray-700">{KRW(item.total)}</span>
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">수량 {item.quantity}</div>
+                        <div className="mt-1 text-xs text-gray-500">x {item.quantity}</div>
                       </div>
                     </div>
                   ))}
@@ -790,73 +823,50 @@ export default function OrdersPage() {
           <div className="bg-white rounded-lg shadow p-6 mt-4 text-center text-gray-500">주문 내역이 없습니다.</div>
         )}
         <div className="space-y-3 mt-4">
-          {viewTab === 'reservation' && groupedOrders.filter(g => !g.deliveryOrderId).map(group => (
-            <div key={group.key} className="space-y-3">
-              {group.orders.map(o => (
-                <div
-                  key={o.id}
-                  className={`bg-white rounded-lg shadow p-4 ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'active:bg-orange-50 cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (o.status === 'pending' && !isDeliveryLocked(o)) {
-                      openStatusDialog(
-                        o.id,
-                        o.items.map(item => item.name).join(', '),
-                        o.status,
-                        o.items.reduce((sum, item) => sum + item.quantity, 0)
-                      );
-                    }
-                  }}
-                  role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
-                  aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-500">{o.date}</div>
-                    <button
-                      onClick={() => {
-                        if (o.status === 'pending' && !isDeliveryLocked(o)) {
-                          openStatusDialog(
-                            o.id,
-                            o.items.map(item => item.name).join(', '),
-                            o.status,
-                            o.items.reduce((sum, item) => sum + item.quantity, 0)
-                          );
-                        }
-                      }}
-                      className={`${statusBadge(o.status)} ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                      title={(o.status === 'pending' && !isDeliveryLocked(o)) ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
-                      disabled={!(o.status === 'pending' && !isDeliveryLocked(o))}
-                    >
-                      {getUnifiedStatusLabel(o)}
-                    </button>
-                  </div>
-                  {getDeliveryProgressLabel(o) && (
-                    <div className="mt-2">
-                      <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {getDeliveryProgressLabel(o)}
-                      </span>
-                      <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
-                    </div>
-                  )}
-                  <div className="mt-2 space-y-2">
-                    {o.items.map(it => (
-                      <div key={it.id} className="flex items-center gap-3">
-                        {it.imageUrl ? (
-                          <img src={it.imageUrl} className="w-12 h-12 rounded object-cover border" alt={it.name} />
-                        ) : <div className="w-12 h-12 rounded bg-gray-100 border" />}
-                        <div className="flex-1">
-                          <div className="text-sm">{it.name}</div>
-                          <div className="text-xs text-gray-500">× {it.quantity}</div>
-                        </div>
-                        <div className="text-sm font-medium">{KRW(it.price)}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex justify-end text-sm">
-                    <span className="font-semibold">합계&nbsp;</span>
-                    <span className="text-orange-500 font-semibold">{KRW(totalPrice(o))}</span>
-                  </div>
+          {viewTab === 'reservation' && filtered.filter(o => !o.deliveryOrderId).map(o => (
+            <div
+              key={o.id}
+              className={`rounded-lg border-2 p-4 shadow-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer' : ''}`}
+              style={{
+                borderColor: 'var(--color-primary-500)',
+                backgroundColor: 'var(--color-primary-50)',
+              }}
+              onClick={() => openReservationCancel(o)}
+              role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
+              aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
+            >
+              <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                <span>#{o.id}</span>
+                {renderReservationStatusBadge(o)}
+              </div>
+              {getDeliveryProgressLabel(o) && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {getDeliveryProgressLabel(o)}
+                  </span>
+                  <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
                 </div>
-              ))}
+              )}
+              <div className="mt-3 space-y-3">
+                {o.items.map(it => (
+                  <div key={it.id} className="flex gap-3 text-sm text-gray-800">
+                    {it.imageUrl ? (
+                      <img src={it.imageUrl} alt={it.name} className="w-10 h-10 rounded object-cover border" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-gray-100 border" />
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span>{it.name}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">x {it.quantity}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                {KRW(totalPrice(o))}
+              </div>
             </div>
           ))}
           {viewTab === 'delivery' && groupedOrders.filter(g => g.deliveryOrderId).map(group => (
@@ -870,7 +880,7 @@ export default function OrdersPage() {
             >
               <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
                 <span>#{group.deliveryOrderId}</span>
-                <span>{getDeliveryStatusLabel(group.orders)}</span>
+                {renderDeliveryStatusBadge(group.orders)}
               </div>
               <div className="mt-3 space-y-3">
                 {getGroupItemTotals(group.orders).map(item => (

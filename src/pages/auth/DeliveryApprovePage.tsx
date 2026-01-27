@@ -23,7 +23,7 @@ export default function DeliveryApprovePage() {
           throw new Error('approve failed');
         }
         setStatus('success');
-        setTimeout(() => nav('/me/orders'), 1500);
+        setTimeout(() => nav('/me/orders?tab=delivery'), 1500);
       } catch (e) {
         safeErrorLog(e, 'DeliveryApprovePage - approve');
         setStatus('error');

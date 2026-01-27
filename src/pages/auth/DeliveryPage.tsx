@@ -8,6 +8,7 @@ import {
   getReservations,
   getDeliveryInfo,
   getDeliveryConfig,
+  getDeliveryFeeEstimate,
   saveDeliveryInfo,
   createDeliveryPaymentReady,
   getServerTime,
@@ -31,26 +32,6 @@ const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
   startMinute: 0,
   endHour: 19,
   endMinute: 30,
-};
-
-const toRad = (value: number) => (value * Math.PI) / 180;
-const getDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return 6371 * c;
-};
-
-const getDeliveryFee = (distanceKm: number | null, config: DeliveryConfig) => {
-  if (distanceKm === null) return null;
-  if (distanceKm <= config.feeDistanceKm) return config.feeNear;
-  const extraKm = Math.max(0, distanceKm - config.feeDistanceKm);
-  const extraUnits = Math.ceil(extraKm / 0.1);
-  return config.feeNear + extraUnits * config.feePer100m;
 };
 
 const PAYMENT_READY = true;
@@ -86,12 +67,16 @@ export default function DeliveryPage() {
     postalCode: '',
     address1: '',
     address2: '',
+    latitude: undefined,
+    longitude: undefined,
   });
   const [deliveryHour, setDeliveryHour] = useState<number>(12);
   const [deliverySubmitting, setDeliverySubmitting] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
   const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
+  const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
   const idempotencyKeyRef = useRef<string | null>(null);
   const buildIdempotencyKey = () => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -116,7 +101,7 @@ export default function DeliveryPage() {
   );
   const config = deliveryConfig || DEFAULT_DELIVERY_CONFIG;
   const deliveryEnabled = config.enabled !== false;
-  const appliedFee = getDeliveryFee(deliveryDistanceKm, config);
+  const appliedFee = deliveryFee;
   const isAfterDeadline = useMemo(() => {
     const now = getKstNow();
     const h = now.getHours();
@@ -136,10 +121,54 @@ export default function DeliveryPage() {
     && !deliverySubmitting
     && !isGeocoding
     && deliveryDistanceKm !== null
+    && deliveryFee !== null
+    && deliveryCoords !== null
     && !deliveryDistanceError
     && selectedAmount >= config.minAmount
     && !isAfterDeadline
     && !isBeforeStart;
+  const submitBlockers = useMemo(() => {
+    const reasons: string[] = [];
+    if (!deliveryEnabled) reasons.push('현재 배달 주문이 중단되어 있습니다.');
+    if (selectedIds.length === 0) reasons.push('배달할 예약을 선택해주세요.');
+    if (!deliveryInfo.phone) reasons.push('연락처를 입력해주세요.');
+    if (!deliveryInfo.postalCode || !deliveryInfo.address1) reasons.push('주소를 입력해주세요.');
+    if (deliveryDistanceError) reasons.push(deliveryDistanceError);
+    if (!deliveryCoords || deliveryDistanceKm === null || deliveryFee === null) {
+      reasons.push('주소 좌표/배달비 계산이 필요합니다.');
+    }
+    if (selectedAmount < config.minAmount) {
+      reasons.push(`최소 주문 금액 ${config.minAmount.toLocaleString()}원 이상이어야 합니다.`);
+    }
+    if (isBeforeStart || isAfterDeadline) {
+      const startLabel = config.startMinute ? `${config.startHour}시 ${config.startMinute}분` : `${config.startHour}시`;
+      const endLabel = config.endMinute ? `${config.endHour}시 ${config.endMinute}분` : `${config.endHour}시`;
+      reasons.push(`배달 주문 가능 시간은 ${startLabel} ~ ${endLabel}입니다.`);
+    }
+    if (isGeocoding) reasons.push('주소 좌표를 확인 중입니다.');
+    if (deliverySubmitting) reasons.push('결제 준비 중입니다.');
+    return reasons;
+  }, [
+    deliveryEnabled,
+    selectedIds.length,
+    deliveryInfo.phone,
+    deliveryInfo.postalCode,
+    deliveryInfo.address1,
+    deliveryDistanceError,
+    deliveryCoords,
+    deliveryDistanceKm,
+    deliveryFee,
+    selectedAmount,
+    config.minAmount,
+    isBeforeStart,
+    isAfterDeadline,
+    config.startHour,
+    config.startMinute,
+    config.endHour,
+    config.endMinute,
+    isGeocoding,
+    deliverySubmitting,
+  ]);
 
   const ensureKakaoMapsLoaded = () =>
     new Promise<void>((resolve, reject) => {
@@ -197,47 +226,53 @@ export default function DeliveryPage() {
       document.head.appendChild(script);
     });
 
-  const geocodeAddress = async (address: string) =>
-    new Promise<void>(async (resolve) => {
-      try {
-        await ensureKakaoMapsLoaded();
-        const kakao = (window as any)?.kakao;
-        if (!kakao?.maps?.services) {
-          setDeliveryDistanceKm(null);
-          setDeliveryDistanceError('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.');
-          show('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.', { variant: 'error' });
-          resolve();
-          return;
-        }
-        const geocoder = new kakao.maps.services.Geocoder();
-        geocoder.addressSearch(address, (result: any, status: any) => {
+  const estimateDeliveryFee = async (address: string) => {
+    if (!address) return;
+    setDeliveryDistanceError(null);
+    setDeliveryDistanceKm(null);
+    setDeliveryFee(null);
+    setDeliveryCoords(null);
+    try {
+      setIsGeocoding(true);
+      await ensureKakaoMapsLoaded();
+      const kakao = (window as any)?.kakao;
+      if (!kakao?.maps?.services) {
+        setDeliveryDistanceError('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.');
+        show('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.', { variant: 'error' });
+        return;
+      }
+      const geocoder = new kakao.maps.services.Geocoder();
+      await new Promise<void>(resolve => {
+        geocoder.addressSearch(address, async (result: any, status: any) => {
           if (status === kakao.maps.services.Status.OK && result?.[0]) {
             const lat = Number(result[0].y);
             const lng = Number(result[0].x);
-            const distanceKm = getDistanceKm(config.storeLat, config.storeLng, lat, lng);
-            setDeliveryDistanceKm(distanceKm);
-            if (distanceKm > config.maxDistanceKm) {
-              const message = `배달 가능 거리(${config.maxDistanceKm}km)를 초과했습니다.`;
-              setDeliveryDistanceError(message);
-              show(message, { variant: 'error' });
-            } else {
-              setDeliveryDistanceError(null);
+            setDeliveryCoords({ lat, lng });
+            setDeliveryInfo(prev => ({ ...prev, latitude: lat, longitude: lng }));
+            const estimate = await getDeliveryFeeEstimate(lat, lng);
+            if (!estimate) {
+              setDeliveryDistanceError('배달비 계산에 실패했습니다.');
+              resolve();
+              return;
             }
-          } else {
-            setDeliveryDistanceKm(null);
-            setDeliveryDistanceError('주소 좌표를 찾을 수 없습니다.');
-            show('주소 좌표를 찾을 수 없습니다.', { variant: 'error' });
+            setDeliveryDistanceKm(estimate.distanceKm);
+            setDeliveryFee(estimate.deliveryFee);
+            resolve();
+            return;
           }
+          setDeliveryDistanceError('주소 좌표를 찾을 수 없습니다.');
+          show('주소 좌표를 찾을 수 없습니다.', { variant: 'error' });
           resolve();
         });
-      } catch (e) {
-        safeErrorLog(e, 'DeliveryPage - ensureKakaoMapsLoaded');
-        setDeliveryDistanceKm(null);
-        setDeliveryDistanceError('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.');
-        show('카카오맵 로드에 실패했습니다. 관리자에게 문의해주세요.', { variant: 'error' });
-        resolve();
-      }
-    });
+      });
+    } catch (e) {
+      safeErrorLog(e, 'DeliveryPage - estimateDeliveryFee');
+      setDeliveryDistanceError(getSafeErrorMessage(e, '배달비 계산에 실패했습니다.'));
+      show(getSafeErrorMessage(e, '배달비 계산에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
 
   const openPostcode = () => {
     const daumPostcode = (window as any)?.daum?.Postcode;
@@ -250,12 +285,7 @@ export default function DeliveryPage() {
         const address = data.address || '';
         const postalCode = data.zonecode || '';
         setDeliveryInfo(prev => ({ ...prev, postalCode, address1: address }));
-        setIsGeocoding(true);
-        try {
-          await geocodeAddress(address);
-        } finally {
-          setIsGeocoding(false);
-        }
+        await estimateDeliveryFee(address);
       },
     }).open();
   };
@@ -352,14 +382,18 @@ export default function DeliveryPage() {
           postalCode: info.postalCode || '',
           address1: info.address1 || '',
           address2: info.address2 || '',
+          latitude: info.latitude,
+          longitude: info.longitude,
         });
-        if (info.address1) {
-          setIsGeocoding(true);
-          try {
-            await geocodeAddress(info.address1);
-          } finally {
-            setIsGeocoding(false);
+        if (info.latitude != null && info.longitude != null) {
+          setDeliveryCoords({ lat: info.latitude, lng: info.longitude });
+          const estimate = await getDeliveryFeeEstimate(info.latitude, info.longitude);
+          if (estimate) {
+            setDeliveryDistanceKm(estimate.distanceKm);
+            setDeliveryFee(estimate.deliveryFee);
           }
+        } else if (info.address1) {
+          await estimateDeliveryFee(info.address1);
         }
       } catch (e) {
         safeErrorLog(e, 'DeliveryPage - getDeliveryInfo');
@@ -421,6 +455,10 @@ export default function DeliveryPage() {
       show(deliveryDistanceError || '주소 좌표를 확인해주세요.', { variant: 'error' });
       return;
     }
+    if (!deliveryCoords) {
+      show('주소 좌표를 확인해주세요.', { variant: 'error' });
+      return;
+    }
     if (selectedAmount < config.minAmount) {
       show(`배달 주문은 ${config.minAmount.toLocaleString()}원 이상부터 가능합니다.`, { variant: 'error' });
       return;
@@ -441,6 +479,8 @@ export default function DeliveryPage() {
           postalCode: deliveryInfo.postalCode,
           address1: deliveryInfo.address1,
           address2: deliveryInfo.address2 || '',
+          latitude: deliveryCoords.lat,
+          longitude: deliveryCoords.lng,
           idempotencyKey,
         });
         if (!res.ok) {
@@ -553,7 +593,7 @@ export default function DeliveryPage() {
           />
         </div>
         <div className="mt-3 text-xs text-gray-500 space-y-1">
-          <div>배달비 {appliedFee ? `${appliedFee.toLocaleString()}원` : '배달 불가'}</div>
+          <div>배달비 {appliedFee === null ? '배달 불가' : `${appliedFee.toLocaleString()}원`}</div>
           <div>요금 기준: {config.feeDistanceKm}km까지 {config.feeNear.toLocaleString()}원 · 이후 100m당 {config.feePer100m.toLocaleString()}원 추가</div>
           <div>배달 가능 거리: {config.maxDistanceKm}km 이내</div>
           {isGeocoding && (
@@ -615,13 +655,13 @@ export default function DeliveryPage() {
           </div>
           <div className="flex items-center justify-between">
             <span>배달비</span>
-            <span>{appliedFee ? KRW(appliedFee) : '배달 불가'}</span>
+            <span>{appliedFee === null ? '배달 불가' : KRW(appliedFee)}</span>
           </div>
           <div className="flex items-center justify-between font-semibold text-gray-900">
             <span>총 결제 금액</span>
             <span>
               {(() => {
-                if (!appliedFee) return '배달 불가';
+                if (appliedFee === null) return '배달 불가';
                 return KRW(selectedAmount + appliedFee);
               })()}
             </span>
@@ -641,6 +681,13 @@ export default function DeliveryPage() {
           >
             배달 결제하기
           </button>
+          {!canSubmit && submitBlockers.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 space-y-1">
+              {submitBlockers.map((reason, idx) => (
+                <div key={`${reason}-${idx}`}>• {reason}</div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

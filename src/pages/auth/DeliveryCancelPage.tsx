@@ -45,7 +45,7 @@ export default function DeliveryCancelPage() {
             <button
               type="button"
               className="mt-4 w-full h-10 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-              onClick={() => nav('/me/orders')}
+              onClick={() => nav('/me/orders?tab=delivery')}
             >
               주문 내역으로 이동
             </button>
@@ -58,7 +58,7 @@ export default function DeliveryCancelPage() {
             <button
               type="button"
               className="mt-4 w-full h-10 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-              onClick={() => nav('/me/orders')}
+              onClick={() => nav('/me/orders?tab=delivery')}
             >
               주문 내역으로 이동
             </button>
