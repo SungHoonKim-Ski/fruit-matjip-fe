@@ -65,7 +65,6 @@ function getNext10Days(): string[] {
   return arr;
 }
 
-const storeTitle = '과일맛집 1995';
 const branchName = '';
 
 // KST 기준 현재 날짜/시간 문자열 계산 (서버 시간 동기화 적용)
