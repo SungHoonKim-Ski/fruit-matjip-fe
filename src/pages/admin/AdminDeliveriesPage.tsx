@@ -1,20 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import AdminHeader from '../../components/AdminHeader';
-import { getAdminDeliveries, updateAdminDeliveryStatus } from '../../utils/api';
+import { getAdminDeliveries, updateAdminDeliveryStatus, getAdminDeliveryConfig, updateAdminDeliveryConfig } from '../../utils/api';
 import { safeErrorLog } from '../../utils/environment';
 import { useSnackbar } from '../../components/snackbar';
 
 interface DeliveryRow {
   id: number;
-  reservationIds: number[];
-  reservationCount: number;
+  reservationItems: { id: number; productName: string; quantity: number }[];
   buyerName: string;
-  productSummary: string;
-  totalQuantity: number;
-  deliveryDate: string;
-  deliveryHour: number;
-  deliveryMinute: number;
-  deliveryFee: number;
   totalAmount: number;
   status: string;
   phone: string;
@@ -23,14 +16,39 @@ interface DeliveryRow {
   address2?: string;
 }
 
+interface DeliveryConfigForm {
+  enabled: boolean;
+  minAmount: string;
+  feeNear: string;
+  feePer100m: string;
+  feeDistanceKm: string;
+  maxDistanceKm: string;
+  startHour: string;
+  startMinute: string;
+  endHour: string;
+  endMinute: string;
+}
+
 export default function AdminDeliveriesPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }));
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configForm, setConfigForm] = useState<DeliveryConfigForm>({
+    enabled: true,
+    minAmount: '',
+    feeNear: '',
+    feePer100m: '',
+    feeDistanceKm: '',
+    maxDistanceKm: '',
+    startHour: '',
+    startMinute: '',
+    endHour: '',
+    endMinute: '',
+  });
   const { show } = useSnackbar();
-
-  const formatTime = (hour: number, minute: number) =>
-    minute && minute > 0 ? `${hour}시 ${String(minute).padStart(2, '0')}분` : `${hour}시`;
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -51,6 +69,17 @@ export default function AdminDeliveriesPage() {
     }
   };
 
+  const formatPhone = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 11) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    return raw;
+  };
+
   useEffect(() => {
     if (sessionStorage.getItem('admin-deliveries-reload') === '1') {
       sessionStorage.removeItem('admin-deliveries-reload');
@@ -68,15 +97,20 @@ export default function AdminDeliveriesPage() {
         const list = Array.isArray(data?.response) ? data.response : [];
         const mapped = list.map((r: any) => ({
           id: Number(r.id),
-          reservationIds: Array.isArray(r.reservation_ids) ? r.reservation_ids.map((id: any) => Number(id)) : [],
-          reservationCount: Number(r.reservation_count || 0),
+          reservationItems: Array.isArray(r.reservation_items)
+            ? r.reservation_items.map((item: any) => ({
+              id: Number(item.id ?? item.reservation_id ?? 0),
+              productName: String(item.product_name ?? item.productName ?? ''),
+              quantity: Number(item.quantity ?? 0),
+            }))
+            : Array.isArray(r.reservations)
+              ? r.reservations.map((item: any) => ({
+                id: Number(item.id ?? item.reservation_id ?? 0),
+                productName: String(item.product_name ?? item.productName ?? ''),
+                quantity: Number(item.quantity ?? 0),
+              }))
+              : [],
           buyerName: String(r.buyer_name || ''),
-          productSummary: String(r.product_summary || ''),
-          totalQuantity: Number(r.total_quantity || 0),
-          deliveryDate: String(r.delivery_date || ''),
-          deliveryHour: Number(r.delivery_hour || 0),
-          deliveryMinute: Number(r.delivery_minute ?? r.deliveryMinute ?? 0),
-          deliveryFee: Number(r.delivery_fee || 0),
           totalAmount: Number(r.total_amount || 0),
           status: String(r.status || ''),
           phone: String(r.phone || ''),
@@ -84,7 +118,19 @@ export default function AdminDeliveriesPage() {
           address1: String(r.address1 || ''),
           address2: String(r.address2 || ''),
         }));
-        setRows(mapped);
+        const statusPriority: Record<string, number> = {
+          PAID: 1,
+          OUT_FOR_DELIVERY: 2,
+          DELIVERED: 3,
+          CANCELED: 4,
+        };
+        const sorted = mapped.sort((a: DeliveryRow, b: DeliveryRow) => {
+          const aPriority = statusPriority[a.status] ?? 99;
+          const bPriority = statusPriority[b.status] ?? 99;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return b.id - a.id;
+        });
+        setRows(sorted);
       } catch (e) {
         safeErrorLog(e, 'AdminDeliveriesPage - load');
         show('배달 목록을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
@@ -93,8 +139,53 @@ export default function AdminDeliveriesPage() {
     load();
   }, [selectedDate, show]);
 
+  useEffect(() => {
+    let alive = true;
+    const loadConfig = async () => {
+      try {
+        setConfigLoading(true);
+        const res = await getAdminDeliveryConfig();
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.message || '배달 설정을 불러오지 못했습니다.');
+        }
+        const data = await res.json();
+        if (!alive) return;
+        setConfigForm({
+          enabled: data.enabled ?? data.delivery_enabled ?? true,
+          minAmount: String(data.min_amount ?? data.minAmount ?? ''),
+          feeNear: String(data.fee_near ?? data.feeNear ?? ''),
+          feePer100m: String(data.fee_per100m ?? data.feePer100m ?? ''),
+          feeDistanceKm: String(data.fee_distance_km ?? data.feeDistanceKm ?? ''),
+          maxDistanceKm: String(data.max_distance_km ?? data.maxDistanceKm ?? ''),
+          startHour: String(data.start_hour ?? data.startHour ?? ''),
+          startMinute: String(data.start_minute ?? data.startMinute ?? ''),
+          endHour: String(data.end_hour ?? data.endHour ?? ''),
+          endMinute: String(data.end_minute ?? data.endMinute ?? ''),
+        });
+      } catch (e) {
+        safeErrorLog(e, 'AdminDeliveriesPage - loadConfig');
+        show('배달 설정을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
+      } finally {
+        if (alive) setConfigLoading(false);
+      }
+    };
+    loadConfig();
+    return () => {
+      alive = false;
+    };
+  }, [show]);
+
   const handleStatusChange = async (row: DeliveryRow, next: 'out_for_delivery' | 'delivered' | 'canceled') => {
     try {
+      const confirmMessage = next === 'out_for_delivery'
+        ? '배달을 시작하시겠습니까?'
+        : next === 'delivered'
+          ? '배달 완료 처리하시겠습니까?'
+          : '주문을 취소하시겠습니까?';
+      if (!window.confirm(confirmMessage)) {
+        return;
+      }
       setUpdatingId(row.id);
       const res = await updateAdminDeliveryStatus(row.id, next);
       if (!res.ok) {
@@ -111,13 +202,241 @@ export default function AdminDeliveriesPage() {
     }
   };
 
+  const handleSaveConfig = async () => {
+    try {
+      setConfigSaving(true);
+      const minAmount = Number(configForm.minAmount);
+      const feeNear = Number(configForm.feeNear);
+      const feePer100m = Number(configForm.feePer100m);
+      const feeDistanceKm = Number(configForm.feeDistanceKm);
+      const maxDistanceKm = Number(configForm.maxDistanceKm);
+      const startHour = Number(configForm.startHour);
+      const startMinute = Number(configForm.startMinute);
+      const endHour = Number(configForm.endHour);
+      const endMinute = Number(configForm.endMinute);
+
+      if ([minAmount, feeNear, feePer100m, feeDistanceKm, maxDistanceKm, startHour, startMinute, endHour, endMinute]
+        .some(v => Number.isNaN(v))) {
+        show('배달 설정의 숫자 값을 확인해주세요.', { variant: 'error' });
+        return;
+      }
+      if (minAmount < 0 || feeNear < 0 || feePer100m < 0 || feeDistanceKm < 0 || maxDistanceKm < 0) {
+        show('배달 설정 값은 0 이상이어야 합니다.', { variant: 'error' });
+        return;
+      }
+      if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23 || startMinute < 0 || startMinute > 59 || endMinute < 0 || endMinute > 59) {
+        show('배달 시간 범위를 확인해주세요.', { variant: 'error' });
+        return;
+      }
+      if (feeDistanceKm > maxDistanceKm) {
+        show('배달 기준 거리는 최대 거리보다 클 수 없습니다.', { variant: 'error' });
+        return;
+      }
+
+      const res = await updateAdminDeliveryConfig({
+        enabled: configForm.enabled,
+        minAmount,
+        feeNear,
+        feePer100m,
+        feeDistanceKm,
+        maxDistanceKm,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || '배달 설정 저장에 실패했습니다.');
+      }
+      const data = await res.json();
+      setConfigForm({
+        enabled: data.enabled ?? data.delivery_enabled ?? true,
+        minAmount: String(data.min_amount ?? data.minAmount ?? minAmount),
+        feeNear: String(data.fee_near ?? data.feeNear ?? feeNear),
+        feePer100m: String(data.fee_per_100m ?? data.feePer100m ?? feePer100m),
+        feeDistanceKm: String(data.fee_distance_km ?? data.feeDistanceKm ?? feeDistanceKm),
+        maxDistanceKm: String(data.max_distance_km ?? data.maxDistanceKm ?? maxDistanceKm),
+        startHour: String(data.start_hour ?? data.startHour ?? startHour),
+        startMinute: String(data.start_minute ?? data.startMinute ?? startMinute),
+        endHour: String(data.end_hour ?? data.endHour ?? endHour),
+        endMinute: String(data.end_minute ?? data.endMinute ?? endMinute),
+      });
+      show('배달 설정이 저장되었습니다.');
+    } catch (e) {
+      safeErrorLog(e, 'AdminDeliveriesPage - saveConfig');
+      show('배달 설정 저장 중 오류가 발생했습니다.', { variant: 'error' });
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
       <div className="mx-auto max-w-6xl">
-        <AdminHeader />
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">🚚 배달 관리</h1>
+          <div className="flex justify-end">
+            <AdminHeader />
+          </div>
+        </div>
         <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <button
+            type="button"
+            onClick={() => setConfigOpen(prev => !prev)}
+            className="w-full flex items-center justify-between text-left"
+            aria-expanded={configOpen}
+          >
+            <span className="text-xl font-bold text-gray-800">⚙️ 배달 설정</span>
+            <span className="flex items-center gap-2">
+              <span
+                className={`text-xs font-semibold px-2 py-1 rounded ${configForm.enabled ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'}`}
+              >
+                {configForm.enabled ? '배달 허용' : '배달 금지'}
+              </span>
+              <span className="text-base text-gray-500">{configOpen ? '▲' : '▼'}</span>
+            </span>
+          </button>
+          {configOpen && (
+            <>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">최소 주문 금액(원)</div>
+                  <input
+                    type="number"
+                    value={configForm.minAmount}
+                    onChange={e => setConfigForm(prev => ({ ...prev, minAmount: e.target.value }))}
+                    className="h-10 w-full border rounded px-2"
+                    min={0}
+                    disabled={configLoading}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">배달 시작 시간</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      value={configForm.startHour}
+                      onChange={e => setConfigForm(prev => ({ ...prev, startHour: e.target.value }))}
+                      className="h-10 w-full border rounded px-2"
+                      min={0}
+                      max={23}
+                      disabled={configLoading}
+                      placeholder="시"
+                    />
+                    <input
+                      type="number"
+                      value={configForm.startMinute}
+                      onChange={e => setConfigForm(prev => ({ ...prev, startMinute: e.target.value }))}
+                      className="h-10 w-full border rounded px-2"
+                      min={0}
+                      max={59}
+                      disabled={configLoading}
+                      placeholder="분"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">배달 종료 시간</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      value={configForm.endHour}
+                      onChange={e => setConfigForm(prev => ({ ...prev, endHour: e.target.value }))}
+                      className="h-10 w-full border rounded px-2"
+                      min={0}
+                      max={23}
+                      disabled={configLoading}
+                      placeholder="시"
+                    />
+                    <input
+                      type="number"
+                      value={configForm.endMinute}
+                      onChange={e => setConfigForm(prev => ({ ...prev, endMinute: e.target.value }))}
+                      className="h-10 w-full border rounded px-2"
+                      min={0}
+                      max={59}
+                      disabled={configLoading}
+                      placeholder="분"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">기본 배달비(원)</div>
+                  <input
+                    type="number"
+                    value={configForm.feeNear}
+                    onChange={e => setConfigForm(prev => ({ ...prev, feeNear: e.target.value }))}
+                    className="h-10 w-full border rounded px-2"
+                    min={0}
+                    disabled={configLoading}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">기준 거리(km)</div>
+                  <input
+                    type="number"
+                    value={configForm.feeDistanceKm}
+                    onChange={e => setConfigForm(prev => ({ ...prev, feeDistanceKm: e.target.value }))}
+                    className="h-10 w-full border rounded px-2"
+                    min={0}
+                    step="0.1"
+                    disabled={configLoading}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">거리 추가 요금(100m당)</div>
+                  <input
+                    type="number"
+                    value={configForm.feePer100m}
+                    onChange={e => setConfigForm(prev => ({ ...prev, feePer100m: e.target.value }))}
+                    className="h-10 w-full border rounded px-2"
+                    min={0}
+                    step="1"
+                    inputMode="numeric"
+                    disabled={configLoading}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">최대 배달 거리(km)</div>
+                  <input
+                    type="number"
+                    value={configForm.maxDistanceKm}
+                    onChange={e => setConfigForm(prev => ({ ...prev, maxDistanceKm: e.target.value }))}
+                    className="h-10 w-full border rounded px-2"
+                    min={0}
+                    step="0.1"
+                    disabled={configLoading}
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfigForm(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  disabled={configLoading}
+                  className={`h-10 px-4 rounded text-white text-sm font-semibold ${configForm.enabled ? 'bg-green-600' : 'bg-rose-600'} disabled:opacity-50`}
+                >
+                  {configForm.enabled ? '배달 허용' : '배달 금지'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveConfig}
+                  disabled={configSaving || configLoading}
+                  className="h-10 px-4 rounded bg-emerald-600 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  저장
+                </button>
+              </div>
+              {configLoading && (
+                <div className="mt-3 text-xs text-gray-500">배달 설정을 불러오는 중...</div>
+              )}
+            </>
+          )}
+        </div>
+        <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h1 className="text-2xl font-bold text-gray-800">🚚 배달 관리</h1>
+            <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600">날짜</label>
               <input
@@ -133,10 +452,8 @@ export default function AdminDeliveriesPage() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-600 border-b">
-                  <th className="py-2 pr-3">수령시간</th>
                   <th className="py-2 pr-3">상품</th>
-                  <th className="py-2 pr-3">주소</th>
-                  <th className="py-2 pr-3">휴대폰</th>
+                  <th className="py-2 pr-3">연락처/주소</th>
                   <th className="py-2 pr-3">주문</th>
                   <th className="py-2 pr-3">금액</th>
                   <th className="py-2 pr-3">상태</th>
@@ -146,36 +463,40 @@ export default function AdminDeliveriesPage() {
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-6 text-center text-gray-500">배달 주문이 없습니다.</td>
+                    <td colSpan={7} className="py-6 text-center text-gray-500">배달 주문이 없습니다.</td>
                   </tr>
                 )}
                 {rows.map(r => (
                   <tr key={r.id} className="border-b">
                     <td className="py-2 pr-3">
-                      <div className="text-base font-semibold text-gray-900">{formatTime(r.deliveryHour, r.deliveryMinute)} 수령 예정</div>
+                      {r.reservationItems.length > 0 ? (
+                        <div className="space-y-1">
+                          {r.reservationItems.map(item => (
+                            <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
+                              {item.productName} · {item.quantity}개
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-base font-semibold text-gray-900">상품 정보 없음</div>
+                        </>
+                      )}
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="text-base font-semibold text-gray-900">{r.productSummary}</div>
-                      <div className="text-xs text-gray-500">{r.totalQuantity}개</div>
-                    </td>
-                    <td className="py-2 pr-3">
-                      <div className="text-sm font-medium text-gray-800">{r.postalCode}</div>
-                      <div className="text-sm text-gray-700">{r.address1} {r.address2}</div>
-                    </td>
-                    <td className="py-2 pr-3">
-                      <div className="text-base font-semibold text-gray-900">{r.phone}</div>
+                      <div className="text-sm font-semibold text-gray-900">{r.buyerName}</div>
+                      <div className={`text-sm ${r.phone ? 'text-gray-700' : 'text-rose-600'}`}>
+                        {r.phone ? formatPhone(r.phone) : '휴대폰 없음'}
+                      </div>
+                      <div className="text-xs text-gray-500">{r.postalCode}</div>
+                      <div className="text-xs text-gray-600">{r.address1} {r.address2}</div>
                     </td>
                     <td className="py-2 pr-3">
                       <div className="font-medium text-gray-800">#{r.id}</div>
-                      <div className="text-xs text-gray-500">예약 {r.reservationCount}건</div>
-                      {r.reservationIds.length > 0 && (
-                        <div className="text-xs text-gray-400">#{r.reservationIds.join(', #')}</div>
-                      )}
-                      <div className="text-xs text-gray-500">{r.buyerName}</div>
+                      <div className="text-xs text-gray-500">배달 주문</div>
                     </td>
                     <td className="py-2 pr-3">
                       <div className="text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
-                      <div className="text-xs text-gray-500">배달비 {r.deliveryFee.toLocaleString()}원</div>
                     </td>
                     <td className="py-2 pr-3">{getStatusLabel(r.status)}</td>
                     <td className="py-2 pr-3">
@@ -200,7 +521,7 @@ export default function AdminDeliveriesPage() {
                           type="button"
                           className="h-8 px-2 rounded bg-gray-500 text-white text-xs disabled:opacity-50"
                           onClick={() => handleStatusChange(r, 'canceled')}
-                          disabled={updatingId === r.id || r.status === 'DELIVERED'}
+                          disabled={updatingId === r.id || r.status === 'DELIVERED' || r.status === 'CANCELED' || r.status === 'FAILED'}
                         >
                           주문 취소
                         </button>
@@ -222,18 +543,27 @@ export default function AdminDeliveriesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-semibold text-gray-800">#{r.id}</div>
-                    <div className="text-xs text-gray-500">예약 {r.reservationCount}건</div>
                   </div>
                   <span className="text-xs text-gray-500">{getStatusLabel(r.status)}</span>
                 </div>
-                <div className="mt-2 text-base font-semibold text-gray-900">{formatTime(r.deliveryHour, r.deliveryMinute)} 수령 예정</div>
-                <div className="mt-2 text-base font-semibold text-gray-900">{r.productSummary} · {r.totalQuantity}개</div>
+                <div className="mt-2 space-y-1">
+                  {r.reservationItems.length > 0 ? (
+                    r.reservationItems.map(item => (
+                      <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
+                        {item.productName} · {item.quantity}개
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-base font-semibold text-gray-900">상품 정보 없음</div>
+                  )}
+                </div>
+                <div className="mt-2 text-base font-semibold text-gray-900">{r.buyerName}</div>
+                <div className={`mt-1 text-sm ${r.phone ? 'text-gray-700' : 'text-rose-600'}`}>
+                  {r.phone ? formatPhone(r.phone) : '휴대폰 없음'}
+                </div>
                 <div className="mt-1 text-sm text-gray-700">{r.address1} {r.address2}</div>
-                <div className="mt-1 text-sm text-gray-700">{r.postalCode}</div>
-                <div className="mt-2 text-base font-semibold text-gray-900">{r.phone}</div>
-                <div className="mt-1 text-xs text-gray-500">{r.buyerName}</div>
+                <div className="mt-1 text-xs text-gray-500">{r.postalCode}</div>
                 <div className="mt-1 text-sm text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
-                <div className="text-xs text-gray-500">배달비 {r.deliveryFee.toLocaleString()}원</div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
                     type="button"
@@ -255,7 +585,7 @@ export default function AdminDeliveriesPage() {
                     type="button"
                     className="h-9 rounded bg-gray-500 text-white text-xs disabled:opacity-50"
                     onClick={() => handleStatusChange(r, 'canceled')}
-                    disabled={updatingId === r.id || r.status === 'DELIVERED'}
+                    disabled={updatingId === r.id || r.status === 'DELIVERED' || r.status === 'CANCELED' || r.status === 'FAILED'}
                   >
                     주문 취소
                   </button>

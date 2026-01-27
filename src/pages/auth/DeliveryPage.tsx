@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
@@ -19,6 +19,7 @@ const KRW = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
 const DEFAULT_DELIVERY_CONFIG: DeliveryConfig = {
+  enabled: true,
   storeLat: 37.556504,
   storeLng: 126.8372613,
   maxDistanceKm: 3,
@@ -52,7 +53,7 @@ const getDeliveryFee = (distanceKm: number | null, config: DeliveryConfig) => {
   return config.feeNear + extraUnits * config.feePer100m;
 };
 
-const PAYMENT_READY = false;
+const PAYMENT_READY = true;
 
 type DeliveryOrderItem = {
   id: number;
@@ -91,6 +92,13 @@ export default function DeliveryPage() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
   const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const buildIdempotencyKey = () => {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
 
   const getKstNow = () => new Date(Date.now() + serverTimeOffsetMs);
 
@@ -107,6 +115,7 @@ export default function DeliveryPage() {
     [selectedOrders]
   );
   const config = deliveryConfig || DEFAULT_DELIVERY_CONFIG;
+  const deliveryEnabled = config.enabled !== false;
   const appliedFee = getDeliveryFee(deliveryDistanceKm, config);
   const isAfterDeadline = useMemo(() => {
     const now = getKstNow();
@@ -121,6 +130,7 @@ export default function DeliveryPage() {
     return h < config.startHour || (h === config.startHour && m < config.startMinute);
   }, [serverTimeOffsetMs, config.startHour, config.startMinute]);
   const canSubmit = PAYMENT_READY
+    && deliveryEnabled
     && selectedIds.length > 0
     && deliveryHour >= 0
     && !deliverySubmitting
@@ -292,8 +302,10 @@ export default function DeliveryPage() {
 
         const eligible = list.filter((r: any) => {
           const rawStatus = String(r.status ?? '').toUpperCase();
-          const isPending = rawStatus === 'PENDING' || rawStatus === 'pending';
-          return isPending && !r.delivery && String(r.order_date || '') === today;
+          const isPending = rawStatus === 'PENDING';
+          const deliveryStatus = String(r.delivery?.status ?? r.delivery_status ?? r.deliveryStatus ?? '').toUpperCase();
+          const canReorderDelivery = !deliveryStatus || deliveryStatus === 'CANCELED' || deliveryStatus === 'FAILED';
+          return isPending && canReorderDelivery && String(r.order_date || '') === today;
         }).map((r: any) => {
           const qty = Math.max(1, Number(r.quantity ?? 1));
           const amt = Number(r.amount ?? 0);
@@ -419,6 +431,8 @@ export default function DeliveryPage() {
       if (!USE_MOCKS) {
         await saveDeliveryInfo(deliveryInfo);
         setDeliveryHour(currentHour);
+        const idempotencyKey = idempotencyKeyRef.current ?? buildIdempotencyKey();
+        idempotencyKeyRef.current = idempotencyKey;
         const res = await createDeliveryPaymentReady({
           reservationIds: selectedIds,
           deliveryHour: currentHour,
@@ -427,6 +441,7 @@ export default function DeliveryPage() {
           postalCode: deliveryInfo.postalCode,
           address1: deliveryInfo.address1,
           address2: deliveryInfo.address2 || '',
+          idempotencyKey,
         });
         if (!res.ok) {
           if (res.status === 400) {
@@ -448,6 +463,7 @@ export default function DeliveryPage() {
       show(getSafeErrorMessage(e, '배달 결제 준비 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setDeliverySubmitting(false);
+      idempotencyKeyRef.current = null;
     }
   };
 
@@ -461,8 +477,13 @@ export default function DeliveryPage() {
         </div>
       </header>
 
+      {!deliveryEnabled && (
+        <section className="max-w-4xl mx-auto mt-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          현재 배달 주문이 중단되어 있습니다.
+        </section>
+      )}
+
       <section className="max-w-4xl mx-auto mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-        <div className="mb-2 text-xs font-semibold text-rose-600">개발중인 기능으로 현재 사용할 수 없습니다.</div>
         <div className="flex flex-col gap-1 text-sm text-emerald-900">
           <span>오늘({today || '오늘'}) 수령 상품만 배달 가능합니다.</span>
         </div>
@@ -618,7 +639,7 @@ export default function DeliveryPage() {
             disabled={!canSubmit}
             className="w-full h-11 rounded bg-green-600 text-white font-medium disabled:opacity-60"
           >
-            {PAYMENT_READY ? '배달 결제하기' : '추후 지원 예정'}
+            배달 결제하기
           </button>
         </div>
       </section>

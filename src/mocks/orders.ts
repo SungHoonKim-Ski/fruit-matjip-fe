@@ -15,10 +15,12 @@ export type OrderRow = {
   date: string;           // YYYY-MM-DD
   status: 'pending' | 'picked' | 'canceled';
   items: OrderItem[];
+  deliveryOrderId?: number;
   delivery?: {
     status?: string;
     deliveryHour?: number;
     deliveryMinute?: number;
+    deliveryFee?: number;
   };
 };
 

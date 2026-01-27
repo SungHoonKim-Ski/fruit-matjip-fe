@@ -451,6 +451,7 @@ export type DeliveryInfo = {
 };
 
 export type DeliveryConfig = {
+  enabled: boolean;
   storeLat: number;
   storeLng: number;
   maxDistanceKm: number;
@@ -477,6 +478,7 @@ export const getDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
     resetApiRetryCount(key);
     if (!data) return null;
     return {
+      enabled: data.enabled ?? data.delivery_enabled ?? true,
       storeLat: Number(data.store_lat ?? data.storeLat ?? 0),
       storeLng: Number(data.store_lng ?? data.storeLng ?? 0),
       maxDistanceKm: Number(data.max_distance_km ?? data.maxDistanceKm ?? 0),
@@ -545,6 +547,7 @@ export const createDeliveryPaymentReady = async (data: {
   address2?: string;
   latitude?: number;
   longitude?: number;
+  idempotencyKey: string;
 }) => {
   const key = 'createDeliveryPaymentReady';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -561,6 +564,7 @@ export const createDeliveryPaymentReady = async (data: {
         address2: data.address2 || '',
         latitude: data.latitude,
         longitude: data.longitude,
+        idempotency_key: data.idempotencyKey,
       }),
     });
     if (res.ok) resetApiRetryCount(key);
@@ -788,6 +792,53 @@ export const updateAdminDeliveryStatus = async (id: number, status: 'out_for_del
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await adminFetch(`/api/admin/deliveries/${id}/${status.toUpperCase()}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export type AdminDeliveryConfigPayload = {
+  enabled: boolean;
+  minAmount: number;
+  feeNear: number;
+  feePer100m: number;
+  feeDistanceKm: number;
+  maxDistanceKm: number;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+};
+
+export const getAdminDeliveryConfig = async () => {
+  const key = 'getAdminDeliveryConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/deliveries/config', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminDeliveryConfig = async (payload: AdminDeliveryConfigPayload) => {
+  const key = 'updateAdminDeliveryConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/deliveries/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: payload.enabled,
+        min_amount: payload.minAmount,
+        fee_near: payload.feeNear,
+        fee_per100m: payload.feePer100m,
+        fee_distance_km: payload.feeDistanceKm,
+        max_distance_km: payload.maxDistanceKm,
+        start_hour: payload.startHour,
+        start_minute: payload.startMinute,
+        end_hour: payload.endHour,
+        end_minute: payload.endMinute,
+      }),
+    }, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }

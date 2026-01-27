@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
-import { getReservations, cancelReservation, minusQuantity, getServerTime } from '../../utils/api';
+import { getReservations, cancelReservation, minusQuantity, getServerTime, getDeliveryConfig } from '../../utils/api';
 import Footer from '../../components/Footer';
 
 const KRW = (price: number) =>
@@ -19,7 +19,7 @@ export default function OrdersPage() {
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  
+
   // ✅ 오늘 ~ 6틀 뒤 (reservation API 기본값과 동일)
   const localToday = (() => {
     const d = new Date();
@@ -60,8 +60,34 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('');
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [tempSearch, setTempSearch] = useState('');
+  const [viewTab, setViewTab] = useState<'reservation' | 'delivery'>('reservation');
 
   const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        if (USE_MOCKS) {
+          setDeliveryEnabled(true);
+          return;
+        }
+        const config = await getDeliveryConfig();
+        if (!alive) return;
+        if (config && config.enabled === false) {
+          setDeliveryEnabled(false);
+        } else {
+          setDeliveryEnabled(true);
+        }
+      } catch (e) {
+        safeErrorLog(e, 'OrderPage - loadDeliveryConfig');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // 초기 로드 및 날짜 변경 시 재호출
   useEffect(() => {
@@ -89,18 +115,18 @@ export default function OrdersPage() {
               throw new Error('주문 목록을 불러오지 못했습니다.');
             }
             const data = await res.json();
-            
-            
+
+
             // ReservationListResponse 구조에서 response 필드 추출
             let reservationsArray = data;
             if (data && typeof data === 'object' && data.response && Array.isArray(data.response)) {
               reservationsArray = data.response;
             }
-            
+
             if (!Array.isArray(reservationsArray)) {
               throw new Error('주문 데이터가 배열 형태가 아닙니다.');
             }
-            
+
             // ReservationResponse를 OrderRow status로 변환
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
@@ -134,16 +160,19 @@ export default function OrdersPage() {
                   else if (lowerStatus === 'canceled' || lowerStatus === 'cancelled' || lowerStatus === 'no_show') orderStatus = 'canceled';
                   else orderStatus = 'pending';
               }
-              
+
               const qty = Math.max(1, Number(r.quantity ?? 1));
               const amt = Number(r.amount ?? 0);
               const unit = qty > 0 ? amt / qty : amt;
+              const deliveryOrderIdRaw = r.delivery?.order_id ?? r.delivery?.orderId ?? r.delivery_order_id ?? r.deliveryOrderId;
+              const deliveryOrderId = Number(deliveryOrderIdRaw ?? 0) || undefined;
               const delivery = r.delivery
                 ? {
-                    status: r.delivery.status ?? r.delivery_status ?? r.deliveryStatus,
-                    deliveryHour: Number(r.delivery.delivery_hour ?? r.delivery.deliveryHour ?? r.deliveryHour ?? 0),
-                    deliveryMinute: Number(r.delivery.delivery_minute ?? r.delivery.deliveryMinute ?? r.deliveryMinute ?? 0),
-                  }
+                  status: r.delivery.status ?? r.delivery_status ?? r.deliveryStatus,
+                  deliveryHour: Number(r.delivery.delivery_hour ?? r.delivery.deliveryHour ?? r.deliveryHour ?? 0),
+                  deliveryMinute: Number(r.delivery.delivery_minute ?? r.delivery.deliveryMinute ?? r.deliveryMinute ?? 0),
+                  deliveryFee: Number(r.delivery.delivery_fee ?? r.delivery.deliveryFee ?? r.deliveryFee ?? 0),
+                }
                 : undefined;
 
               return {
@@ -152,16 +181,17 @@ export default function OrdersPage() {
                 status: orderStatus,
                 items: [{
                   id: r.id,
-                  name: r.product_name, 
+                  name: r.product_name,
                   quantity: qty,
                   price: unit,
                   imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '',
                   productId: r.product_id,
                 }],
+                deliveryOrderId,
                 delivery,
               };
             });
-            
+
             setOrders(orderRows);
           } catch (e: any) {
             safeErrorLog(e, 'OrderPage - loadOrders');
@@ -202,7 +232,7 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const searchQuery = search.trim().toLowerCase();
-    
+
     return orders.filter(o => {
       const d = new Date(o.date);
       const sameDay = f ? (
@@ -211,11 +241,11 @@ export default function OrdersPage() {
         d.getDate() === f.getDate()
       ) : true;
       const s = status === 'all' ? true : o.status === status;
-      
+
       // 제품명 검색 필터링
-      const matchesSearch = searchQuery === '' || 
+      const matchesSearch = searchQuery === '' ||
         o.items.some(item => item.name.toLowerCase().includes(searchQuery));
-      
+
       return sameDay && s && matchesSearch;
     });
   }, [orders, from, status, search]);
@@ -283,7 +313,7 @@ export default function OrdersPage() {
       show('수량 변경이 없습니다.', { variant: 'info' });
       return;
     }
-    
+
     const decreaseAmount = statusDialog.quantity - tempQuantity;
     if (decreaseAmount <= 0) {
       show('수량은 더 이상 늘릴 수 없습니다.', { variant: 'error' });
@@ -291,28 +321,28 @@ export default function OrdersPage() {
     }
 
     if (!statusDialog.isOpen) return;
-    
+
     try {
       if (USE_MOCKS) {
         // Mock 수량 감소 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
-            ? { 
-                ...o, 
-                items: o.items.map(item => ({
-                  ...item,
-                  quantity: Math.max(0, item.quantity - decreaseAmount)
-                }))
-              }
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
+            ? {
+              ...o,
+              items: o.items.map(item => ({
+                ...item,
+                quantity: Math.max(0, item.quantity - decreaseAmount)
+              }))
+            }
             : o
         ));
-        
+
         // dialog의 수량도 업데이트
         setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
-        
+
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
-        
+
         // dialog 닫기
         setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       } else {
@@ -325,25 +355,25 @@ export default function OrdersPage() {
           }
           throw new Error('수량 변경에 실패했습니다.');
         }
-        
+
         // 성공 시 로컬 상태 업데이트
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
-            ? { 
-                ...o, 
-                items: o.items.map(item => ({
-                  ...item,
-                  quantity: Math.max(0, item.quantity - decreaseAmount)
-                }))
-              }
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
+            ? {
+              ...o,
+              items: o.items.map(item => ({
+                ...item,
+                quantity: Math.max(0, item.quantity - decreaseAmount)
+              }))
+            }
             : o
         ));
-        
+
         // dialog의 수량도 업데이트
         setStatusDialog(prev => ({ ...prev, quantity: tempQuantity }));
-        
+
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
-        
+
         // dialog 닫기
         setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       }
@@ -356,42 +386,42 @@ export default function OrdersPage() {
   // 상태 변경 처리
   const handleStatusChange = async () => {
     if (!statusDialog.isOpen) return;
-    
+
     const targetStatus = statusDialog.newStatus;
-    
+
     try {
       // pending 상태에서 과거 예약 체크 (취소)
       if (statusDialog.currentStatus === 'pending') {
         const targetOrder = orders.find(o => o.id === statusDialog.orderId);
         if (!targetOrder) return;
-        
+
         // order_date를 KST 기준으로 파싱
         const orderDate = new Date(targetOrder.date + 'T00:00:00');
         // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
         const kstOrderDate = orderDate;
-        
+
         // 과거 주문인 경우: 취소 불가
-          const kstNow = getKstNow();
-          const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
-          const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
-        
+        const kstNow = getKstNow();
+        const todayDate = new Date(kstNow.getFullYear(), kstNow.getMonth(), kstNow.getDate());
+        const orderDateOnly = new Date(kstOrderDate.getFullYear(), kstOrderDate.getMonth(), kstOrderDate.getDate());
+
         if (orderDateOnly.getTime() < todayDate.getTime()) {
           show('과거 예약은 취소할 수 없습니다.', { variant: 'error' });
           setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
           return;
         }
-        
+
       }
-      
+
       if (USE_MOCKS) {
         // Mock 상태 변경 처리
         await new Promise(resolve => setTimeout(resolve, 500));
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
             ? { ...o, status: targetStatus }
             : o
         ));
-        
+
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         }
@@ -409,14 +439,14 @@ export default function OrdersPage() {
             throw new Error('주문 취소에 실패했습니다.');
           }
         }
-        
+
         // 성공 시 로컬 상태 업데이트
-        setOrders(prev => prev.map(o => 
-          o.id === statusDialog.orderId 
+        setOrders(prev => prev.map(o =>
+          o.id === statusDialog.orderId
             ? { ...o, status: targetStatus }
             : o
         ));
-        
+
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         }
@@ -430,6 +460,35 @@ export default function OrdersPage() {
   };
 
   const getKstNow = () => new Date(Date.now() + serverTimeOffsetMs);
+
+  const groupedOrders = useMemo(() => {
+    const groups: { key: string; deliveryOrderId?: number; orders: OrderRow[] }[] = [];
+    const groupMap = new Map<string, { key: string; deliveryOrderId?: number; orders: OrderRow[] }>();
+    filtered.forEach(order => {
+      const key = order.deliveryOrderId ? `delivery-${order.deliveryOrderId}` : `order-${order.id}`;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, { key, deliveryOrderId: order.deliveryOrderId, orders: [] });
+        groups.push(groupMap.get(key)!);
+      }
+      groupMap.get(key)!.orders.push(order);
+    });
+    const sortedGroups = groups.map(group => ({
+      ...group,
+      orders: [...group.orders].sort((a, b) => b.id - a.id),
+    }));
+    return sortedGroups.sort((a, b) => {
+      const aId = a.deliveryOrderId ?? a.orders[0]?.id ?? 0;
+      const bId = b.deliveryOrderId ?? b.orders[0]?.id ?? 0;
+      return bId - aId;
+    });
+  }, [filtered]);
+
+  const getGroupTotal = (ordersInGroup: OrderRow[], includeDeliveryFee: boolean) => {
+    const subtotal = ordersInGroup.reduce((sum, order) => sum + totalPrice(order), 0);
+    if (!includeDeliveryFee) return subtotal;
+    const fee = Number(ordersInGroup[0]?.delivery?.deliveryFee ?? 0);
+    return subtotal + fee;
+  };
 
   const getUnifiedStatusLabel = (order: OrderRow) => {
     switch (order.status) {
@@ -445,13 +504,15 @@ export default function OrdersPage() {
 
   const getDeliveryProgressLabel = (order: OrderRow) => {
     const status = String(order.delivery?.status ?? '').toUpperCase();
-    if (status === 'PAID' || status === 'OUT_FOR_DELIVERY') {
-      return '배달 진행중';
-    }
-    if (status === 'DELIVERED') {
-      return '배달 완료';
-    }
+    if (status === 'PAID') return '결제 완료';
+    if (status === 'OUT_FOR_DELIVERY') return '배달 진행중';
+    if (status === 'DELIVERED') return '배달 완료';
     return null;
+  };
+
+  const isDeliveryLocked = (order: OrderRow) => {
+    const status = String(order.delivery?.status ?? '').toUpperCase();
+    return status === 'PAID' || status === 'OUT_FOR_DELIVERY' || status === 'DELIVERED';
   };
 
   const getDeliveryProgressStep = (order: OrderRow) => {
@@ -460,6 +521,50 @@ export default function OrdersPage() {
     if (status === 'OUT_FOR_DELIVERY') return 2;
     if (status === 'PAID') return 1;
     return 0;
+  };
+
+  const getDeliveryStatusLabel = (ordersInGroup: OrderRow[]) => {
+    const status = String(ordersInGroup[0]?.delivery?.status ?? '').toUpperCase();
+    if (status === 'PAID') return '결제 완료';
+    if (status === 'OUT_FOR_DELIVERY') return '배달 진행중';
+    if (status === 'DELIVERED') return '배달 완료';
+    if (status === 'CANCELED') return '배달 취소';
+    if (status === 'FAILED') return '결제 실패';
+    return '배달 준비';
+  };
+
+  const getGroupItems = (ordersInGroup: OrderRow[]) => {
+    const map = new Map<string, { name: string; quantity: number; imageUrl?: string }>();
+    ordersInGroup.forEach(order => {
+      order.items.forEach(item => {
+        const key = item.name;
+        const existing = map.get(key);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          map.set(key, { name: item.name, quantity: item.quantity, imageUrl: item.imageUrl });
+        }
+      });
+    });
+    return Array.from(map.values());
+  };
+
+  const getGroupItemTotals = (ordersInGroup: OrderRow[]) => {
+    const map = new Map<string, { name: string; quantity: number; imageUrl?: string; total: number }>();
+    ordersInGroup.forEach(order => {
+      order.items.forEach(item => {
+        const key = item.name;
+        const total = (item.price ?? 0) * (item.quantity ?? 0);
+        const existing = map.get(key);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.total += total;
+        } else {
+          map.set(key, { name: item.name, quantity: item.quantity, imageUrl: item.imageUrl, total });
+        }
+      });
+    });
+    return Array.from(map.values());
   };
 
   const DeliveryProgressBar = ({ step }: { step: number }) => {
@@ -483,7 +588,7 @@ export default function OrdersPage() {
       {/* 상단 바 */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
         <div className="mx-auto w-full max-w-4xl h-14 flex items-center justify-between px-4">
-          <button onClick={() => nav(-1)} className="text-sm text-gray-600 hover:text-gray-800">← 뒤로</button>
+          <button onClick={() => nav('/products')} className="text-sm text-gray-600 hover:text-gray-800">← 뒤로</button>
           <div className="font-bold text-gray-800">주문 내역</div>
           <div className="w-8" />
         </div>
@@ -508,7 +613,7 @@ export default function OrdersPage() {
             <label className="text-xs text-gray-500">수령 상태</label>
             <select
               value={status}
-              onChange={e=>setStatus(e.target.value as any)}
+              onChange={e => setStatus(e.target.value as any)}
               className="mt-1 w-full h-10 border rounded px-2"
             >
               <option value="all">전체</option>
@@ -529,8 +634,8 @@ export default function OrdersPage() {
         </div>
         {/* 안내 문구 */}
         <div className="mt-2 text-xs text-gray-600">
-        <strong>예약 완료 버튼</strong> 클릭 시 <strong>예약을 취소</strong>할 수 있습니다<br /> 
-          
+          <strong>예약 완료 버튼</strong> 클릭 시 <strong>예약을 취소</strong>할 수 있습니다<br />
+
         </div>
         <div className="mt-2 text-xs text-red-600">
           <strong>노쇼가 누적</strong>될 경우 <strong>추후 예약이 불가합니다</strong> <br />
@@ -538,76 +643,143 @@ export default function OrdersPage() {
         </div>
       </section>
 
-      {/* 데스크톱 테이블 */}
-      <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow overflow-hidden hidden sm:block">
+      {/* 탭 */}
+      <section className="max-w-4xl mx-auto mt-4">
+        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setViewTab('reservation')}
+            className={`h-9 px-4 rounded-md text-sm font-semibold ${viewTab === 'reservation' ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            예약
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewTab('delivery')}
+            className={`h-9 px-4 rounded-md text-sm font-semibold ${viewTab === 'delivery' ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            배달
+          </button>
+        </div>
+      </section>
+
+      {/* 데스크톱 */}
+      <section className="max-w-4xl mx-auto mt-4 hidden sm:block">
         {loading && <div className="p-6 text-center text-gray-500">불러오는 중…</div>}
         {!loading && filtered.length === 0 && (
           <div className="p-6 text-center text-gray-500">주문 내역이 없습니다.</div>
         )}
-        {filtered.length > 0 && (
-          <table className="min-w-full">
-            <thead className="bg-gray-50">
-              <tr className="text-left text-sm text-gray-500">
-                <th className="px-4 py-3">주문일</th>
-                <th className="px-4 py-3">내역</th>
-                <th className="px-4 py-3">금액</th>
-                <th className="px-4 py-3">상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(o => (
-                <tr
-                  key={o.id}
-                  className={`border-t text-sm ${(o.status === 'pending') ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (o.status === 'pending') {
-                      openStatusDialog(
-                        o.id,
-                        o.items.map(item => item.name).join(', '),
-                        o.status,
-                        o.items.reduce((sum, item) => sum + item.quantity, 0)
-                      );
-                    }
-                  }}
-                  role={(o.status === 'pending') ? 'button' : undefined}
-                  aria-label={(o.status === 'pending') ? '상태 변경' : undefined}
-                >
-                  <td className="px-4 py-3">{o.date}</td>
-                  <td className="px-4 py-3">
-                    <div className="space-y-1">
-                      {o.items.map(it => (
-                        <div key={it.id} className="flex items-center gap-2">
-                          {it.imageUrl ? (
-                            <img src={it.imageUrl} alt={it.name} className="w-8 h-8 rounded object-cover border" />
-                          ) : <div className="w-8 h-8 rounded bg-gray-100 border" />}
-                          <span className="text-gray-800">{it.name}</span>
-                          <span className="text-gray-500">× {it.quantity}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`${statusBadge(o.status)} ${(o.status === 'pending') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                      title={(o.status === 'pending') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
-                    >
-                      {getUnifiedStatusLabel(o)}
-                      {(o.status === 'pending') ? ' (클릭 시 변경)' : ''}
-                    </span>
-                    {getDeliveryProgressLabel(o) && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {getDeliveryProgressLabel(o)}
-                        </span>
-                        <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
-                      </div>
-                    )}
-                  </td>
+        {filtered.length > 0 && viewTab === 'reservation' && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr className="text-left text-sm text-gray-500">
+                  <th className="px-4 py-3">주문일</th>
+                  <th className="px-4 py-3">내역</th>
+                  <th className="px-4 py-3">금액</th>
+                  <th className="px-4 py-3">상태</th>
                 </tr>
+              </thead>
+              {groupedOrders.filter(g => !g.deliveryOrderId).map(group => (
+                <tbody key={group.key}>
+                  {group.orders.map(o => (
+                    <tr
+                      key={o.id}
+                      className={`border-t text-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'hover:bg-orange-50 cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (o.status === 'pending' && !isDeliveryLocked(o)) {
+                          openStatusDialog(
+                            o.id,
+                            o.items.map(item => item.name).join(', '),
+                            o.status,
+                            o.items.reduce((sum, item) => sum + item.quantity, 0)
+                          );
+                        }
+                      }}
+                      role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
+                      aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
+                    >
+                      <td className="px-4 py-3">{o.date}</td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          {o.items.map(it => (
+                            <div key={it.id} className="flex items-center gap-2">
+                              {it.imageUrl ? (
+                                <img src={it.imageUrl} alt={it.name} className="w-8 h-8 rounded object-cover border" />
+                              ) : <div className="w-8 h-8 rounded bg-gray-100 border" />}
+                              <span className="text-gray-800">{it.name}</span>
+                              <span className="text-gray-500">× {it.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium">{KRW(totalPrice(o))}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`${statusBadge(o.status)} ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                          title={(o.status === 'pending' && !isDeliveryLocked(o)) ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
+                        >
+                          {getUnifiedStatusLabel(o)}
+                          {(o.status === 'pending' && !isDeliveryLocked(o)) ? ' (클릭 시 변경)' : ''}
+                        </span>
+                        {getDeliveryProgressLabel(o) && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {getDeliveryProgressLabel(o)}
+                            </span>
+                            <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               ))}
-            </tbody>
-          </table>
+            </table>
+          </div>
+        )}
+        {filtered.length > 0 && viewTab === 'delivery' && (
+          <div className="space-y-3">
+            {groupedOrders.filter(g => g.deliveryOrderId).map(group => (
+              <div
+                key={group.key}
+                className="rounded-lg border-2 p-4 shadow-sm"
+                style={{
+                  borderColor: 'var(--color-primary-500)',
+                  backgroundColor: 'var(--color-primary-50)',
+                }}
+              >
+                <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                  <span>#{group.deliveryOrderId}</span>
+                  <span>{getDeliveryStatusLabel(group.orders)}</span>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {getGroupItemTotals(group.orders).map(item => (
+                    <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover border" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-gray-100 border" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span>{item.name}</span>
+                          <span className="text-gray-700">{KRW(item.total)}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">수량 {item.quantity}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-right text-xs" style={{ color: 'var(--color-primary-800)' }}>
+                  배달비 {KRW(Number(group.orders[0]?.delivery?.deliveryFee ?? 0))}
+                </div>
+                <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                  {KRW(getGroupTotal(group.orders, true))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </section>
 
@@ -618,68 +790,111 @@ export default function OrdersPage() {
           <div className="bg-white rounded-lg shadow p-6 mt-4 text-center text-gray-500">주문 내역이 없습니다.</div>
         )}
         <div className="space-y-3 mt-4">
-          {filtered.map(o => (
-            <div
-              key={o.id}
-              className={`bg-white rounded-lg shadow p-4 ${(o.status === 'pending') ? 'active:bg-orange-50 cursor-pointer' : ''}`}
-              onClick={() => {
-                if (o.status === 'pending') {
-                  openStatusDialog(
-                    o.id,
-                    o.items.map(item => item.name).join(', '),
-                    o.status,
-                    o.items.reduce((sum, item) => sum + item.quantity, 0)
-                  );
-                }
-              }}
-              role={(o.status === 'pending') ? 'button' : undefined}
-              aria-label={(o.status === 'pending') ? '상태 변경' : undefined}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-500">{o.date}</div>
-              <button
-                onClick={() => {
-                  if (o.status === 'pending') {
-                    openStatusDialog(
-                      o.id,
-                      o.items.map(item => item.name).join(', '),
-                      o.status,
-                      o.items.reduce((sum, item) => sum + item.quantity, 0)
-                    );
-                  }
-                }}
-                className={`${statusBadge(o.status)} ${(o.status === 'pending') ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
-                title={(o.status === 'pending') ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
-                disabled={!(o.status === 'pending')}
-              >
-                {getUnifiedStatusLabel(o)}
-              </button>
-              </div>
-              {getDeliveryProgressLabel(o) && (
-                <div className="mt-2">
-                  <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    {getDeliveryProgressLabel(o)}
-                  </span>
-                  <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
-                </div>
-              )}
-              <div className="mt-2 space-y-2">
-                {o.items.map(it => (
-                  <div key={it.id} className="flex items-center gap-3">
-                    {it.imageUrl ? (
-                      <img src={it.imageUrl} className="w-12 h-12 rounded object-cover border" alt={it.name} />
-                    ) : <div className="w-12 h-12 rounded bg-gray-100 border" />}
-                    <div className="flex-1">
-                      <div className="text-sm">{it.name}</div>
-                      <div className="text-xs text-gray-500">× {it.quantity}</div>
+          {viewTab === 'reservation' && groupedOrders.filter(g => !g.deliveryOrderId).map(group => (
+            <div key={group.key} className="space-y-3">
+              {group.orders.map(o => (
+                <div
+                  key={o.id}
+                  className={`bg-white rounded-lg shadow p-4 ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'active:bg-orange-50 cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (o.status === 'pending' && !isDeliveryLocked(o)) {
+                      openStatusDialog(
+                        o.id,
+                        o.items.map(item => item.name).join(', '),
+                        o.status,
+                        o.items.reduce((sum, item) => sum + item.quantity, 0)
+                      );
+                    }
+                  }}
+                  role={(o.status === 'pending' && !isDeliveryLocked(o)) ? 'button' : undefined}
+                  aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-500">{o.date}</div>
+                    <button
+                      onClick={() => {
+                        if (o.status === 'pending' && !isDeliveryLocked(o)) {
+                          openStatusDialog(
+                            o.id,
+                            o.items.map(item => item.name).join(', '),
+                            o.status,
+                            o.items.reduce((sum, item) => sum + item.quantity, 0)
+                          );
+                        }
+                      }}
+                      className={`${statusBadge(o.status)} ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer hover:bg-orange-100' : 'cursor-default'}`}
+                      title={(o.status === 'pending' && !isDeliveryLocked(o)) ? '클릭하면 상태를 변경할 수 있습니다.' : undefined}
+                      disabled={!(o.status === 'pending' && !isDeliveryLocked(o))}
+                    >
+                      {getUnifiedStatusLabel(o)}
+                    </button>
+                  </div>
+                  {getDeliveryProgressLabel(o) && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center h-6 px-2 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {getDeliveryProgressLabel(o)}
+                      </span>
+                      <DeliveryProgressBar step={getDeliveryProgressStep(o)} />
                     </div>
-                    <div className="text-sm font-medium">{KRW(it.price)}</div>
+                  )}
+                  <div className="mt-2 space-y-2">
+                    {o.items.map(it => (
+                      <div key={it.id} className="flex items-center gap-3">
+                        {it.imageUrl ? (
+                          <img src={it.imageUrl} className="w-12 h-12 rounded object-cover border" alt={it.name} />
+                        ) : <div className="w-12 h-12 rounded bg-gray-100 border" />}
+                        <div className="flex-1">
+                          <div className="text-sm">{it.name}</div>
+                          <div className="text-xs text-gray-500">× {it.quantity}</div>
+                        </div>
+                        <div className="text-sm font-medium">{KRW(it.price)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex justify-end text-sm">
+                    <span className="font-semibold">합계&nbsp;</span>
+                    <span className="text-orange-500 font-semibold">{KRW(totalPrice(o))}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {viewTab === 'delivery' && groupedOrders.filter(g => g.deliveryOrderId).map(group => (
+            <div
+              key={group.key}
+              className="rounded-lg border-2 p-4 shadow-sm"
+              style={{
+                borderColor: 'var(--color-primary-500)',
+                backgroundColor: 'var(--color-primary-50)',
+              }}
+            >
+              <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                <span>#{group.deliveryOrderId}</span>
+                <span>{getDeliveryStatusLabel(group.orders)}</span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {getGroupItemTotals(group.orders).map(item => (
+                  <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover border" />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-gray-100 border" />
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span>{item.name}</span>
+                        <span className="text-gray-700">{KRW(item.total)}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500">x {item.quantity}</div>
+                    </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex justify-end text-sm">
-                <span className="font-semibold">합계&nbsp;</span>
-                <span className="text-orange-500 font-semibold">{KRW(totalPrice(o))}</span>
+              <div className="mt-3 text-right text-xs" style={{ color: 'var(--color-primary-800)' }}>
+                배달비 {KRW(Number(group.orders[0]?.delivery?.deliveryFee ?? 0))}
+              </div>
+              <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                {KRW(getGroupTotal(group.orders, true))}
               </div>
             </div>
           ))}
@@ -763,40 +978,22 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* FAB 통합 검색/필터 초기화 버튼 */}
-      <button
-        onClick={search ? clearSearch : openSearchModal}
-        className={`fixed bottom-4 left-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${
-          search ? 'border border-blue-500' : 'border-2 border-blue-500'
-        }`}
-        aria-label={search ? "필터 초기화" : "주문 검색"}
-      >
-        {search ? (
-          // 필터 초기화 아이콘 (필터)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3"/>
-          </svg>
-        ) : (
-          // 검색 아이콘 (돋보기)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
-          </svg>
-        )}
-        <span className="text-sm font-bold text-gray-900">
-          {search ? '초기화' : ''}
-        </span>
-      </button>
-
       {/* 배달 주문 FAB */}
-      <button
-        type="button"
-        onClick={() => nav('/me/delivery')}
-        className="fixed bottom-4 right-4 z-30 bg-green-600 text-white rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95"
-        aria-label="배달 주문 페이지로 이동"
-      >
-        🚚 배달 주문
-      </button>
+      {deliveryEnabled && (
+        <button
+          type="button"
+          onClick={() => nav('/me/delivery')}
+          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-4 h-10
+                     text-sm font-bold tracking-tight flex items-center gap-2
+                     hover:bg-orange-50 hover:shadow-xl active:scale-[0.98]
+                     focus:outline-none focus:ring-4 focus:ring-orange-200 transition fixed bottom-4 right-4 z-30"
+          aria-label="배달 주문 페이지로 이동"
+        >
+
+          <span className="text-gray-900">배달 주문</span>
+          <span className="ml-1 text-orange-500 text-lg leading-none" aria-hidden="true">›</span>
+        </button>
+      )}
 
       <Footer />
 
@@ -820,7 +1017,7 @@ export default function OrdersPage() {
                 ✕
               </button>
             </div>
-            
+
             {/* 검색 입력 */}
             <div className="p-4">
               <div className="relative">
@@ -850,26 +1047,26 @@ export default function OrdersPage() {
                 )}
               </div>
             </div>
-            
+
             {/* 검색 결과 미리보기 */}
             {tempSearch && (
               <div className="px-4 pb-4">
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {orders.filter(o => 
-                    o.items.some(item => 
+                  {orders.filter(o =>
+                    o.items.some(item =>
                       item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
                     )
                   ).map(order => (
-                  <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                       onClick={() => {
-                         // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
-                         const firstProductName = order.items[0]?.name || '';
-                         setSearch(firstProductName);
-                         setFrom(localToday);
-                         setStatus('all');
-                         setSearchModalOpen(false);
-                         setTempSearch('');
-                       }}>
+                    <div key={order.id} className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => {
+                        // 해당 주문의 첫 번째 제품명으로 검색 적용하고 모든 필터 해제
+                        const firstProductName = order.items[0]?.name || '';
+                        setSearch(firstProductName);
+                        setFrom(localToday);
+                        setStatus('all');
+                        setSearchModalOpen(false);
+                        setTempSearch('');
+                      }}>
                       <div className="text-sm font-medium text-gray-800 mb-1">
                         {order.date}
                       </div>
@@ -879,25 +1076,25 @@ export default function OrdersPage() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* 검색 결과 없음 */}
-                {orders.filter(o => 
-                  o.items.some(item => 
+                {orders.filter(o =>
+                  o.items.some(item =>
                     item.name.toLowerCase().includes(tempSearch.trim().toLowerCase())
                   )
                 ).length === 0 && (
-                  <div className="text-center text-gray-500 py-6">
-                    <div className="text-sm">
-                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                    <div className="text-center text-gray-500 py-6">
+                      <div className="text-sm">
+                        <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        다른 검색어를 시도해보세요.
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      다른 검색어를 시도해보세요.
-                    </div>
-                  </div>
-                )}
+                  )}
               </div>
             )}
-            
+
             {/* 버튼 영역 */}
             <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
               <button

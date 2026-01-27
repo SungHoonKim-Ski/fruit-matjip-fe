@@ -26,6 +26,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const upcomingNotifiedRef = useRef<Set<number>>(new Set());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const pollTimerRef = useRef<number | null>(null);
+  const sourceRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
 
   const formatKstDate = (ms: number) =>
     new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
@@ -65,30 +67,45 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     if (!isAdminPage || isAdminAuthPage) return;
 
     const apiBase = process.env.REACT_APP_API_BASE || '';
-    const source = new EventSource(`${apiBase}/api/admin/deliveries/stream`, { withCredentials: true } as any);
-
-    source.addEventListener('delivery_paid', event => {
-      try {
-        const data = JSON.parse((event as MessageEvent).data);
-        pushAlert({
-          orderId: Number(data.order_id),
-          reservationIds: Array.isArray(data.reservation_ids) ? data.reservation_ids.map((id: any) => Number(id)) : [],
-          reservationCount: Number(data.reservation_count || 0),
-          buyerName: String(data.buyer_name || ''),
-          productSummary: String(data.product_summary || ''),
-          deliveryDate: String(data.delivery_date || ''),
-          deliveryHour: Number(data.delivery_hour || 0),
-          deliveryMinute: Number(data.delivery_minute ?? data.deliveryMinute ?? 0),
-          type: 'paid',
-        });
-      } catch (e) {
-        safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
+    const connect = () => {
+      if (sourceRef.current) {
+        sourceRef.current.close();
       }
-    });
+      const source = new EventSource(`${apiBase}/api/admin/deliveries/stream`, { withCredentials: true } as any);
+      sourceRef.current = source;
 
-    source.onerror = (e) => {
-      safeErrorLog(e, 'AdminDeliveryAlertProvider - SSE error');
+      source.addEventListener('delivery_paid', event => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data);
+          pushAlert({
+            orderId: Number(data.order_id),
+            reservationIds: Array.isArray(data.reservation_ids) ? data.reservation_ids.map((id: any) => Number(id)) : [],
+            reservationCount: Number(data.reservation_count || 0),
+            buyerName: String(data.buyer_name || ''),
+            productSummary: String(data.product_summary || ''),
+            deliveryDate: String(data.delivery_date || ''),
+            deliveryHour: Number(data.delivery_hour || 0),
+            deliveryMinute: Number(data.delivery_minute ?? data.deliveryMinute ?? 0),
+            type: 'paid',
+          });
+        } catch (e) {
+          safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
+        }
+      });
+
+      source.onerror = (e) => {
+        safeErrorLog(e, 'AdminDeliveryAlertProvider - SSE error');
+        source.close();
+        sourceRef.current = null;
+        if (!reconnectTimerRef.current) {
+          reconnectTimerRef.current = window.setTimeout(() => {
+            reconnectTimerRef.current = null;
+            connect();
+          }, 3000);
+        }
+      };
     };
+    connect();
 
     const startPolling = () => {
       if (pollTimerRef.current) return;
@@ -149,7 +166,14 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     startPolling();
 
     return () => {
-      source.close();
+      if (sourceRef.current) {
+        sourceRef.current.close();
+        sourceRef.current = null;
+      }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -173,7 +197,6 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
               ? `${alert.buyerName}님의 배달이 30분 이내로 예정되어 있습니다.`
               : `${alert.buyerName}님이 ${alert.productSummary} 배달 결제를 완료했습니다.`}
             <br />
-            수령 예정: {alert.deliveryDate} {timeLabel}
           </p>
           <div className="mt-4 flex gap-2">
             <button
@@ -188,6 +211,10 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
               className="flex-1 h-10 rounded bg-green-600 text-white hover:bg-green-700"
               onClick={() => {
                 setAlert(null);
+                if (location.pathname === '/admin/deliveries') {
+                  window.location.reload();
+                  return;
+                }
                 sessionStorage.setItem('admin-deliveries-reload', '1');
                 navigate('/admin/deliveries');
               }}
@@ -198,7 +225,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         </div>
       </div>
     );
-  }, [alert, navigate]);
+  }, [alert, navigate, location.pathname]);
 
   return (
     <AdminDeliveryAlertContext.Provider value={{}}>
