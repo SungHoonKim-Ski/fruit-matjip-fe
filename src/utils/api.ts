@@ -485,7 +485,7 @@ export const getDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
       feeDistanceKm: Number(data.fee_distance_km ?? data.feeDistanceKm ?? 0),
       minAmount: Number(data.min_amount ?? data.minAmount ?? 0),
       feeNear: Number(data.fee_near ?? data.feeNear ?? 0),
-      feePer100m: Number(data.fee_per_100m ?? data.feePer100m ?? 0),
+      feePer100m: Number(data.fee_per100m ?? data.feePer100m ?? 0),
       startHour: Number(data.start_hour ?? data.startHour ?? 0),
       startMinute: Number(data.start_minute ?? data.startMinute ?? 0),
       endHour: Number(data.end_hour ?? data.endHour ?? 0),
