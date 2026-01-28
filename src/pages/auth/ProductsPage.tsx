@@ -1180,55 +1180,62 @@ export default function ReservePage() {
 
         {/* 상품 목록(선택 날짜) */}
         {availableDates.length > 0 && (
-          <div className="space-y-2 mb-6">
+          <div className="space-y-4 mb-6">
             {productsOfDay.map((item) => (
-              <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div
+                key={item.id}
+                className="rounded-lg border-2 p-3 shadow-sm"
+                style={{
+                  borderColor: 'var(--color-primary-500)',
+                  backgroundColor: 'var(--color-primary-50)',
+                }}
+              >
                 <img
                   src={item.imageUrl}
                   alt={item.name}
-                  className="w-full aspect-[5/3] object-cover cursor-pointer border border-gray-250"
+                  className="w-full aspect-[5/3] object-cover cursor-pointer rounded-lg border"
                   onClick={() => openDetail(item.id)}
                   role="button"
                   aria-label={`${item.name} 상세보기`}
                 />
-                <div className="p-2">
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="mt-3">
+                  <div className="flex items-start justify-between gap-2">
                     <h2
-                      className="font-semibold cursor-pointer flex-1 text-[clamp(0.9rem,4vw,1.1rem)] leading-tight"
+                      className="font-semibold cursor-pointer flex-1 text-[clamp(0.95rem,4vw,1.15rem)] leading-tight"
                       onClick={() => openDetail(item.id)}
                       role="button"
                     >
                       <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
                     </h2>
-                    <span className="text-[clamp(0.9rem,4vw,1.1rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
+                    <span className="text-[clamp(0.95rem,4vw,1.15rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
                   </div>
-                  {item.stock > 0 && (
-                    <div className="flex justify-between items-center text-sm text-gray-500 -mt-1">
-                      <div>
-                        {item.deliveryAvailable === false && (
-                          <span className="text-xs bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">배달 불가</span>
-                        )}
-                      </div>
-                      <span className="text-l">
-                        {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                      </span>
+                  <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                    <div className="flex items-center gap-2">
+                      {item.deliveryAvailable === false && (
+                        <span className="text-[11px] bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">배달 불가</span>
+                      )}
+                      {item.stock > 0 && (
+                        <span className="text-xs">
+                          {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
+                        </span>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center border rounded overflow-hidden w-full sm:w-40 h-8">
+                  <div className="mt-3 grid grid-cols-[1fr,auto] gap-2">
+                    <div className="flex items-center border rounded overflow-hidden h-9 bg-white">
                       <button
                         onClick={() => handleQuantity(item.id, -1)}
-                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        className="w-10 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
                         disabled={item.quantity <= 0}
                         aria-label="수량 감소"
                       >
                         -
                       </button>
-                      <span className="w-2/3 text-center">{item.quantity}</span>
+                      <span className="flex-1 text-center text-sm">{item.quantity}</span>
                       <button
                         onClick={() => handleQuantity(item.id, 1)}
-                        className="w-1/6 h-full bg-gray-100 hover:bg-gray-200 disabled:opacity-30"
+                        className="w-10 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
                         disabled={item.quantity >= item.stock}
                         aria-label="수량 증가"
                       >
@@ -1236,27 +1243,26 @@ export default function ReservePage() {
                       </button>
                     </div>
 
-                    {/* 모바일: 두 버튼을 같은 줄에 좌/우로 배치 */}
-                    <div className="flex w-full gap-2 sm:w-auto sm:gap-3 md:gap-4">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => openDetail(item.id)}
-                        className="flex-1 h-8 rounded border border-gray-300 hover:bg-gray-50 sm:w-28 sm:flex-none text-sm font-medium"
+                        className="h-9 px-3 rounded border border-gray-300 hover:bg-gray-50 text-sm font-medium"
                         type="button"
                       >
-                        자세히 보기
+                        상세
                       </button>
                       <button
                         onClick={() => handleReserve(item)}
                         disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
-                        className={`flex-1 h-8 rounded text-sm font-medium sm:w-28 sm:flex-none ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                        className={`h-9 px-4 rounded text-sm font-medium ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                       >
                         {item.stock === 0
                           ? '품절'
                           : (reservingProductId !== null
-                            ? '예약 중...'
+                            ? '예약 중'
                             : (isReservationTimeOpen(item, timeOffsetMs)
                               ? '예약하기'
-                              : `${(item.sellTime || '00:00').slice(0, 5)} 오픈예정`))}
+                              : `${(item.sellTime || '00:00').slice(0, 5)} 오픈`))}
                       </button>
                     </div>
                   </div>
