@@ -32,6 +32,7 @@ interface DeliveryConfigForm {
 export default function AdminDeliveriesPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }));
+  const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'out_for_delivery' | 'delivered' | 'canceled'>('all');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
@@ -79,6 +80,10 @@ export default function AdminDeliveriesPage() {
     }
     return raw;
   };
+
+  const filteredRows = deliveryFilter === 'all'
+    ? rows
+    : rows.filter(row => row.status === deliveryFilter.toUpperCase());
 
   useEffect(() => {
     if (sessionStorage.getItem('admin-deliveries-reload') === '1') {
@@ -437,7 +442,7 @@ export default function AdminDeliveriesPage() {
         <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm text-gray-600">날짜</label>
               <input
                 type="date"
@@ -445,6 +450,17 @@ export default function AdminDeliveriesPage() {
                 onChange={e => setSelectedDate(e.target.value)}
                 className="h-10 border rounded px-2"
               />
+              <label className="text-sm text-gray-600">배달유형</label>
+              <select
+                value={deliveryFilter}
+                onChange={e => setDeliveryFilter(e.target.value as typeof deliveryFilter)}
+                className="h-10 border rounded px-2 bg-white"
+              >
+                <option value="all">전체</option>
+                <option value="out_for_delivery">배달 시작</option>
+                <option value="delivered">배달 완료</option>
+                <option value="canceled">주문 취소</option>
+              </select>
             </div>
           </div>
           {/* Desktop table */}
@@ -461,12 +477,12 @@ export default function AdminDeliveriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
+                {filteredRows.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-6 text-center text-gray-500">배달 주문이 없습니다.</td>
                   </tr>
                 )}
-                {rows.map(r => (
+                {filteredRows.map(r => (
                   <tr key={r.id} className="border-b">
                     <td className="py-2 pr-3">
                       {r.reservationItems.length > 0 ? (
@@ -535,10 +551,10 @@ export default function AdminDeliveriesPage() {
 
           {/* Mobile cards */}
           <div className="mt-4 space-y-3 md:hidden">
-            {rows.length === 0 && (
+            {filteredRows.length === 0 && (
               <div className="py-6 text-center text-gray-500">배달 주문이 없습니다.</div>
             )}
-            {rows.map(r => (
+            {filteredRows.map(r => (
               <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>

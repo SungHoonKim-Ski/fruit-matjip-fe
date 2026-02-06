@@ -77,6 +77,12 @@ export default function DeliveryPage() {
   const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
   const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
   const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (deliveryInfo.phone && /\\D/.test(deliveryInfo.phone)) {
+      setDeliveryInfo(prev => ({ ...prev, phone: prev.phone.replace(/\\D/g, '') }));
+    }
+  }, [deliveryInfo.phone]);
   const idempotencyKeyRef = useRef<string | null>(null);
   const buildIdempotencyKey = () => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -547,6 +553,13 @@ export default function DeliveryPage() {
               onChange={e => {
                 const onlyDigits = e.target.value.replace(/\\D/g, '');
                 setDeliveryInfo(prev => ({ ...prev, phone: onlyDigits }));
+              }}
+              onInput={e => {
+                const target = e.currentTarget;
+                const onlyDigits = target.value.replace(/\\D/g, '');
+                if (onlyDigits !== target.value) {
+                  setDeliveryInfo(prev => ({ ...prev, phone: onlyDigits }));
+                }
               }}
               onPaste={e => {
                 e.preventDefault();

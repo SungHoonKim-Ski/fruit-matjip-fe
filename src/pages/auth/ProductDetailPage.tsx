@@ -134,13 +134,19 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div
+        className="rounded-lg border-2 shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        style={{
+          borderColor: 'var(--color-primary-500)',
+          backgroundColor: 'var(--color-primary-50)',
+        }}
+      >
         {/* Dialog 헤더 */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--color-primary-200)]">
           <h2 className="text-lg font-semibold text-gray-800">상품 상세</h2>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+            className="h-8 w-8 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center"
           >
             ✕
           </button>
@@ -150,7 +156,7 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
         <div className="p-4">
           {loading ? (
             <div className="space-y-4">
-              <div className="w-full aspect-[4/3] bg-gray-200 animate-pulse rounded-lg" />
+              <div className="w-full aspect-[5/3] bg-gray-200 animate-pulse rounded-lg" />
               <div className="h-6 bg-gray-200 animate-pulse rounded w-2/3" />
               <div className="h-4 bg-gray-200 animate-pulse rounded w-1/2" />
             </div>
@@ -165,14 +171,14 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
                 <img
                   src={activeImage || product.imageUrl}
                   alt={product.name}
-                  className="w-full aspect-[4/3] object-cover rounded-lg border"
+                  className="w-full aspect-[5/3] object-cover rounded-lg border"
                 />
               </div>
 
               <div className="mt-4">
                 {product.description && (
                   <div
-                    className="mt-3 text-sm text-gray-700 break-keep leading-relaxed"
+                    className="mt-3 text-sm text-gray-700 break-keep leading-relaxed bg-white rounded-md border border-gray-200 p-3"
                     dangerouslySetInnerHTML={{ __html: renderSafeHTML(product.description) }}
                   />
                 )}
@@ -183,13 +189,13 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
                     <h3 className="text-base font-semibold text-gray-800 mb-2">상세 이미지</h3>
                     <div className="flex flex-col gap-3">
                       {product.detail_images.map((src) => (
-                        <img key={src} src={src} alt="sub" className="w-full object-cover rounded border" />
+                        <img key={src} src={src} alt="sub" className="w-full object-cover rounded-lg border" />
                       ))}
                     </div>
                   </div>
                 )}
 
-                <div className="mt-4 rounded-md border bg-gray-50 p-3 text-xs text-gray-700 space-y-2">
+                <div className="mt-4 rounded-md border bg-white p-3 text-xs text-gray-700 space-y-2">
                   <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
                   <ul className="list-disc list-inside space-y-1">
                     <li>

@@ -50,15 +50,33 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     try {
       if (!alertAudioRef.current) {
         alertAudioRef.current = new Audio('/sounds/discord-call-sound_tvxg95l.mp3');
+        alertAudioRef.current.loop = true;
       }
-      alertAudioRef.current.currentTime = 0;
-      alertAudioRef.current.play().catch(() => {
-        // autoplay restrictions
-      });
+      if (alertAudioRef.current.paused) {
+        alertAudioRef.current.currentTime = 0;
+        alertAudioRef.current.play().catch(() => {
+          // autoplay restrictions
+        });
+      }
     } catch (e) {
       safeErrorLog(e, 'AdminDeliveryAlertProvider - playAlertSound');
     }
   };
+
+  const stopAlertSound = () => {
+    if (!alertAudioRef.current) return;
+    alertAudioRef.current.pause();
+    alertAudioRef.current.currentTime = 0;
+  };
+
+  useEffect(() => {
+    if (alert) {
+      playAlertSound();
+    } else {
+      stopAlertSound();
+    }
+    return () => stopAlertSound();
+  }, [alert]);
 
   useEffect(() => {
     if (USE_MOCKS) return;
