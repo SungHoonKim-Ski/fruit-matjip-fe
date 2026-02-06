@@ -78,6 +78,7 @@ export default function DeliveryPage() {
   const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
   const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
   const [deliveryCoords, setDeliveryCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [paymentFallbackPcUrl, setPaymentFallbackPcUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (deliveryInfo.phone && /\\D/.test(deliveryInfo.phone)) {
@@ -512,9 +513,17 @@ export default function DeliveryPage() {
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const mobileUrl = data.mobileRedirectUrl || data.mobile_redirect_url;
         const pcUrl = data.redirectUrl || data.redirect_url;
-        const redirectUrl = isMobile && mobileUrl ? mobileUrl : pcUrl;
-        if (!redirectUrl) throw new Error('결제 URL이 없습니다.');
-        window.location.href = redirectUrl;
+        if (!isMobile) {
+          if (!pcUrl) throw new Error('결제 URL이 없습니다.');
+          window.location.href = pcUrl;
+        } else if (mobileUrl) {
+          setTimeout(() => { setPaymentFallbackPcUrl(pcUrl || null); }, 2000);
+          window.location.href = mobileUrl;
+        } else if (pcUrl) {
+          setPaymentFallbackPcUrl(pcUrl);
+        } else {
+          throw new Error('결제 URL이 없습니다.');
+        }
       } else {
         show('모의 결제로 처리되었습니다.', { variant: 'info' });
       }
@@ -733,6 +742,37 @@ export default function DeliveryPage() {
         </div>
         <div className="text-gray-400">{theme.copyright}</div>
       </section>
+      {paymentFallbackPcUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm text-center">
+            <div className="mx-auto w-12 h-12 flex items-center justify-center rounded-full bg-yellow-100 mb-4">
+              <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">모바일 결제 연결 실패</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              카카오페이 앱 연결에 실패했습니다.<br />
+              QR 코드 결제로 진행해 주세요.
+            </p>
+            <button
+              type="button"
+              className="w-full h-11 rounded-lg text-gray-900 font-semibold"
+              style={{ backgroundColor: '#FEE500' }}
+              onClick={() => { window.location.href = paymentFallbackPcUrl; }}
+            >
+              QR 코드 결제
+            </button>
+            <button
+              type="button"
+              className="mt-2 w-full h-10 rounded-lg bg-gray-100 text-gray-600 text-sm hover:bg-gray-200"
+              onClick={() => setPaymentFallbackPcUrl(null)}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
