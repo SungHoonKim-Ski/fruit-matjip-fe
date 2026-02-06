@@ -281,12 +281,12 @@ export default function DeliveryPage() {
   };
 
   const openPostcode = () => {
-    const daumPostcode = (window as any)?.daum?.Postcode;
-    if (!daumPostcode) {
+    const kakaoPostcode = (window as any)?.kakao?.Postcode;
+    if (!kakaoPostcode) {
       show('주소 검색을 불러올 수 없습니다.', { variant: 'error' });
       return;
     }
-    new daumPostcode({
+    new kakaoPostcode({
       oncomplete: async (data: any) => {
         const address = data.address || '';
         const postalCode = data.zonecode || '';
