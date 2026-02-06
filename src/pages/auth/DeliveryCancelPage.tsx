@@ -15,6 +15,8 @@ export default function DeliveryCancelPage() {
       return;
     }
 
+    localStorage.removeItem('pendingDeliveryOrderId');
+
     const cancel = async () => {
       try {
         const res = await cancelDeliveryPayment(Number(orderId));

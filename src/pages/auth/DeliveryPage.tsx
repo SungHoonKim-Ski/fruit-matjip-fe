@@ -11,6 +11,7 @@ import {
   getDeliveryFeeEstimate,
   saveDeliveryInfo,
   createDeliveryPaymentReady,
+  cancelDeliveryPayment,
   getServerTime,
   type DeliveryInfo,
   type DeliveryConfig,
@@ -297,6 +298,14 @@ export default function DeliveryPage() {
   };
 
   useEffect(() => {
+    const pendingOrderId = localStorage.getItem('pendingDeliveryOrderId');
+    if (pendingOrderId) {
+      localStorage.removeItem('pendingDeliveryOrderId');
+      cancelDeliveryPayment(Number(pendingOrderId)).catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     (async () => {
       try {
@@ -498,6 +507,8 @@ export default function DeliveryPage() {
           throw new Error('배달 결제 준비 실패');
         }
         const data = await res.json();
+        const orderId = data.orderId || data.order_id;
+        if (orderId) localStorage.setItem('pendingDeliveryOrderId', String(orderId));
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const mobileUrl = data.mobileRedirectUrl || data.mobile_redirect_url;
         const pcUrl = data.redirectUrl || data.redirect_url;

@@ -15,6 +15,8 @@ export default function DeliveryFailPage() {
       return;
     }
 
+    localStorage.removeItem('pendingDeliveryOrderId');
+
     const fail = async () => {
       try {
         const res = await failDeliveryPayment(Number(orderId));

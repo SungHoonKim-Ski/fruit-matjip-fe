@@ -16,6 +16,8 @@ export default function DeliveryApprovePage() {
       return;
     }
 
+    localStorage.removeItem('pendingDeliveryOrderId');
+
     const approve = async () => {
       try {
         const res = await approveDeliveryPayment(Number(orderId), pgToken);
