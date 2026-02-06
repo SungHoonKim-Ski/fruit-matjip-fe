@@ -822,7 +822,21 @@ export const updateAdminDeliveryStatus = async (id: number, status: 'out_for_del
   const key = 'updateAdminDeliveryStatus';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/deliveries/${id}/${status.toUpperCase()}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/deliveries/${id}/status/${status.toUpperCase()}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const acceptAdminDelivery = async (id: number, estimatedMinutes: number) => {
+  const key = 'acceptAdminDelivery';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/deliveries/${id}/accept`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estimated_minutes: estimatedMinutes }),
+    }, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }

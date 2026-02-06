@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useSnackbar } from '../components/snackbar';
 import { safeErrorLog } from '../utils/environment';
 import { USE_MOCKS } from '../config';
 import { acceptAdminDelivery, getAdminDeliveries, getServerTime, updateAdminDeliveryStatus } from '../utils/api';
@@ -28,7 +29,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const [estimatedMap, setEstimatedMap] = useState<Record<number, number>>({});
   const location = useLocation();
   const navigate = useNavigate();
-  const lastNotifiedIdRef = useRef<number>(0);
+  const snackbar = useSnackbar();
+  const paidNotifiedRef = useRef<Set<number>>(new Set());
   const upcomingNotifiedRef = useRef<Set<number>>(new Set());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const pollTimerRef = useRef<number | null>(null);
@@ -66,8 +68,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       if (upcomingNotifiedRef.current.has(payload.orderId)) return;
       upcomingNotifiedRef.current.add(payload.orderId);
     } else {
-      if (payload.orderId <= lastNotifiedIdRef.current) return;
-      lastNotifiedIdRef.current = payload.orderId;
+      if (paidNotifiedRef.current.has(payload.orderId)) return;
+      paidNotifiedRef.current.add(payload.orderId);
     }
     setAlerts(prev => [...prev, payload]);
     playAlertSound();
@@ -115,6 +117,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     const isAdminAuthPage = location.pathname === '/admin/login' || location.pathname === '/admin/register';
     if (!isAdminPage || isAdminAuthPage) return;
 
+    paidNotifiedRef.current.clear();
+    upcomingNotifiedRef.current.clear();
+
     const apiBase = process.env.REACT_APP_API_BASE || '';
     const connect = () => {
       if (sourceRef.current) {
@@ -157,10 +162,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           const data = await res.json();
           const list = Array.isArray(data?.response) ? data.response : [];
           const paidCandidates = list.filter((r: any) => String(r.status || '') === 'PAID');
-          if (paidCandidates.length > 0) {
-            const latest = paidCandidates.reduce((acc: any, cur: any) => (Number(cur.id) > Number(acc.id) ? cur : acc));
-            pushAlert(parseAlertPayload(latest, 'paid'));
-          }
+          paidCandidates.forEach((r: any) => {
+            pushAlert(parseAlertPayload(r, 'paid'));
+          });
 
           const nowMs = serverMs;
           const upcomingTargets = list.filter((r: any) => {
@@ -209,13 +213,16 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     removeAlert(orderId);
   };
 
-  const getEstimated = (orderId: number) => estimatedMap[orderId] ?? 30;
+  const getEstimated = (orderId: number) => estimatedMap[orderId] ?? 40;
   const setEstimated = (orderId: number, min: number) =>
     setEstimatedMap(prev => ({ ...prev, [orderId]: Math.max(10, Math.min(120, min)) }));
 
   const handleAccept = async (orderId: number) => {
     try {
-      await acceptAdminDelivery(orderId, getEstimated(orderId));
+      const res = await acceptAdminDelivery(orderId, getEstimated(orderId));
+      if (res.ok) {
+        snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+      }
     } catch (e) {
       safeErrorLog(e, 'AdminDeliveryAlertProvider - accept');
     }
@@ -230,10 +237,22 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="bg-white w-full max-w-md rounded-lg shadow-lg p-5">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">
-            배달 주문 알림 ({alerts.length}건)
-          </h2>
+        <div className="bg-white w-full max-w-md rounded-lg shadow-lg p-5 relative">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">
+              배달 주문 알림 ({alerts.length}건)
+            </h2>
+            <button
+              type="button"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              onClick={() => { paidNotifiedRef.current.clear(); upcomingNotifiedRef.current.clear(); setAlerts([]); }}
+              aria-label="알림 모두 닫기"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
           <div className="max-h-[70vh] overflow-y-auto space-y-3">
             {alerts.map(a => {
               const itemCount = a.reservationItems.length;
@@ -286,7 +305,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                         총 <span className="font-semibold">{KRW(a.totalAmount)}</span>
                       </div>
                       <div className="mt-3 flex items-center justify-center gap-3">
-                        <span className="text-sm text-gray-600">도착 예정:</span>
+                        <span className="text-sm text-gray-600">도착 예정 시간</span>
                         <button
                           type="button"
                           className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300"
@@ -306,30 +325,30 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                     </>
                   )}
                   <div className="mt-3 flex gap-2">
-                    {a.type === 'paid' && (
-                      <button
-                        type="button"
-                        className="h-9 px-3 rounded bg-red-500 text-white text-sm font-medium hover:bg-red-600"
-                        onClick={() => handleReject(a.orderId)}
-                      >
-                        거부
-                      </button>
-                    )}
-                    {a.type === 'upcoming' ? (
+                    {a.type === 'paid' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="flex-1 h-9 rounded bg-red-500 text-white text-sm font-medium hover:bg-red-600"
+                          onClick={() => handleReject(a.orderId)}
+                        >
+                          거부
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 h-9 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+                          onClick={() => handleAccept(a.orderId)}
+                        >
+                          접수
+                        </button>
+                      </>
+                    ) : (
                       <button
                         type="button"
                         className="flex-1 h-9 rounded bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200"
                         onClick={() => removeAlert(a.orderId)}
                       >
                         닫기
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="flex-1 h-9 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700"
-                        onClick={() => handleAccept(a.orderId)}
-                      >
-                        접수
                       </button>
                     )}
                   </div>
@@ -340,7 +359,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         </div>
       </div>
     );
-  }, [alerts, navigate, location.pathname]);
+  }, [alerts, estimatedMap, navigate, location.pathname]);
 
   return (
     <AdminDeliveryAlertContext.Provider value={{}}>

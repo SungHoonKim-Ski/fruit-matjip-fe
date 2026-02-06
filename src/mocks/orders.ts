@@ -21,6 +21,8 @@ export type OrderRow = {
     deliveryHour?: number;
     deliveryMinute?: number;
     deliveryFee?: number;
+    estimatedMinutes?: number;
+    acceptedAt?: string;
   };
 };
 

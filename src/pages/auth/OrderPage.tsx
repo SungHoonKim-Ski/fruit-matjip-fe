@@ -192,6 +192,8 @@ export default function OrdersPage() {
                   deliveryHour: Number(r.delivery.delivery_hour ?? r.delivery.deliveryHour ?? r.deliveryHour ?? 0),
                   deliveryMinute: Number(r.delivery.delivery_minute ?? r.delivery.deliveryMinute ?? r.deliveryMinute ?? 0),
                   deliveryFee: Number(r.delivery.delivery_fee ?? r.delivery.deliveryFee ?? r.deliveryFee ?? 0),
+                  estimatedMinutes: Number(r.delivery.estimated_minutes ?? r.delivery.estimatedMinutes ?? 0) || undefined,
+                  acceptedAt: (r.delivery.accepted_at ?? r.delivery.acceptedAt) as string | undefined,
                 }
                 : undefined;
 
@@ -651,6 +653,26 @@ export default function OrdersPage() {
     return Array.from(map.values());
   };
 
+  const parseAcceptedAt = (value: any): Date | null => {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+      const [y, mo, d, h = 0, mi = 0, s = 0] = value;
+      return new Date(y, mo - 1, d, h, mi, s);
+    }
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const getEstimatedArrivalLabel = (order: OrderRow) => {
+    if (!order.delivery?.estimatedMinutes || !order.delivery?.acceptedAt) return null;
+    const accepted = parseAcceptedAt(order.delivery.acceptedAt);
+    if (!accepted) return null;
+    const arrival = new Date(accepted.getTime() + order.delivery.estimatedMinutes * 60000);
+    const h = arrival.getHours();
+    const m = arrival.getMinutes();
+    return `${h}시 ${m > 0 ? `${String(m).padStart(2, '0')}분` : ''} 도착 예정`;
+  };
+
   const DeliveryProgressBar = ({ step }: { step: number }) => {
     const pct = step <= 1 ? 33 : step === 2 ? 66 : 100;
     return (
@@ -827,6 +849,16 @@ export default function OrdersPage() {
                   </span>
                   {renderDeliveryStatusBadge(group.orders)}
                 </div>
+                {(() => {
+                  const step = getDeliveryProgressStep(group.orders[0]);
+                  return step > 0 ? <DeliveryProgressBar step={step} /> : null;
+                })()}
+                {(() => {
+                  const label = getEstimatedArrivalLabel(group.orders[0]);
+                  return label ? (
+                    <div className="mt-1 text-xs text-indigo-600 font-medium">{label}</div>
+                  ) : null;
+                })()}
                 <div className="mt-3 space-y-3">
                   {getGroupItemTotals(group.orders).map(item => (
                     <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
@@ -932,6 +964,16 @@ export default function OrdersPage() {
                 </span>
                 {renderDeliveryStatusBadge(group.orders)}
               </div>
+              {(() => {
+                const step = getDeliveryProgressStep(group.orders[0]);
+                return step > 0 ? <DeliveryProgressBar step={step} /> : null;
+              })()}
+              {(() => {
+                const label = getEstimatedArrivalLabel(group.orders[0]);
+                return label ? (
+                  <div className="mt-1 text-xs text-indigo-600 font-medium">{label}</div>
+                ) : null;
+              })()}
               <div className="mt-3 space-y-3">
                 {getGroupItemTotals(group.orders).map(item => (
                   <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
