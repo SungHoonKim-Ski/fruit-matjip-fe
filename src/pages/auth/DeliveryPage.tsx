@@ -498,7 +498,10 @@ export default function DeliveryPage() {
           throw new Error('배달 결제 준비 실패');
         }
         const data = await res.json();
-        const redirectUrl = data.redirectUrl || data.redirect_url;
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const mobileUrl = data.mobileRedirectUrl || data.mobile_redirect_url;
+        const pcUrl = data.redirectUrl || data.redirect_url;
+        const redirectUrl = isMobile && mobileUrl ? mobileUrl : pcUrl;
         if (!redirectUrl) throw new Error('결제 URL이 없습니다.');
         window.location.href = redirectUrl;
       } else {
