@@ -210,9 +210,15 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
   const handleReject = async (orderId: number) => {
     try {
-      await updateAdminDeliveryStatus(orderId, 'canceled');
+      const res = await updateAdminDeliveryStatus(orderId, 'canceled');
+      if (res.ok) {
+        snackbar.show(`주문 #${orderId} 거부되었습니다.`, { variant: 'info' });
+      } else {
+        snackbar.show('주문 거부에 실패했습니다.', { variant: 'error' });
+      }
     } catch (e) {
       safeErrorLog(e, 'AdminDeliveryAlertProvider - reject');
+      snackbar.show('주문 거부 중 오류가 발생했습니다.', { variant: 'error' });
     }
     removeAlert(orderId);
   };
@@ -225,10 +231,13 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     try {
       const res = await acceptAdminDelivery(orderId, getEstimated(orderId));
       if (res.ok) {
-        snackbar.show(`주문 #${orderId} 배달 시작 (${getEstimated(orderId)}분)`, { variant: 'success' });
+        snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+      } else {
+        snackbar.show('주문 접수에 실패했습니다.', { variant: 'error' });
       }
     } catch (e) {
       safeErrorLog(e, 'AdminDeliveryAlertProvider - accept');
+      snackbar.show('주문 접수 중 오류가 발생했습니다.', { variant: 'error' });
     }
     removeAlert(orderId);
   };
