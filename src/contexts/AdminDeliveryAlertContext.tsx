@@ -20,6 +20,8 @@ type DeliveryAlertPayload = {
   phone: string;
   address1: string;
   address2: string;
+  distanceKm: number;
+  deliveryFee: number;
 };
 
 const AdminDeliveryAlertContext = createContext({});
@@ -61,6 +63,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     phone: String(data.phone || ''),
     address1: String(data.address1 || ''),
     address2: String(data.address2 || ''),
+    distanceKm: Number(data.distance_km ?? data.distanceKm ?? 0),
+    deliveryFee: Number(data.delivery_fee ?? data.deliveryFee ?? 0),
   });
 
   const pushAlert = (payload: DeliveryAlertPayload) => {
@@ -221,7 +225,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     try {
       const res = await acceptAdminDelivery(orderId, getEstimated(orderId));
       if (res.ok) {
-        snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+        snackbar.show(`주문 #${orderId} 배달 시작 (${getEstimated(orderId)}분)`, { variant: 'success' });
       }
     } catch (e) {
       safeErrorLog(e, 'AdminDeliveryAlertProvider - accept');
@@ -303,6 +307,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                       <div className="mt-2 text-sm text-gray-700">
                         {itemCount > 0 ? `메뉴 ${itemCount}종` : a.productSummary}{' '}
                         총 <span className="font-semibold">{KRW(a.totalAmount)}</span>
+                        {a.deliveryFee > 0 && (
+                          <span className="text-gray-500 ml-1">(배달비 {KRW(a.deliveryFee)}, {a.distanceKm.toFixed(1)}km)</span>
+                        )}
                       </div>
                       <div className="mt-3 flex items-center justify-center gap-3">
                         <span className="text-sm text-gray-600">도착 예정 시간</span>
