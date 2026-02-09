@@ -290,10 +290,16 @@ export default function DeliveryPage() {
     }
     new kakaoPostcode({
       oncomplete: async (data: any) => {
-        const address = data.address || '';
+        const roadAddr = data.roadAddress || data.address || '';
         const postalCode = data.zonecode || '';
-        setDeliveryInfo(prev => ({ ...prev, postalCode, address1: address }));
-        await estimateDeliveryFee(address);
+        const buildingName = data.buildingName || '';
+        setDeliveryInfo(prev => ({
+          ...prev,
+          postalCode,
+          address1: roadAddr,
+          address2: buildingName,
+        }));
+        await estimateDeliveryFee(roadAddr);
       },
     }).open();
   };
@@ -302,7 +308,7 @@ export default function DeliveryPage() {
     const pendingOrderId = localStorage.getItem('pendingDeliveryOrderId');
     if (pendingOrderId) {
       localStorage.removeItem('pendingDeliveryOrderId');
-      cancelDeliveryPayment(Number(pendingOrderId)).catch(() => {});
+      cancelDeliveryPayment(Number(pendingOrderId)).catch(() => { });
     }
   }, []);
 
@@ -707,6 +713,7 @@ export default function DeliveryPage() {
               최소 주문 금액 {config.minAmount.toLocaleString()}원 이상부터 배달 가능합니다.
             </div>
           )}
+          <div className="text-xs text-red-600">배달 가능 거리({config.maxDistanceKm}km) 내라도, 강이나 행정구역 경계를 넘어가는 경우 배달이 취소될 수 있습니다.</div>
         </div>
         <div className="mt-4">
           <button
