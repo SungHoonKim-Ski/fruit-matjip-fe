@@ -22,18 +22,18 @@ export default function FloatingActionsReversed({
 
   return (
     <>
-      {/* 오른쪽: 주문내역 (가독성 강화: 대비 높은 테두리 + 단순 텍스트 + 화살표) */}
+      {/* 오른쪽: 배달하기 / 주문내역 */}
       <div className="fixed right-4 bottom-4 z-50">
         <button
           type="button"
-          aria-label="주문 내역"
+          aria-label="배달하기 · 주문내역"
           onClick={() => nav(orderPath)}
-          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-4 h-10
+          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-4 py-2
                      text-sm font-bold tracking-tight flex items-center gap-2
                      hover:bg-orange-50 hover:shadow-xl active:scale-[0.98]
                      focus:outline-none focus:ring-4 focus:ring-orange-200 transition"
         >
-          <span className="text-gray-900">주문 내역</span>
+          <span className="text-gray-900 text-center leading-tight">배달하기<br />주문내역</span>
           <span className="ml-1 text-orange-500 text-lg leading-none" aria-hidden="true">›</span>
         </button>
       </div>

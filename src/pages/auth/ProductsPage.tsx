@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
-import FloatingActions from '../../components/FloatingActions';
+import BottomNav from '../../components/BottomNav';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -1269,9 +1269,7 @@ export default function ReservePage() {
         )}
 
       </section>
-      <FloatingActions
-        orderPath="/me/orders"
-      />
+      <BottomNav />
 
       {/* FAB 통합 검색/필터 초기화 버튼 */}
       <button

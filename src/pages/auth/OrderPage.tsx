@@ -5,7 +5,7 @@ import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
 import { getReservations, cancelReservation, minusQuantity, getServerTime, getDeliveryConfig, cancelDeliveryPayment } from '../../utils/api';
-import Footer from '../../components/Footer';
+import BottomNav from '../../components/BottomNav';
 
 const KRW = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
@@ -861,26 +861,26 @@ export default function OrdersPage() {
                 })()}
                 <div className="mt-3 space-y-3">
                   {getGroupItemTotals(group.orders).map(item => (
-                    <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
+                    <div key={`${group.key}-${item.name}`} className="flex gap-3 text-base text-gray-800">
                       {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover border" />
+                        <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded object-cover border" />
                       ) : (
-                        <div className="w-10 h-10 rounded bg-gray-100 border" />
+                        <div className="w-14 h-14 rounded bg-gray-100 border" />
                       )}
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span>{trimItemName(item.name)}</span>
-                          <span className="text-gray-700">{KRW(item.total)}</span>
+                          <span className="font-medium">{trimItemName(item.name)}</span>
+                          <span className="text-gray-700 font-semibold">{KRW(item.total)}</span>
                         </div>
-                        <div className="mt-1 text-xs text-gray-500">x {item.quantity}</div>
+                        <div className="mt-1 text-sm text-gray-500">x {item.quantity}</div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 text-right text-xs" style={{ color: 'var(--color-primary-800)' }}>
+                <div className="mt-3 text-right text-sm" style={{ color: 'var(--color-primary-800)' }}>
                   배달비 {KRW(Number(group.orders[0]?.delivery?.deliveryFee ?? 0))}
                 </div>
-                <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+                <div className="text-right text-base font-bold" style={{ color: 'var(--color-primary-900)' }}>
                   {KRW(getGroupTotal(group.orders, true))}
                 </div>
               </div>
@@ -945,7 +945,7 @@ export default function OrdersPage() {
           {viewTab === 'delivery' && groupedOrders.filter(g => g.deliveryOrderId).map(group => (
             <div
               key={group.key}
-              className="rounded-lg border-2 p-4 shadow-sm cursor-pointer"
+              className="rounded-lg border-2 p-5 shadow-sm cursor-pointer"
               style={{
                 borderColor: 'var(--color-primary-500)',
                 backgroundColor: 'var(--color-primary-50)',
@@ -954,7 +954,7 @@ export default function OrdersPage() {
               role="button"
               aria-label="배달 주문 상세 보기"
             >
-              <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+              <div className="flex items-center justify-between text-base font-semibold" style={{ color: 'var(--color-primary-900)' }}>
                 <span>
                   {splitHeaderLine(getDeliveryOrderSummary(group.orders)).map((line, idx) => (
                     <span key={`${group.key}-header-m-${idx}`} className={idx === 0 ? 'block' : 'block'}>
@@ -971,31 +971,31 @@ export default function OrdersPage() {
               {(() => {
                 const label = getEstimatedArrivalLabel(group.orders[0]);
                 return label ? (
-                  <div className="mt-1 text-xs text-indigo-600 font-medium">{label}</div>
+                  <div className="mt-1 text-sm text-indigo-600 font-medium">{label}</div>
                 ) : null;
               })()}
               <div className="mt-3 space-y-3">
                 {getGroupItemTotals(group.orders).map(item => (
-                  <div key={`${group.key}-${item.name}`} className="flex gap-3 text-sm text-gray-800">
+                  <div key={`${group.key}-${item.name}`} className="flex gap-3 text-base text-gray-800">
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="w-10 h-10 rounded object-cover border" />
+                      <img src={item.imageUrl} alt={item.name} className="w-14 h-14 rounded object-cover border" />
                     ) : (
-                      <div className="w-10 h-10 rounded bg-gray-100 border" />
+                      <div className="w-14 h-14 rounded bg-gray-100 border" />
                     )}
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <span>{trimItemName(item.name)}</span>
-                        <span className="text-gray-700">{KRW(item.total)}</span>
+                        <span className="font-medium">{trimItemName(item.name)}</span>
+                        <span className="text-gray-700 font-semibold">{KRW(item.total)}</span>
                       </div>
-                      <div className="mt-1 text-xs text-gray-500">x {item.quantity}</div>
+                      <div className="mt-1 text-sm text-gray-500">x {item.quantity}</div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 text-right text-xs" style={{ color: 'var(--color-primary-800)' }}>
+              <div className="mt-3 text-right text-sm" style={{ color: 'var(--color-primary-800)' }}>
                 배달비 {KRW(Number(group.orders[0]?.delivery?.deliveryFee ?? 0))}
               </div>
-              <div className="text-right text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
+              <div className="text-right text-base font-bold" style={{ color: 'var(--color-primary-900)' }}>
                 {KRW(getGroupTotal(group.orders, true))}
               </div>
             </div>
@@ -1132,24 +1132,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* 배달 주문 FAB */}
-      {deliveryEnabled && (
-        <button
-          type="button"
-          onClick={() => nav('/me/delivery')}
-          className="rounded-xl bg-white text-gray-900 border-2 border-orange-500 shadow-lg px-4 h-10
-                     text-sm font-bold tracking-tight flex items-center gap-2
-                     hover:bg-orange-50 hover:shadow-xl active:scale-[0.98]
-                     focus:outline-none focus:ring-4 focus:ring-orange-200 transition fixed bottom-4 right-4 z-30"
-          aria-label="배달 주문 페이지로 이동"
-        >
-
-          <span className="text-gray-900">배달 주문</span>
-          <span className="ml-1 text-orange-500 text-lg leading-none" aria-hidden="true">›</span>
-        </button>
-      )}
-
-      <Footer />
+      <BottomNav />
 
       {/* 검색 모달 */}
       {searchModalOpen && (

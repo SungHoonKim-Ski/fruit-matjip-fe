@@ -4,6 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { theme } from '../../brand';
+import BottomNav from '../../components/BottomNav';
 import {
   getReservations,
   getDeliveryInfo,
@@ -780,6 +781,7 @@ export default function DeliveryPage() {
           </div>
         </div>
       )}
+      <BottomNav />
     </main>
   );
 }
