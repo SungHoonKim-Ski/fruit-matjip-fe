@@ -35,6 +35,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const paidNotifiedRef = useRef<Set<number>>(new Set());
   const upcomingNotifiedRef = useRef<Set<number>>(new Set());
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const pollTimerRef = useRef<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -88,6 +91,22 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       if (!alertAudioRef.current) {
         alertAudioRef.current = new Audio('/sounds/discord-call-sound_tvxg95l.mp3');
         alertAudioRef.current.loop = true;
+      }
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (!sourceNodeRef.current) {
+        sourceNodeRef.current = audioCtxRef.current.createMediaElementSource(alertAudioRef.current);
+        gainNodeRef.current = audioCtxRef.current.createGain();
+        sourceNodeRef.current.connect(gainNodeRef.current);
+        gainNodeRef.current.connect(audioCtxRef.current.destination);
+      }
+      const vol = parseFloat(localStorage.getItem('delivery-alert-volume') ?? '1.0');
+      if (gainNodeRef.current) {
+        gainNodeRef.current.gain.value = Math.max(0, Math.min(10, vol));
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
       }
       if (alertAudioRef.current.paused) {
         alertAudioRef.current.currentTime = 0;
