@@ -6,7 +6,7 @@ import { useSnackbar } from '../../components/snackbar';
 
 interface DeliveryRow {
   id: number;
-  reservationItems: { id: number; productName: string; quantity: number }[];
+  reservationItems: { id: number; productName: string; quantity: number; amount: number }[];
   buyerName: string;
   totalAmount: number;
   status: string;
@@ -50,6 +50,10 @@ export default function AdminDeliveriesPage() {
     endMinute: '',
   });
   const { show } = useSnackbar();
+  const [alertVolume, setAlertVolume] = useState<number>(() => {
+    const saved = localStorage.getItem('delivery-alert-volume');
+    return saved !== null ? parseFloat(saved) : 1.0;
+  });
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -107,12 +111,14 @@ export default function AdminDeliveriesPage() {
               id: Number(item.id ?? item.reservation_id ?? 0),
               productName: String(item.product_name ?? item.productName ?? ''),
               quantity: Number(item.quantity ?? 0),
+              amount: Number(item.amount ?? 0),
             }))
             : Array.isArray(r.reservations)
               ? r.reservations.map((item: any) => ({
                 id: Number(item.id ?? item.reservation_id ?? 0),
                 productName: String(item.product_name ?? item.productName ?? ''),
                 quantity: Number(item.quantity ?? 0),
+                amount: Number(item.amount ?? 0),
               }))
               : [],
           buyerName: String(r.buyer_name || ''),
@@ -205,6 +211,12 @@ export default function AdminDeliveriesPage() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handleVolumeChange = (value: number) => {
+    const clamped = Math.max(0, Math.min(10, value));
+    setAlertVolume(clamped);
+    localStorage.setItem('delivery-alert-volume', String(clamped));
   };
 
   const handleSaveConfig = async () => {
@@ -439,6 +451,27 @@ export default function AdminDeliveriesPage() {
             </>
           )}
         </div>
+        <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-semibold text-gray-700">🔊 알림 볼륨</div>
+            <div className="text-xs text-gray-700 font-medium">{Math.round(alertVolume * 100)}%</div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            step={0.1}
+            value={alertVolume}
+            onChange={e => handleVolumeChange(parseFloat(e.target.value))}
+            className="w-full accent-emerald-600"
+          />
+          <div className="relative text-xs text-gray-400 mt-1 h-4">
+            <span className="absolute left-0">0</span>
+            <span className="absolute left-[10%]">100%</span>
+            <span className="absolute left-[50%] -translate-x-1/2">500%</span>
+            <span className="absolute right-0">1000%</span>
+          </div>
+        </div>
         <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
@@ -489,7 +522,7 @@ export default function AdminDeliveriesPage() {
                         <div className="space-y-1">
                           {r.reservationItems.map(item => (
                             <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
-                              {item.productName} · {item.quantity}개
+                              {item.productName} · {item.quantity}개 · {item.amount.toLocaleString()}원
                             </div>
                           ))}
                         </div>
@@ -566,7 +599,7 @@ export default function AdminDeliveriesPage() {
                   {r.reservationItems.length > 0 ? (
                     r.reservationItems.map(item => (
                       <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
-                        {item.productName} · {item.quantity}개
+                        {item.productName} · {item.quantity}개 · {item.amount.toLocaleString()}원
                       </div>
                     ))
                   ) : (
