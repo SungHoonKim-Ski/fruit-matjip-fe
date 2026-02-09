@@ -46,15 +46,13 @@ function formatKstYmd(kstDate: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// 오후 7시 30분(KST) 이후에는 다음날을 시작으로, 오늘 포함 10일간 날짜 생성
+// 마감 시간 이후에는 다음날을 시작으로 10일간 날짜 생성
 function getNext10Days(): string[] {
   const arr: string[] = [];
-  const now = new Date();
-  // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
-  const kstNow = now;
-  const start = new Date(now);
-  // kstNow는 KST 시각을 나타내므로 UTC 게터로 KST 시각을 판정
-  if (kstNow.getHours() > 19 || (kstNow.getHours() == 19 && kstNow.getMinutes() >= 30)) {
+  const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const start = new Date(kstNow);
+  const [dh, dm] = (theme.config.reservationDeadline ?? '19:30').split(':').map(Number);
+  if (kstNow.getHours() > dh || (kstNow.getHours() === dh && kstNow.getMinutes() >= dm)) {
     start.setDate(start.getDate() + 1);
   }
   for (let i = 0; i < MAX_DAYS; i++) {
@@ -303,13 +301,11 @@ export default function ReservePage() {
         setProducts(mapped);
       } else {
         try {
-          // 한국 시간(KST) 기준 오늘을 시작으로, 오후 7시 30분 이후면 다음날부터 포함 10일 범위 요청
-
-          const now = new Date();
-          // 브라우저가 이미 KST 시간대를 인식하고 있으므로 현재 시간을 그대로 사용
-          const kstNow = now;
-          const start = new Date(now);
-          if (kstNow.getHours() > 19 || (kstNow.getHours() == 19 && kstNow.getMinutes() >= 30)) {
+          // 한국 시간(KST) 기준 마감 시간 이후면 다음날부터 10일 범위 요청
+          const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+          const start = new Date(kstNow);
+          const [dh, dm] = (theme.config.reservationDeadline ?? '19:30').split(':').map(Number);
+          if (kstNow.getHours() > dh || (kstNow.getHours() === dh && kstNow.getMinutes() >= dm)) {
             start.setDate(start.getDate() + 1);
           }
           const fromStr = formatKstYmd(start);
