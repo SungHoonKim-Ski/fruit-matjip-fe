@@ -83,9 +83,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const buildPrintData = (payload: DeliveryAlertPayload): PrintReceiptData => ({
     orderId: payload.orderId,
     paidAt: payload.paidAt,
-    // 예약배달이면 배달예정시간 포함, 일반배달은 아직 미정이므로 생략
-    deliveryHour: payload.scheduledDeliveryHour ?? null,
-    deliveryMinute: payload.scheduledDeliveryMinute ?? null,
+    deliveryHour: payload.scheduledDeliveryHour ?? payload.deliveryHour,
+    deliveryMinute: payload.scheduledDeliveryMinute ?? payload.deliveryMinute,
     buyerName: payload.buyerName,
     phone: payload.phone,
     items: payload.reservationItems.map(item => ({
