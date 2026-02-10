@@ -674,63 +674,59 @@ export default function DeliveryPage() {
       </section>
 
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
-        <h2 className="text-base font-semibold text-gray-800 mb-3">배달 유형</h2>
-        <div className="flex gap-2 mb-3">
+        <h2 className="text-base font-semibold text-gray-800 mb-3">배달 시간</h2>
+        <div
+          className="flex gap-2 overflow-x-auto pb-2"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
+        >
+          <style>
+            {`
+              .flex.gap-2.overflow-x-auto::-webkit-scrollbar {
+                display: none;
+              }
+            `}
+          </style>
           <button
             type="button"
             onClick={() => { setDeliveryType('normal'); setScheduledSlot(null); }}
-            className={`flex-1 h-10 rounded-lg text-sm font-medium border ${
-              deliveryType === 'normal'
+            className={`flex-shrink-0 px-4 h-10 rounded-full text-sm font-medium border whitespace-nowrap ${
+              deliveryType === 'normal' && scheduledSlot === null
                 ? 'bg-green-600 text-white border-green-600'
                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
             }`}
           >
-            일반배달
+            바로배달
           </button>
-          <button
-            type="button"
-            onClick={() => setDeliveryType('scheduled')}
-            disabled={isAfterScheduledCutoff}
-            className={`flex-1 h-10 rounded-lg text-sm font-medium border ${
-              deliveryType === 'scheduled'
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            예약배달
-          </button>
+          {scheduledSlots
+            .filter(slot => !isAfterScheduledCutoff && isSlotAvailable(slot))
+            .map(slot => {
+              const selected = deliveryType === 'scheduled' && scheduledSlot?.hour === slot.hour && scheduledSlot?.minute === slot.minute;
+              return (
+                <button
+                  key={`${slot.hour}-${slot.minute}`}
+                  type="button"
+                  onClick={() => {
+                    setDeliveryType('scheduled');
+                    setScheduledSlot(slot);
+                  }}
+                  className={`flex-shrink-0 px-4 h-10 rounded-full text-sm font-medium border whitespace-nowrap ${
+                    selected
+                      ? 'bg-green-600 text-white border-green-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {slot.hour}:{String(slot.minute).padStart(2, '0')}
+                </button>
+              );
+            })}
         </div>
         {isAfterScheduledCutoff && (
-          <div className="text-xs text-red-600 mb-2">
+          <div className="text-xs text-red-600 mt-2">
             예약배달은 {Math.floor(scheduledCutoffTotal / 60)}시{scheduledCutoffTotal % 60 > 0 ? ` ${scheduledCutoffTotal % 60}분` : ''}까지만 접수 가능합니다.
-          </div>
-        )}
-        {deliveryType === 'scheduled' && (
-          <div>
-            <div className="text-xs text-gray-500 mb-2">배달 완료 희망 시간을 선택해주세요.</div>
-            <div className="grid grid-cols-4 gap-2">
-              {scheduledSlots.map(slot => {
-                const available = isSlotAvailable(slot);
-                const selected = scheduledSlot?.hour === slot.hour && scheduledSlot?.minute === slot.minute;
-                return (
-                  <button
-                    key={`${slot.hour}-${slot.minute}`}
-                    type="button"
-                    onClick={() => setScheduledSlot(slot)}
-                    disabled={!available}
-                    className={`h-10 rounded-lg text-sm font-medium border ${
-                      selected
-                        ? 'bg-green-600 text-white border-green-600'
-                        : available
-                          ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                          : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    }`}
-                  >
-                    {slot.hour}:{String(slot.minute).padStart(2, '0')}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         )}
       </section>

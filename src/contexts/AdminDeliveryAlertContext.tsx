@@ -387,24 +387,26 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                           <span className="text-gray-500 ml-1">(배달비 {KRW(a.deliveryFee)}, {a.distanceKm.toFixed(1)}km)</span>
                         )}
                       </div>
-                      <div className="mt-3 flex items-center justify-center gap-3">
-                        <span className="text-sm text-gray-600">도착 예정 시간</span>
-                        <button
-                          type="button"
-                          className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300"
-                          onClick={() => setEstimated(a.orderId, getEstimated(a.orderId) - 10)}
-                        >
-                          −
-                        </button>
-                        <span className="text-sm font-semibold w-12 text-center">{getEstimated(a.orderId)}분</span>
-                        <button
-                          type="button"
-                          className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300"
-                          onClick={() => setEstimated(a.orderId, getEstimated(a.orderId) + 10)}
-                        >
-                          +
-                        </button>
-                      </div>
+                      {a.scheduledDeliveryHour === null && (
+                        <div className="mt-3 flex items-center justify-center gap-3">
+                          <span className="text-sm text-gray-600">도착 예정 시간</span>
+                          <button
+                            type="button"
+                            className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300"
+                            onClick={() => setEstimated(a.orderId, getEstimated(a.orderId) - 10)}
+                          >
+                            −
+                          </button>
+                          <span className="text-sm font-semibold w-12 text-center">{getEstimated(a.orderId)}분</span>
+                          <button
+                            type="button"
+                            className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold hover:bg-gray-300"
+                            onClick={() => setEstimated(a.orderId, getEstimated(a.orderId) + 10)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
                   <div className="mt-3 flex gap-2">
