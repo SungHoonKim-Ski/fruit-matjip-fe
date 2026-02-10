@@ -3,6 +3,7 @@ import AdminHeader from '../../components/AdminHeader';
 import { getAdminDeliveries, updateAdminDeliveryStatus, getAdminDeliveryConfig, updateAdminDeliveryConfig } from '../../utils/api';
 import { safeErrorLog } from '../../utils/environment';
 import { useSnackbar } from '../../components/snackbar';
+import { printReceipt, PrintReceiptData } from '../../utils/printBridge';
 
 interface DeliveryRow {
   id: number;
@@ -14,6 +15,12 @@ interface DeliveryRow {
   postalCode: string;
   address1: string;
   address2?: string;
+  distanceKm: number;     // 영수증 출력용 배달 거리
+  deliveryFee: number;    // 영수증 출력용 배달비
+  deliveryHour: number;   // 영수증 출력용 배달 시간
+  deliveryMinute: number; // 영수증 출력용 배달 분
+  paidAt: string;         // 영수증 출력용 결제 시각
+  scheduledDeliveryHour: number | null;
 }
 
 interface DeliveryConfigForm {
@@ -33,6 +40,7 @@ export default function AdminDeliveriesPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }));
   const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'out_for_delivery' | 'delivered' | 'canceled'>('all');
+  const [scheduledFilter, setScheduledFilter] = useState<'all' | 'normal' | 'scheduled'>('all');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
@@ -53,6 +61,10 @@ export default function AdminDeliveriesPage() {
   const [alertVolume, setAlertVolume] = useState<number>(() => {
     const saved = localStorage.getItem('delivery-alert-volume');
     return saved !== null ? parseFloat(saved) : 1.0;
+  });
+  const [scheduledAlertEnabled, setScheduledAlertEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('scheduled-delivery-alert');
+    return saved !== null ? saved === 'true' : true;
   });
 
   const getStatusLabel = (status: string) => {
@@ -85,9 +97,12 @@ export default function AdminDeliveriesPage() {
     return raw;
   };
 
-  const filteredRows = deliveryFilter === 'all'
-    ? rows
-    : rows.filter(row => row.status === deliveryFilter.toUpperCase());
+  const filteredRows = rows.filter(row => {
+    if (deliveryFilter !== 'all' && row.status !== deliveryFilter.toUpperCase()) return false;
+    if (scheduledFilter === 'normal' && row.scheduledDeliveryHour !== null) return false;
+    if (scheduledFilter === 'scheduled' && row.scheduledDeliveryHour === null) return false;
+    return true;
+  });
 
   useEffect(() => {
     if (sessionStorage.getItem('admin-deliveries-reload') === '1') {
@@ -128,6 +143,12 @@ export default function AdminDeliveriesPage() {
           postalCode: String(r.postal_code || ''),
           address1: String(r.address1 || ''),
           address2: String(r.address2 || ''),
+          distanceKm: Number(r.distance_km ?? r.distanceKm ?? 0),
+          deliveryFee: Number(r.delivery_fee ?? r.deliveryFee ?? 0),
+          deliveryHour: Number(r.delivery_hour ?? r.deliveryHour ?? 0),
+          deliveryMinute: Number(r.delivery_minute ?? r.deliveryMinute ?? 0),
+          paidAt: String(r.paid_at ?? r.paidAt ?? ''),
+          scheduledDeliveryHour: r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null,
         }));
         const statusPriority: Record<string, number> = {
           PAID: 1,
@@ -213,10 +234,49 @@ export default function AdminDeliveriesPage() {
     }
   };
 
+  // 영수증 출력 핸들러
+  // DeliveryRow 데이터를 PrintReceiptData 형식으로 변환 후 프린터 브릿지 호출
+  const handlePrint = async (row: DeliveryRow) => {
+    const data: PrintReceiptData = {
+      orderId: row.id,
+      paidAt: row.paidAt,
+      deliveryHour: row.deliveryHour,
+      deliveryMinute: row.deliveryMinute,
+      buyerName: row.buyerName,
+      phone: row.phone,
+      items: row.reservationItems.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        amount: item.amount,
+      })),
+      // 상품 합계 = 총 결제금액 - 배달비
+      totalProductAmount: row.totalAmount - row.deliveryFee,
+      deliveryFee: row.deliveryFee,
+      distanceKm: row.distanceKm,
+      address1: row.address1,
+      address2: row.address2 || undefined,
+    };
+
+    const ok = await printReceipt(data);
+    if (ok) {
+      show('영수증이 출력되었습니다.');
+    } else {
+      show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
+    }
+  };
+
   const handleVolumeChange = (value: number) => {
     const clamped = Math.max(0, Math.min(10, value));
     setAlertVolume(clamped);
     localStorage.setItem('delivery-alert-volume', String(clamped));
+  };
+
+  const handleScheduledAlertToggle = () => {
+    setScheduledAlertEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('scheduled-delivery-alert', String(next));
+      return next;
+    });
   };
 
   const handleSaveConfig = async () => {
@@ -472,6 +532,21 @@ export default function AdminDeliveriesPage() {
             <span className="absolute right-0">1000%</span>
           </div>
         </div>
+        <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-700">🕐 예약배달 알림</div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={scheduledAlertEnabled}
+                onChange={handleScheduledAlertToggle}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">예약배달 주문의 1시간 전 리마인더 알림</div>
+        </div>
         <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
@@ -493,6 +568,16 @@ export default function AdminDeliveriesPage() {
                 <option value="out_for_delivery">배달 시작</option>
                 <option value="delivered">배달 완료</option>
                 <option value="canceled">주문 취소</option>
+              </select>
+              <label className="text-sm text-gray-600">배달방식</label>
+              <select
+                value={scheduledFilter}
+                onChange={e => setScheduledFilter(e.target.value as typeof scheduledFilter)}
+                className="h-10 border rounded px-2 bg-white"
+              >
+                <option value="all">전체</option>
+                <option value="normal">일반배달</option>
+                <option value="scheduled">예약배달</option>
               </select>
             </div>
           </div>
@@ -543,6 +628,11 @@ export default function AdminDeliveriesPage() {
                     <td className="py-2 pr-3">
                       <div className="font-medium text-gray-800">#{r.id}</div>
                       <div className="text-xs text-gray-500">배달 주문</div>
+                      {r.scheduledDeliveryHour !== null && (
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          예약 {r.scheduledDeliveryHour}:00
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 pr-3">
                       <div className="text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
@@ -574,6 +664,14 @@ export default function AdminDeliveriesPage() {
                         >
                           주문 취소
                         </button>
+                        <button
+                          type="button"
+                          className="h-8 px-2 rounded bg-purple-500 text-white text-xs disabled:opacity-50"
+                          onClick={() => handlePrint(r)}
+                          disabled={updatingId === r.id || r.status === 'CANCELED' || r.status === 'FAILED'}
+                        >
+                          출력
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -592,6 +690,11 @@ export default function AdminDeliveriesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="font-semibold text-gray-800">#{r.id}</div>
+                    {r.scheduledDeliveryHour !== null && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        예약 {r.scheduledDeliveryHour}:00
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-gray-500">{getStatusLabel(r.status)}</span>
                 </div>
@@ -613,7 +716,7 @@ export default function AdminDeliveriesPage() {
                 <div className="mt-1 text-sm text-gray-700">{r.address1} {r.address2}</div>
                 <div className="mt-1 text-xs text-gray-500">{r.postalCode}</div>
                 <div className="mt-1 text-sm text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-4 gap-2">
                   <button
                     type="button"
                     className="h-9 rounded bg-blue-500 text-white text-xs disabled:opacity-50"
@@ -637,6 +740,14 @@ export default function AdminDeliveriesPage() {
                     disabled={updatingId === r.id || r.status === 'DELIVERED' || r.status === 'CANCELED' || r.status === 'FAILED'}
                   >
                     주문 취소
+                  </button>
+                  <button
+                    type="button"
+                    className="h-9 rounded bg-purple-500 text-white text-xs disabled:opacity-50"
+                    onClick={() => handlePrint(r)}
+                    disabled={updatingId === r.id || r.status === 'CANCELED' || r.status === 'FAILED'}
+                  >
+                    출력
                   </button>
                 </div>
               </div>

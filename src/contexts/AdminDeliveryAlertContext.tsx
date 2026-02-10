@@ -4,6 +4,7 @@ import { useSnackbar } from '../components/snackbar';
 import { safeErrorLog } from '../utils/environment';
 import { USE_MOCKS } from '../config';
 import { acceptAdminDelivery, getAdminDeliveries, getServerTime, updateAdminDeliveryStatus } from '../utils/api';
+import { printReceipt, PrintReceiptData } from '../utils/printBridge';
 
 type DeliveryAlertPayload = {
   orderId: number;
@@ -15,13 +16,15 @@ type DeliveryAlertPayload = {
   deliveryHour: number;
   deliveryMinute: number;
   type: 'paid' | 'upcoming';
-  reservationItems: { id: number; productName: string; quantity: number }[];
+  paidAt: string; // 영수증 출력용 결제 시각
+  reservationItems: { id: number; productName: string; quantity: number; amount: number }[];
   totalAmount: number;
   phone: string;
   address1: string;
   address2: string;
   distanceKm: number;
   deliveryFee: number;
+  scheduledDeliveryHour: number | null;
 };
 
 const AdminDeliveryAlertContext = createContext({});
@@ -55,11 +58,13 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     deliveryHour: Number(data.delivery_hour || 0),
     deliveryMinute: Number(data.delivery_minute ?? data.deliveryMinute ?? 0),
     type,
+    paidAt: String(data.paid_at ?? data.paidAt ?? ''),
     reservationItems: Array.isArray(data.reservation_items)
       ? data.reservation_items.map((item: any) => ({
           id: Number(item.id ?? 0),
           productName: String(item.product_name ?? item.productName ?? ''),
           quantity: Number(item.quantity ?? 0),
+          amount: Number(item.amount ?? 0),
         }))
       : [],
     totalAmount: Number(data.total_amount ?? data.totalAmount ?? 0),
@@ -68,6 +73,29 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     address2: String(data.address2 || ''),
     distanceKm: Number(data.distance_km ?? data.distanceKm ?? 0),
     deliveryFee: Number(data.delivery_fee ?? data.deliveryFee ?? 0),
+    scheduledDeliveryHour: data.scheduled_delivery_hour ?? data.scheduledDeliveryHour ?? null,
+  });
+
+  // DeliveryAlertPayload → PrintReceiptData 변환 헬퍼
+  // SSE 이벤트 데이터를 프린터 브릿지가 요구하는 형식으로 변환
+  const buildPrintData = (payload: DeliveryAlertPayload): PrintReceiptData => ({
+    orderId: payload.orderId,
+    paidAt: payload.paidAt,
+    deliveryHour: payload.deliveryHour,
+    deliveryMinute: payload.deliveryMinute,
+    buyerName: payload.buyerName,
+    phone: payload.phone,
+    items: payload.reservationItems.map(item => ({
+      productName: item.productName,
+      quantity: item.quantity,
+      amount: item.amount,
+    })),
+    // 상품 합계 = 총 결제금액 - 배달비
+    totalProductAmount: payload.totalAmount - payload.deliveryFee,
+    deliveryFee: payload.deliveryFee,
+    distanceKm: payload.distanceKm,
+    address1: payload.address1,
+    address2: payload.address2 || undefined,
   });
 
   const pushAlert = (payload: DeliveryAlertPayload) => {
@@ -154,7 +182,15 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       source.addEventListener('delivery_paid', event => {
         try {
           const data = JSON.parse((event as MessageEvent).data);
-          pushAlert(parseAlertPayload(data, 'paid'));
+          const payload = parseAlertPayload(data, 'paid');
+          pushAlert(payload);
+          // 결제 완료 시 자동 영수증 출력
+          // 출력 실패해도 알림 흐름은 중단하지 않음 (catch로 에러만 표시)
+          printReceipt(buildPrintData(payload)).then(ok => {
+            if (!ok) {
+              snackbar.show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
+            }
+          });
         } catch (e) {
           safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
         }
@@ -190,16 +226,18 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           });
 
           const nowMs = serverMs;
+          const scheduledAlertOn = localStorage.getItem('scheduled-delivery-alert') !== 'false';
           const upcomingTargets = list.filter((r: any) => {
             const status = String(r.status || '');
             if (status !== 'PAID' && status !== 'OUT_FOR_DELIVERY') return false;
+            const scheduledHour = r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null;
+            if (scheduledHour === null) return false;
+            if (!scheduledAlertOn) return false;
             const date = String(r.delivery_date || '');
-            const hour = Number(r.delivery_hour || 0);
-            const minute = Number(r.delivery_minute ?? r.deliveryMinute ?? 0);
-            if (!date || !hour) return false;
-            const targetMs = new Date(`${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`).getTime();
+            if (!date) return false;
+            const targetMs = new Date(`${date}T${String(scheduledHour).padStart(2, '0')}:00:00+09:00`).getTime();
             const diff = targetMs - nowMs;
-            return diff <= 30 * 60 * 1000 && diff > 0;
+            return diff <= 60 * 60 * 1000 && diff > 0;
           });
           upcomingTargets.forEach((r: any) => {
             pushAlert(parseAlertPayload(r, 'upcoming'));
@@ -292,14 +330,21 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                 <div key={a.orderId} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   {a.type === 'upcoming' ? (
                     <>
-                      <div className="text-sm font-semibold text-orange-600 mb-2">배달 예정 알림</div>
+                      <div className="text-sm font-semibold text-orange-600 mb-2">예약배달 알림</div>
                       <p className="text-sm text-gray-700 mb-3">
-                        {a.buyerName}님의 배달이 30분 이내로 예정되어 있습니다.
+                        {a.buyerName}님의 예약배달({a.scheduledDeliveryHour}:00)이 1시간 이내로 예정되어 있습니다.
                       </p>
                     </>
                   ) : (
                     <>
-                      <div className="text-sm font-semibold text-green-700 mb-2">결제 완료</div>
+                      <div className="text-sm font-semibold text-green-700 mb-2">
+                        결제 완료
+                        {a.scheduledDeliveryHour !== null && (
+                          <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            예약배달 {a.scheduledDeliveryHour}:00
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-800 space-y-1">
                         <div className="flex justify-between">
                           <span className="text-gray-500">주문번호</span>
