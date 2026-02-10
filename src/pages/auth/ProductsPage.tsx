@@ -5,7 +5,7 @@ import BottomNav from '../../components/BottomNav';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords, getUserMe } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 import Footer from '../../components/Footer';
 import { theme, logoText, defaultKeywordImage } from '../../brand';
@@ -146,6 +146,9 @@ export default function ReservePage() {
 
   // 예약 처리 중인 상품 ID 추적
   const [reservingProductId, setReservingProductId] = useState<number | null>(null);
+
+  // 이용제한 상태
+  const [restricted, setRestricted] = useState(false);
 
   // 모달(상세/닉네임/개인정보/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
@@ -388,6 +391,27 @@ export default function ReservePage() {
     checkUserMessage();
   }, []);
 
+  // 사용자 정보 동기화 (닉네임 + 이용제한)
+  useEffect(() => {
+    const syncUserMe = async () => {
+      if (USE_MOCKS) return;
+      try {
+        const me = await getUserMe();
+        if (me.nickname && me.nickname.trim()) {
+          localStorage.setItem('nickname', me.nickname);
+          setNickname(me.nickname);
+        }
+        setRestricted(me.restricted);
+        if (me.restricted && me.restrictedUntil) {
+          const formatted = me.restrictedUntil.replace(/-/g, '/');
+          show(`${formatted}까지 이용이 제한되었습니다.`, { variant: 'error' });
+        }
+      } catch (e) {
+        safeErrorLog(e, 'ProductsPage - syncUserMe');
+      }
+    };
+    syncUserMe();
+  }, []);
 
   const productsOfDay = useMemo(
     () => {
@@ -1174,8 +1198,16 @@ export default function ReservePage() {
           </div>
         )}
 
+        {/* 이용제한 안내 */}
+        {restricted && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
+            <p className="text-red-700 font-medium">이용이 제한된 계정입니다.</p>
+            <p className="text-red-500 text-sm mt-1">제한 기간 동안 상품 예약이 불가합니다.</p>
+          </div>
+        )}
+
         {/* 상품 목록(선택 날짜) */}
-        {availableDates.length > 0 && (
+        {!restricted && availableDates.length > 0 && (
           <div className="space-y-4 mb-6">
             {productsOfDay.map((item) => (
               <div

@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { getMockCustomers, updateMockCustomerWarnCount } from '../../mocks/customers';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getCustomers, addCustomerWarn, resetCustomerWarn, getCustomerWarns, CustomerListItem, CustomerSortKey, CustomerWarnItem } from '../../utils/api';
+import { getCustomers, addCustomerWarn, resetCustomerWarn, liftRestriction, getCustomerWarns, CustomerListItem, CustomerSortKey, CustomerWarnItem } from '../../utils/api';
 import AdminHeader from '../../components/AdminHeader';
 
 const LIMIT = 20;
@@ -68,7 +68,7 @@ export default function AdminCustomerPage() {
         // Mock 데이터를 실제 API 응답 형식으로 변환
         const nextOffset = mockData.hasMore ? (offset + LIMIT).toString() : '';
         data = { 
-          users: mockData.users.map(u => ({ ...u, id: String(u.id) })), 
+          users: mockData.users.map(u => ({ ...u, id: String(u.id), restrictedUntil: null })),
           cursor: nextOffset || null 
         };
       } else {
@@ -161,7 +161,7 @@ export default function AdminCustomerPage() {
     setWarnDialog({ isOpen: false, customer: null });
   };
 
-  // 이번 달 이용 제한 해제
+  // 이용 제한 해제
   const handleResetWarn = async () => {
     if (!customerDialog.customer) return;
 
@@ -171,22 +171,19 @@ export default function AdminCustomerPage() {
       if (USE_MOCKS) {
         const updated = updateMockCustomerWarnCount(Number(customer.id), -1);
         if (updated) {
-          // 목 데이터 업데이트 후 목록 새로고침
           setCustomers([]);
           setCursor('');
           await loadCustomers(true);
-          show('이번 달 이용 제한이 해제되었습니다.');
+          show('이용 제한이 해제되었습니다.');
         }
       } else {
-        await resetCustomerWarn(customer.id);
-        // 목록 새로고침
+        await liftRestriction(customer.id);
         setCustomers([]);
         setCursor('');
         await loadCustomers(true);
-        show('이번 달 이용 제한이 해제되었습니다.');
+        show('이용 제한이 해제되었습니다.');
       }
 
-      // Dialog 닫기
       closeCustomerDialog();
     } catch (e: any) {
       safeErrorLog(e, 'AdminCustomerPage - handleResetWarn');
@@ -307,9 +304,9 @@ export default function AdminCustomerPage() {
                         신규
                       </span>
                     )}
-                    {customer.monthlyWarnCount > 2 && (
+                    {customer.restrictedUntil && (
                       <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">
-                        이용제한
+                        이용제한 ~{customer.restrictedUntil.replace(/-/g, '/')}
                       </span>
                     )}
                   </div>
@@ -438,9 +435,9 @@ export default function AdminCustomerPage() {
                   신규
                 </span>
               )}
-              {customerDialog.customer.monthlyWarnCount > 2 && (
+              {customerDialog.customer.restrictedUntil && (
                 <span className="ml-2 px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded">
-                  이용제한
+                  이용제한 ~{customerDialog.customer.restrictedUntil.replace(/-/g, '/')}
                 </span>
               )}
             </h3>
@@ -498,7 +495,7 @@ export default function AdminCustomerPage() {
                 <div className="text-sm font-medium text-orange-700">이번 달 이용 제한 해제</div>
                 <button
                   onClick={handleResetWarn}
-                  disabled={customerDialog.customer.monthlyWarnCount <= 0}
+                  disabled={!customerDialog.customer.restrictedUntil}
                   className="px-4 py-2 rounded-lg bg-orange-400 hover:bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium transition-colors"
                 >
                   적용
