@@ -83,8 +83,9 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const buildPrintData = (payload: DeliveryAlertPayload): PrintReceiptData => ({
     orderId: payload.orderId,
     paidAt: payload.paidAt,
-    deliveryHour: payload.deliveryHour,
-    deliveryMinute: payload.deliveryMinute,
+    // 예약배달이면 배달예정시간 포함, 일반배달은 아직 미정이므로 생략
+    deliveryHour: payload.scheduledDeliveryHour ?? undefined,
+    deliveryMinute: payload.scheduledDeliveryMinute ?? undefined,
     buyerName: payload.buyerName,
     phone: payload.phone,
     items: payload.reservationItems.map(item => ({
@@ -289,9 +290,18 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
   const handleAccept = async (orderId: number) => {
     try {
-      const res = await acceptAdminDelivery(orderId, getEstimated(orderId));
+      const alert = alerts.find(a => a.orderId === orderId);
+      const isScheduled = alert?.scheduledDeliveryHour !== null && alert?.scheduledDeliveryHour !== undefined;
+      const minutes = isScheduled ? 0 : getEstimated(orderId);
+      const res = await acceptAdminDelivery(orderId, minutes);
       if (res.ok) {
-        snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+        if (isScheduled) {
+          const h = alert!.scheduledDeliveryHour;
+          const m = String(alert!.scheduledDeliveryMinute ?? 0).padStart(2, '0');
+          snackbar.show(`주문 #${orderId} 접수 완료 (예약배달 ${h}:${m})`, { variant: 'success' });
+        } else {
+          snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+        }
       } else {
         snackbar.show('주문 접수에 실패했습니다.', { variant: 'error' });
       }
