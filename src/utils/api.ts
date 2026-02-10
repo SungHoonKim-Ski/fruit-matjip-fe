@@ -578,6 +578,8 @@ export const createDeliveryPaymentReady = async (data: {
   address2?: string;
   latitude?: number;
   longitude?: number;
+  scheduledDeliveryHour?: number | null;
+  scheduledDeliveryMinute?: number | null;
   idempotencyKey: string;
 }) => {
   const key = 'createDeliveryPaymentReady';
@@ -596,6 +598,8 @@ export const createDeliveryPaymentReady = async (data: {
         latitude: data.latitude,
         longitude: data.longitude,
         idempotency_key: data.idempotencyKey,
+        scheduled_delivery_hour: data.scheduledDeliveryHour ?? null,
+        scheduled_delivery_minute: data.scheduledDeliveryMinute ?? null,
       }),
     });
     if (res.ok) resetApiRetryCount(key);
@@ -659,6 +663,19 @@ export const markMessageAsRead = async (messageId: number) => {
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getUserMe = async (): Promise<{ nickname: string; restricted: boolean; restrictedUntil: string | null }> => {
+  const res = await userFetch('/api/auth/users/me');
+  if (!res.ok) {
+    throw new Error('사용자 정보를 불러올 수 없습니다.');
+  }
+  const data = await res.json();
+  return {
+    nickname: data.nickname || '',
+    restricted: Boolean(data.restricted),
+    restrictedUntil: data.restrictedUntil || data.restricted_until || null,
+  };
 };
 
 export const getReservations = async (from?: string, to?: string) => {
@@ -1277,6 +1294,7 @@ export type CustomerListItem = {
   monthlyWarnCount: number;
   totalWarnCount: number;
   isFirstTimeBuyer: boolean;
+  restrictedUntil: string | null;
 };
 
 export const getCustomers = async (
@@ -1300,6 +1318,7 @@ export const getCustomers = async (
       monthlyWarnCount: Number(u.monthly_warn_count || 0),
       totalWarnCount: Number(u.total_warn_count || 0),
       isFirstTimeBuyer: Boolean(u.first_time_buyer),
+      restrictedUntil: u.restricted_until || u.restrictedUntil || null,
     })) : [];
 
     const nextCursor = data.pagination?.next_cursor || null;
@@ -1339,6 +1358,27 @@ export const resetCustomerWarn = async (userId: string): Promise<void> => {
   try {
     const res = await adminFetch(
       `/api/admin/customer/warn/reset/${userId}`,
+      {
+        method: 'PATCH',
+      },
+      true
+    );
+    if (!res.ok) {
+      throw new Error(`이용 제한 해제에 실패했습니다. (${res.status})`);
+    }
+    if (res.ok) resetApiRetryCount(key);
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const liftRestriction = async (userId: string): Promise<void> => {
+  const key = 'liftRestriction';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(
+      `/api/admin/users/${userId}/lift-restriction`,
       {
         method: 'PATCH',
       },

@@ -21,6 +21,7 @@ interface DeliveryRow {
   deliveryMinute: number; // 영수증 출력용 배달 분
   paidAt: string;         // 영수증 출력용 결제 시각
   scheduledDeliveryHour: number | null;
+  scheduledDeliveryMinute: number | null;
 }
 
 interface DeliveryConfigForm {
@@ -149,6 +150,7 @@ export default function AdminDeliveriesPage() {
           deliveryMinute: Number(r.delivery_minute ?? r.deliveryMinute ?? 0),
           paidAt: String(r.paid_at ?? r.paidAt ?? ''),
           scheduledDeliveryHour: r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null,
+          scheduledDeliveryMinute: r.scheduled_delivery_minute ?? r.scheduledDeliveryMinute ?? null,
         }));
         const statusPriority: Record<string, number> = {
           PAID: 1,
@@ -630,7 +632,7 @@ export default function AdminDeliveriesPage() {
                       <div className="text-xs text-gray-500">배달 주문</div>
                       {r.scheduledDeliveryHour !== null && (
                         <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          예약 {r.scheduledDeliveryHour}:00
+                          예약 {r.scheduledDeliveryHour}:{String(r.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
                         </span>
                       )}
                     </td>
@@ -692,7 +694,7 @@ export default function AdminDeliveriesPage() {
                     <div className="font-semibold text-gray-800">#{r.id}</div>
                     {r.scheduledDeliveryHour !== null && (
                       <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                        예약 {r.scheduledDeliveryHour}:00
+                        예약 {r.scheduledDeliveryHour}:{String(r.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
                       </span>
                     )}
                   </div>

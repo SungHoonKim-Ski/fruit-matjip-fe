@@ -25,6 +25,7 @@ type DeliveryAlertPayload = {
   distanceKm: number;
   deliveryFee: number;
   scheduledDeliveryHour: number | null;
+  scheduledDeliveryMinute: number | null;
 };
 
 const AdminDeliveryAlertContext = createContext({});
@@ -74,6 +75,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     distanceKm: Number(data.distance_km ?? data.distanceKm ?? 0),
     deliveryFee: Number(data.delivery_fee ?? data.deliveryFee ?? 0),
     scheduledDeliveryHour: data.scheduled_delivery_hour ?? data.scheduledDeliveryHour ?? null,
+    scheduledDeliveryMinute: data.scheduled_delivery_minute ?? data.scheduledDeliveryMinute ?? null,
   });
 
   // DeliveryAlertPayload → PrintReceiptData 변환 헬퍼
@@ -235,7 +237,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
             if (!scheduledAlertOn) return false;
             const date = String(r.delivery_date || '');
             if (!date) return false;
-            const targetMs = new Date(`${date}T${String(scheduledHour).padStart(2, '0')}:00:00+09:00`).getTime();
+            const scheduledMin = Number(r.scheduled_delivery_minute ?? r.scheduledDeliveryMinute ?? 0);
+            const targetMs = new Date(`${date}T${String(scheduledHour).padStart(2, '0')}:${String(scheduledMin).padStart(2, '0')}:00+09:00`).getTime();
             const diff = targetMs - nowMs;
             return diff <= 60 * 60 * 1000 && diff > 0;
           });
@@ -332,7 +335,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                     <>
                       <div className="text-sm font-semibold text-orange-600 mb-2">예약배달 알림</div>
                       <p className="text-sm text-gray-700 mb-3">
-                        {a.buyerName}님의 예약배달({a.scheduledDeliveryHour}:00)이 1시간 이내로 예정되어 있습니다.
+                        {a.buyerName}님의 예약배달({a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')})이 1시간 이내로 예정되어 있습니다.
                       </p>
                     </>
                   ) : (
@@ -341,7 +344,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                         결제 완료
                         {a.scheduledDeliveryHour !== null && (
                           <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            예약배달 {a.scheduledDeliveryHour}:00
+                            예약배달 {a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
                           </span>
                         )}
                       </div>

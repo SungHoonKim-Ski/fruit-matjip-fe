@@ -74,6 +74,8 @@ export default function DeliveryPage() {
   });
   const [deliveryHour, setDeliveryHour] = useState<number>(12);
   const [deliverySubmitting, setDeliverySubmitting] = useState(false);
+  const [deliveryType, setDeliveryType] = useState<'normal' | 'scheduled'>('normal');
+  const [scheduledSlot, setScheduledSlot] = useState<{ hour: number; minute: number } | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
   const [deliveryDistanceError, setDeliveryDistanceError] = useState<string | null>(null);
@@ -123,6 +125,25 @@ export default function DeliveryPage() {
     const m = now.getMinutes();
     return h < config.startHour || (h === config.startHour && m < config.startMinute);
   }, [serverTimeOffsetMs, config.startHour, config.startMinute]);
+  const scheduledCutoffTotal = (config.endHour * 60 + config.endMinute) - 60;
+  const isAfterScheduledCutoff = useMemo(() => {
+    const now = getKstNow();
+    return now.getHours() * 60 + now.getMinutes() >= scheduledCutoffTotal;
+  }, [serverTimeOffsetMs, scheduledCutoffTotal]);
+  const scheduledSlots = useMemo(() => {
+    const startTotal = config.startHour * 60 + config.startMinute;
+    const endTotal = config.endHour * 60 + config.endMinute;
+    const slots: { hour: number; minute: number }[] = [];
+    for (let t = startTotal + 60; t <= endTotal; t += 60) {
+      slots.push({ hour: Math.floor(t / 60), minute: t % 60 });
+    }
+    return slots;
+  }, [config.startHour, config.startMinute, config.endHour, config.endMinute]);
+  const isSlotAvailable = (slot: { hour: number; minute: number }) => {
+    const now = getKstNow();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return slot.hour * 60 + slot.minute - currentMinutes >= 60;
+  };
   const canSubmit = PAYMENT_READY
     && deliveryEnabled
     && selectedIds.length > 0
@@ -135,7 +156,8 @@ export default function DeliveryPage() {
     && !deliveryDistanceError
     && selectedAmount >= config.minAmount
     && !isAfterDeadline
-    && !isBeforeStart;
+    && !isBeforeStart
+    && (deliveryType === 'normal' || scheduledSlot !== null);
   const submitBlockers = useMemo(() => {
     const reasons: string[] = [];
     if (!deliveryEnabled) reasons.push('현재 배달 주문이 중단되어 있습니다.');
@@ -156,6 +178,7 @@ export default function DeliveryPage() {
     }
     if (isGeocoding) reasons.push('주소 좌표를 확인 중입니다.');
     if (deliverySubmitting) reasons.push('결제 준비 중입니다.');
+    if (deliveryType === 'scheduled' && scheduledSlot === null) reasons.push('예약배달 시간을 선택해주세요.');
     return reasons;
   }, [
     deliveryEnabled,
@@ -504,6 +527,8 @@ export default function DeliveryPage() {
           address2: deliveryInfo.address2 || '',
           latitude: deliveryCoords.lat,
           longitude: deliveryCoords.lng,
+          scheduledDeliveryHour: deliveryType === 'scheduled' ? scheduledSlot?.hour ?? null : null,
+          scheduledDeliveryMinute: deliveryType === 'scheduled' ? scheduledSlot?.minute ?? null : null,
           idempotencyKey,
         });
         if (!res.ok) {
@@ -646,6 +671,68 @@ export default function DeliveryPage() {
             <div>현재 거리: {deliveryDistanceKm.toFixed(2)}km</div>
           )}
         </div>
+      </section>
+
+      <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
+        <h2 className="text-base font-semibold text-gray-800 mb-3">배달 유형</h2>
+        <div className="flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => { setDeliveryType('normal'); setScheduledSlot(null); }}
+            className={`flex-1 h-10 rounded-lg text-sm font-medium border ${
+              deliveryType === 'normal'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            일반배달
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeliveryType('scheduled')}
+            disabled={isAfterScheduledCutoff}
+            className={`flex-1 h-10 rounded-lg text-sm font-medium border ${
+              deliveryType === 'scheduled'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            예약배달
+          </button>
+        </div>
+        {isAfterScheduledCutoff && (
+          <div className="text-xs text-red-600 mb-2">
+            예약배달은 {Math.floor(scheduledCutoffTotal / 60)}시{scheduledCutoffTotal % 60 > 0 ? ` ${scheduledCutoffTotal % 60}분` : ''}까지만 접수 가능합니다.
+          </div>
+        )}
+        {deliveryType === 'scheduled' && (
+          <div>
+            <div className="text-xs text-gray-500 mb-2">배달 완료 희망 시간을 선택해주세요.</div>
+            <div className="grid grid-cols-4 gap-2">
+              {scheduledSlots.map(slot => {
+                const available = isSlotAvailable(slot);
+                const selected = scheduledSlot?.hour === slot.hour && scheduledSlot?.minute === slot.minute;
+                return (
+                  <button
+                    key={`${slot.hour}-${slot.minute}`}
+                    type="button"
+                    onClick={() => setScheduledSlot(slot)}
+                    disabled={!available}
+                    className={`h-10 rounded-lg text-sm font-medium border ${
+                      selected
+                        ? 'bg-green-600 text-white border-green-600'
+                        : available
+                          ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    }`}
+                  >
+                    {slot.hour}:{String(slot.minute).padStart(2, '0')}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
