@@ -238,10 +238,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
             const scheduledHour = r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null;
             if (scheduledHour === null) return false;
             if (!scheduledAlertOn) return false;
-            const date = String(r.delivery_date || '');
-            if (!date) return false;
             const scheduledMin = Number(r.scheduled_delivery_minute ?? r.scheduledDeliveryMinute ?? 0);
-            const targetMs = new Date(`${date}T${String(scheduledHour).padStart(2, '0')}:${String(scheduledMin).padStart(2, '0')}:00+09:00`).getTime();
+            const targetMs = new Date(`${today}T${String(scheduledHour).padStart(2, '0')}:${String(scheduledMin).padStart(2, '0')}:00+09:00`).getTime();
             const diff = targetMs - nowMs;
             return diff <= 60 * 60 * 1000 && diff > 0;
           });
