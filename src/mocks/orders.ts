@@ -23,6 +23,8 @@ export type OrderRow = {
     deliveryFee?: number;
     estimatedMinutes?: number;
     acceptedAt?: string;
+    scheduledDeliveryHour?: number | null;
+    scheduledDeliveryMinute?: number | null;
   };
 };
 

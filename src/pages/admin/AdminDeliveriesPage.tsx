@@ -163,6 +163,14 @@ export default function AdminDeliveriesPage() {
           const aPriority = statusPriority[a.status] ?? 99;
           const bPriority = statusPriority[b.status] ?? 99;
           if (aPriority !== bPriority) return aPriority - bPriority;
+          const aScheduled = a.scheduledDeliveryHour !== null;
+          const bScheduled = b.scheduledDeliveryHour !== null;
+          if (aScheduled && bScheduled) {
+            const aTime = a.scheduledDeliveryHour! * 60 + (a.scheduledDeliveryMinute ?? 0);
+            const bTime = b.scheduledDeliveryHour! * 60 + (b.scheduledDeliveryMinute ?? 0);
+            if (aTime !== bTime) return aTime - bTime;
+          }
+          if (aScheduled !== bScheduled) return aScheduled ? -1 : 1;
           return b.id - a.id;
         });
         setRows(sorted);

@@ -221,7 +221,11 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           if (!res.ok) return;
           const data = await res.json();
           const list = Array.isArray(data?.response) ? data.response : [];
-          const paidCandidates = list.filter((r: any) => String(r.status || '') === 'PAID');
+          const paidCandidates = list.filter((r: any) => {
+            if (String(r.status || '') !== 'PAID') return false;
+            const acceptedAt = r.accepted_at ?? r.acceptedAt ?? null;
+            return acceptedAt === null;
+          });
           paidCandidates.forEach((r: any) => {
             pushAlert(parseAlertPayload(r, 'paid'));
           });
@@ -290,7 +294,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     try {
       const alert = alerts.find(a => a.orderId === orderId);
       const isScheduled = alert?.scheduledDeliveryHour !== null && alert?.scheduledDeliveryHour !== undefined;
-      const minutes = isScheduled ? 0 : getEstimated(orderId);
+      const minutes = isScheduled ? 10 : getEstimated(orderId);
       const res = await acceptAdminDelivery(orderId, minutes);
       if (res.ok) {
         if (isScheduled) {

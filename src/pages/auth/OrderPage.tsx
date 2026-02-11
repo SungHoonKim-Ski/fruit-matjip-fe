@@ -194,6 +194,8 @@ export default function OrdersPage() {
                   deliveryFee: Number(r.delivery.delivery_fee ?? r.delivery.deliveryFee ?? r.deliveryFee ?? 0),
                   estimatedMinutes: Number(r.delivery.estimated_minutes ?? r.delivery.estimatedMinutes ?? 0) || undefined,
                   acceptedAt: (r.delivery.accepted_at ?? r.delivery.acceptedAt) as string | undefined,
+                  scheduledDeliveryHour: r.delivery.scheduled_delivery_hour ?? r.delivery.scheduledDeliveryHour ?? null,
+                  scheduledDeliveryMinute: r.delivery.scheduled_delivery_minute ?? r.delivery.scheduledDeliveryMinute ?? null,
                 }
                 : undefined;
 
@@ -664,6 +666,11 @@ export default function OrdersPage() {
   };
 
   const getEstimatedArrivalLabel = (order: OrderRow) => {
+    if (order.delivery?.scheduledDeliveryHour != null) {
+      const h = order.delivery.scheduledDeliveryHour;
+      const m = order.delivery.scheduledDeliveryMinute ?? 0;
+      return `${h}시${m > 0 ? ` ${String(m).padStart(2, '0')}분` : ''} 도착 예정`;
+    }
     if (!order.delivery?.estimatedMinutes || !order.delivery?.acceptedAt) return null;
     const accepted = parseAcceptedAt(order.delivery.acceptedAt);
     if (!accepted) return null;
