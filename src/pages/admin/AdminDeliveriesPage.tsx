@@ -46,6 +46,7 @@ export default function AdminDeliveriesPage() {
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
   const [configForm, setConfigForm] = useState<DeliveryConfigForm>({
     enabled: true,
     minAmount: '',
@@ -514,45 +515,65 @@ export default function AdminDeliveriesPage() {
           )}
         </div>
         <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-semibold text-gray-700">🔊 알림 볼륨</div>
-            <div className="text-xs text-gray-700 font-medium">{Math.round(alertVolume * 100)}%</div>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={10}
-            step={0.1}
-            value={alertVolume}
-            onChange={e => handleVolumeChange(parseFloat(e.target.value))}
-            className="w-full accent-emerald-600"
-          />
-          <div className="relative text-xs text-gray-400 mt-1 h-4">
-            <span className="absolute left-0">0</span>
-            <span className="absolute left-[10%]">100%</span>
-            <span className="absolute left-[50%] -translate-x-1/2">500%</span>
-            <span className="absolute right-0">1000%</span>
-          </div>
-        </div>
-        <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-700">🕐 예약배달 알림</div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={scheduledAlertEnabled}
-                onChange={handleScheduledAlertToggle}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-            </label>
-          </div>
-          <div className="text-xs text-gray-500 mt-1">예약배달 주문의 1시간 전 리마인더 알림</div>
+          <button
+            type="button"
+            onClick={() => setAlertOpen(prev => !prev)}
+            className="w-full flex items-center justify-between text-left"
+            aria-expanded={alertOpen}
+          >
+            <span className="text-xl font-bold text-gray-800">🔔 알림 설정</span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs font-semibold px-2 py-1 rounded bg-gray-100 text-gray-700">
+                {Math.round(alertVolume * 100)}%
+              </span>
+              <span className="text-base text-gray-500">{alertOpen ? '▲' : '▼'}</span>
+            </span>
+          </button>
+          {alertOpen && (
+            <>
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold text-gray-700">🔊 알림 볼륨</div>
+                  <div className="text-xs text-gray-700 font-medium">{Math.round(alertVolume * 100)}%</div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={alertVolume}
+                  onChange={e => handleVolumeChange(parseFloat(e.target.value))}
+                  className="w-full accent-emerald-600"
+                />
+                <div className="relative text-xs text-gray-400 mt-1 h-4">
+                  <span className="absolute left-0">0</span>
+                  <span className="absolute left-[10%]">100%</span>
+                  <span className="absolute left-[50%] -translate-x-1/2">500%</span>
+                  <span className="absolute right-0">1000%</span>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-700">🕐 예약배달 알림</div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={scheduledAlertEnabled}
+                      onChange={handleScheduledAlertToggle}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">예약배달 주문의 1시간 전 리마인더 알림</div>
+              </div>
+            </>
+          )}
         </div>
         <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600">날짜</label>
               <input
                 type="date"
@@ -560,27 +581,77 @@ export default function AdminDeliveriesPage() {
                 onChange={e => setSelectedDate(e.target.value)}
                 className="h-10 border rounded px-2"
               />
-              <label className="text-sm text-gray-600">배달유형</label>
-              <select
-                value={deliveryFilter}
-                onChange={e => setDeliveryFilter(e.target.value as typeof deliveryFilter)}
-                className="h-10 border rounded px-2 bg-white"
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">배달방식</span>
+              <button
+                type="button"
+                onClick={() => setScheduledFilter('all')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  scheduledFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
               >
-                <option value="all">전체</option>
-                <option value="out_for_delivery">배달 시작</option>
-                <option value="delivered">배달 완료</option>
-                <option value="canceled">주문 취소</option>
-              </select>
-              <label className="text-sm text-gray-600">배달방식</label>
-              <select
-                value={scheduledFilter}
-                onChange={e => setScheduledFilter(e.target.value as typeof scheduledFilter)}
-                className="h-10 border rounded px-2 bg-white"
+                전체
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduledFilter('normal')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  scheduledFilter === 'normal' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
               >
-                <option value="all">전체</option>
-                <option value="normal">일반배달</option>
-                <option value="scheduled">예약배달</option>
-              </select>
+                일반
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduledFilter('scheduled')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  scheduledFilter === 'scheduled' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                예약
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">배달상태</span>
+              <button
+                type="button"
+                onClick={() => setDeliveryFilter('all')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  deliveryFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                전체
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryFilter('out_for_delivery')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  deliveryFilter === 'out_for_delivery' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                배달중
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryFilter('delivered')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  deliveryFilter === 'delivered' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                배달완료
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryFilter('canceled')}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                  deliveryFilter === 'canceled' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                취소
+              </button>
             </div>
           </div>
           {/* Desktop table */}
@@ -628,12 +699,16 @@ export default function AdminDeliveriesPage() {
                       <div className="text-xs text-gray-600">{r.address1} {r.address2}</div>
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="font-medium text-gray-800">#{r.id}</div>
-                      <div className="text-xs text-gray-500">배달 주문</div>
-                      {r.scheduledDeliveryHour !== null && (
-                        <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          예약 {r.scheduledDeliveryHour}:{String(r.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
-                        </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-gray-800">#{r.id}</span>
+                        {r.scheduledDeliveryHour !== null && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 배달예약
+                          </span>
+                        )}
+                      </div>
+                      {r.paidAt && (
+                        <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                       )}
                     </td>
                     <td className="py-2 pr-3">
@@ -691,11 +766,16 @@ export default function AdminDeliveriesPage() {
               <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="font-semibold text-gray-800">#{r.id}</div>
-                    {r.scheduledDeliveryHour !== null && (
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                        예약 {r.scheduledDeliveryHour}:{String(r.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
-                      </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-gray-800">#{r.id}</span>
+                      {r.scheduledDeliveryHour !== null && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 배달예약
+                        </span>
+                      )}
+                    </div>
+                    {r.paidAt && (
+                      <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                     )}
                   </div>
                   <span className="text-xs text-gray-500">{getStatusLabel(r.status)}</span>
@@ -718,7 +798,7 @@ export default function AdminDeliveriesPage() {
                 <div className="mt-1 text-sm text-gray-700">{r.address1} {r.address2}</div>
                 <div className="mt-1 text-xs text-gray-500">{r.postalCode}</div>
                 <div className="mt-1 text-sm text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
-                <div className="mt-3 grid grid-cols-4 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     className="h-9 rounded bg-blue-500 text-white text-xs disabled:opacity-50"
@@ -742,14 +822,6 @@ export default function AdminDeliveriesPage() {
                     disabled={updatingId === r.id || r.status === 'DELIVERED' || r.status === 'CANCELED' || r.status === 'FAILED'}
                   >
                     주문 취소
-                  </button>
-                  <button
-                    type="button"
-                    className="h-9 rounded bg-purple-500 text-white text-xs disabled:opacity-50"
-                    onClick={() => handlePrint(r)}
-                    disabled={updatingId === r.id || r.status === 'CANCELED' || r.status === 'FAILED'}
-                  >
-                    출력
                   </button>
                 </div>
               </div>
