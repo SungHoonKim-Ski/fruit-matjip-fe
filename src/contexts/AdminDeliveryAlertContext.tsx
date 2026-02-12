@@ -113,7 +113,19 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   };
 
   const removeAlert = (orderId: number) => {
-    setAlerts(prev => prev.filter(a => a.orderId !== orderId));
+    setAlerts(prev => {
+      const target = prev.find(a => a.orderId === orderId);
+      if (target?.type === 'upcoming') {
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        const dismissedKey = `dismissed-upcoming-alerts-${today}`;
+        const dismissed: number[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+        if (!dismissed.includes(orderId)) {
+          dismissed.push(orderId);
+          localStorage.setItem(dismissedKey, JSON.stringify(dismissed));
+        }
+      }
+      return prev.filter(a => a.orderId !== orderId);
+    });
   };
 
   const playAlertSound = () => {
@@ -170,8 +182,14 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     const isAdminAuthPage = location.pathname === '/admin/login' || location.pathname === '/admin/register';
     if (!isAdminPage || isAdminAuthPage) return;
 
-    paidNotifiedRef.current.clear();
-    upcomingNotifiedRef.current.clear();
+    // 전일 이전 dismissed-upcoming-alerts 키 정리
+    const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('dismissed-upcoming-alerts-') && !key.endsWith(todayStr)) {
+        localStorage.removeItem(key);
+      }
+    }
 
     const apiBase = process.env.REACT_APP_API_BASE || '';
     const connect = () => {
@@ -211,47 +229,51 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     };
     connect();
 
-    const startPolling = () => {
-      if (pollTimerRef.current) return;
-      pollTimerRef.current = window.setInterval(async () => {
-        try {
-          const serverMs = await getServerTime();
-          const today = formatKstDate(serverMs);
-          const res = await getAdminDeliveries(today);
-          if (!res.ok) return;
-          const data = await res.json();
-          const list = Array.isArray(data?.response) ? data.response : [];
-          const paidCandidates = list.filter((r: any) => {
-            if (String(r.status || '') !== 'PAID') return false;
-            const acceptedAt = r.accepted_at ?? r.acceptedAt ?? null;
-            return acceptedAt === null;
-          });
-          paidCandidates.forEach((r: any) => {
-            pushAlert(parseAlertPayload(r, 'paid'));
-          });
+    const checkUpcomingDeliveries = async () => {
+      try {
+        const scheduledAlertOn = localStorage.getItem('scheduled-delivery-alert') !== 'false';
+        if (!scheduledAlertOn) return;
 
-          const nowMs = serverMs;
-          const scheduledAlertOn = localStorage.getItem('scheduled-delivery-alert') !== 'false';
-          const upcomingTargets = list.filter((r: any) => {
-            const status = String(r.status || '');
-            if (status !== 'PAID' && status !== 'OUT_FOR_DELIVERY') return false;
-            const scheduledHour = r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null;
-            if (scheduledHour === null) return false;
-            if (!scheduledAlertOn) return false;
-            const scheduledMin = Number(r.scheduled_delivery_minute ?? r.scheduledDeliveryMinute ?? 0);
-            const targetMs = new Date(`${today}T${String(scheduledHour).padStart(2, '0')}:${String(scheduledMin).padStart(2, '0')}:00+09:00`).getTime();
-            const diff = targetMs - nowMs;
-            return diff <= 60 * 60 * 1000 && diff > 0;
-          });
-          upcomingTargets.forEach((r: any) => {
-            pushAlert(parseAlertPayload(r, 'upcoming'));
-          });
-        } catch (err) {
-          safeErrorLog(err, 'AdminDeliveryAlertProvider - poll');
-        }
-      }, 15000);
+        const serverMs = await getServerTime();
+        const today = formatKstDate(serverMs);
+        const res = await getAdminDeliveries(today);
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data?.response) ? data.response : [];
+
+        // localStorage에서 dismissed 목록 로드
+        const dismissedKey = `dismissed-upcoming-alerts-${today}`;
+        const dismissed: number[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+
+        const nowMs = serverMs;
+        const upcomingTargets = list.filter((r: any) => {
+          const status = String(r.status || '');
+          if (status !== 'PAID' && status !== 'OUT_FOR_DELIVERY') return false;
+          const scheduledHour = r.scheduled_delivery_hour ?? r.scheduledDeliveryHour ?? null;
+          if (scheduledHour === null) return false;
+          const scheduledMin = Number(r.scheduled_delivery_minute ?? r.scheduledDeliveryMinute ?? 0);
+          const targetMs = new Date(`${today}T${String(scheduledHour).padStart(2, '0')}:${String(scheduledMin).padStart(2, '0')}:00+09:00`).getTime();
+          const diff = targetMs - nowMs;
+          return diff <= 60 * 60 * 1000 && diff > 0;
+        });
+        upcomingTargets.forEach((r: any) => {
+          const orderId = Number(r.id ?? 0);
+          if (dismissed.includes(orderId)) return;
+          pushAlert(parseAlertPayload(r, 'upcoming'));
+        });
+      } catch (err) {
+        safeErrorLog(err, 'AdminDeliveryAlertProvider - checkUpcoming');
+      }
     };
-    startPolling();
+
+    // 즉시 1회 체크 + 매시 정각 aligned 타이머
+    checkUpcomingDeliveries();
+    const now = new Date();
+    const msUntilNextHour = (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+    const alignTimer = window.setTimeout(() => {
+      checkUpcomingDeliveries();
+      pollTimerRef.current = window.setInterval(checkUpcomingDeliveries, 3600000);
+    }, msUntilNextHour);
 
     return () => {
       if (sourceRef.current) {
@@ -262,6 +284,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
+      clearTimeout(alignTimer);
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -328,7 +351,20 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
             <button
               type="button"
               className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-              onClick={() => { paidNotifiedRef.current.clear(); upcomingNotifiedRef.current.clear(); setAlerts([]); }}
+              onClick={() => {
+                const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+                const dismissedKey = `dismissed-upcoming-alerts-${today}`;
+                const dismissed: number[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
+                alerts.forEach(a => {
+                  if (a.type === 'upcoming' && !dismissed.includes(a.orderId)) {
+                    dismissed.push(a.orderId);
+                  }
+                });
+                localStorage.setItem(dismissedKey, JSON.stringify(dismissed));
+                paidNotifiedRef.current.clear();
+                upcomingNotifiedRef.current.clear();
+                setAlerts([]);
+              }}
               aria-label="알림 모두 닫기"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

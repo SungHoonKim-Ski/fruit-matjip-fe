@@ -40,7 +40,7 @@ interface DeliveryConfigForm {
 export default function AdminDeliveriesPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }));
-  const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'out_for_delivery' | 'delivered' | 'canceled'>('all');
+  const [deliveryFilter, setDeliveryFilter] = useState<'in_progress' | 'out_for_delivery' | 'delivered' | 'canceled'>('in_progress');
   const [scheduledFilter, setScheduledFilter] = useState<'all' | 'normal' | 'scheduled'>('all');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -100,7 +100,11 @@ export default function AdminDeliveriesPage() {
   };
 
   const filteredRows = rows.filter(row => {
-    if (deliveryFilter !== 'all' && row.status !== deliveryFilter.toUpperCase()) return false;
+    if (deliveryFilter === 'in_progress') {
+      if (['CANCELED', 'DELIVERED', 'FAILED'].includes(row.status)) return false;
+    } else if (row.status !== deliveryFilter.toUpperCase()) {
+      return false;
+    }
     if (scheduledFilter === 'normal' && row.scheduledDeliveryHour !== null) return false;
     if (scheduledFilter === 'scheduled' && row.scheduledDeliveryHour === null) return false;
     return true;
@@ -170,7 +174,7 @@ export default function AdminDeliveriesPage() {
             const bTime = b.scheduledDeliveryHour! * 60 + (b.scheduledDeliveryMinute ?? 0);
             if (aTime !== bTime) return aTime - bTime;
           }
-          if (aScheduled !== bScheduled) return aScheduled ? -1 : 1;
+          if (aScheduled !== bScheduled) return aScheduled ? 1 : -1;
           return b.id - a.id;
         });
         setRows(sorted);
@@ -626,12 +630,12 @@ export default function AdminDeliveriesPage() {
               <span className="text-xs text-gray-500 font-medium">배달상태</span>
               <button
                 type="button"
-                onClick={() => setDeliveryFilter('all')}
+                onClick={() => setDeliveryFilter('in_progress')}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
-                  deliveryFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  deliveryFilter === 'in_progress' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                전체
+                배달 진행중
               </button>
               <button
                 type="button"
