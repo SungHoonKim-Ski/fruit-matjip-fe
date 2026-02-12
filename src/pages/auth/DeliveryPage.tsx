@@ -674,7 +674,7 @@ export default function DeliveryPage() {
       </section>
 
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
-        <h2 className="text-base font-semibold text-gray-800 mb-3">배달 시간</h2>
+        <h2 className="text-base font-semibold text-gray-800 mb-3">도착 시간</h2>
         <div
           className="flex gap-2 overflow-x-auto pb-2"
           style={{
@@ -719,7 +719,13 @@ export default function DeliveryPage() {
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  {slot.hour}:{String(slot.minute).padStart(2, '0')}
+                  {(() => {
+                    const endTotal = slot.hour * 60 + slot.minute;
+                    const startTotal = endTotal - 30;
+                    const sH = Math.floor(startTotal / 60);
+                    const sM = startTotal % 60;
+                    return `${sH}:${String(sM).padStart(2, '0')}~${slot.hour}:${String(slot.minute).padStart(2, '0')}`;
+                  })()}
                 </button>
               );
             })}

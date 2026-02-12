@@ -5,7 +5,7 @@ import BottomNav from '../../components/BottomNav';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords, getUserMe } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords, getUserMe, getDeliveryConfig } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 import Footer from '../../components/Footer';
 import { theme, logoText, defaultKeywordImage } from '../../brand';
@@ -149,6 +149,10 @@ export default function ReservePage() {
 
   // 이용제한 상태
   const [restricted, setRestricted] = useState(false);
+
+  // 배달 안내 다이얼로그
+  const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
+  const [deliveryMinAmount, setDeliveryMinAmount] = useState<number | null>(null);
 
   // 모달(상세/닉네임/개인정보/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
@@ -695,6 +699,16 @@ export default function ReservePage() {
             )
           );
 
+          // 배달 안내 다이얼로그 표시
+          try {
+            const config = await getDeliveryConfig();
+            if (config?.enabled) {
+              setDeliveryMinAmount(config.minAmount);
+              setDeliveryDialogOpen(true);
+            }
+          } catch {
+            // 배달 설정 조회 실패 시 다이얼로그 미표시
+          }
         }
       }
     } catch (e: any) {
@@ -1334,6 +1348,41 @@ export default function ReservePage() {
           onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
           productId={detailDialog.productId}
         />
+      )}
+
+      {/* 배달 안내 다이얼로그 */}
+      {deliveryDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4" aria-modal="true" role="dialog">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDeliveryDialogOpen(false)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl p-6 text-center">
+            <div className="text-3xl mb-3">🚚</div>
+            <h3 className="text-lg font-bold text-gray-800 mb-2">배달 서비스 이용 안내</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              {deliveryMinAmount != null && deliveryMinAmount > 0
+                ? <><b>{deliveryMinAmount.toLocaleString()}원</b> 이상 예약하셨다면<br />배달 주문이 가능합니다!</>
+                : <>예약하신 상품을 집까지 배달해드립니다!</>}
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeliveryDialogOpen(false)}
+                className="flex-1 h-11 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+              >
+                괜찮아요
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeliveryDialogOpen(false);
+                  nav('/me/delivery');
+                }}
+                className="flex-1 h-11 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
+              >
+                배달 주문하기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Footer />
