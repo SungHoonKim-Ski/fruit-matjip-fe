@@ -8,6 +8,7 @@ import { printReceipt, PrintReceiptData } from '../utils/printBridge';
 
 type DeliveryAlertPayload = {
   orderId: number;
+  displayCode: string;
   reservationIds: number[];
   reservationCount: number;
   buyerName: string;
@@ -51,6 +52,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
   const parseAlertPayload = (data: any, type: 'paid' | 'upcoming'): DeliveryAlertPayload => ({
     orderId: Number(data.order_id ?? data.id ?? 0),
+    displayCode: String(data.display_code ?? data.displayCode ?? data.order_id ?? data.id ?? ''),
     reservationIds: Array.isArray(data.reservation_ids) ? data.reservation_ids.map((id: any) => Number(id)) : [],
     reservationCount: Number(data.reservation_count || 0),
     buyerName: String(data.buyer_name || ''),
@@ -178,9 +180,6 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
 
   useEffect(() => {
     if (USE_MOCKS) return;
-    const isAdminPage = location.pathname.startsWith('/admin');
-    const isAdminAuthPage = location.pathname === '/admin/login' || location.pathname === '/admin/register';
-    if (!isAdminPage || isAdminAuthPage) return;
 
     // 전일 이전 dismissed-upcoming-alerts 키 정리
     const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
@@ -300,13 +299,14 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         pollTimerRef.current = null;
       }
     };
-  }, [location.pathname]);
+  }, []);
 
   const handleReject = async (orderId: number) => {
     try {
       const res = await updateAdminDeliveryStatus(orderId, 'canceled');
       if (res.ok) {
-        snackbar.show(`주문 #${orderId} 거부되었습니다.`, { variant: 'info' });
+        const alertItem = alerts.find(a => a.orderId === orderId);
+        snackbar.show(`주문 ${alertItem?.displayCode || '#' + orderId} 거부되었습니다.`, { variant: 'info' });
       } else {
         snackbar.show('주문 거부에 실패했습니다.', { variant: 'error' });
       }
@@ -328,12 +328,13 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       const minutes = isScheduled ? 10 : getEstimated(orderId);
       const res = await acceptAdminDelivery(orderId, minutes);
       if (res.ok) {
+        const code = alert?.displayCode || '#' + orderId;
         if (isScheduled) {
           const h = alert!.scheduledDeliveryHour;
           const m = String(alert!.scheduledDeliveryMinute ?? 0).padStart(2, '0');
-          snackbar.show(`주문 #${orderId} 접수 완료 (${h}:${m} 도착예정)`, { variant: 'success' });
+          snackbar.show(`주문 ${code} 접수 완료 (${h}:${m} 도착예정)`, { variant: 'success' });
         } else {
-          snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
+          snackbar.show(`주문 ${code} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
         }
       } else {
         snackbar.show('주문 접수에 실패했습니다.', { variant: 'error' });
@@ -407,7 +408,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                       <div className="text-sm text-gray-800 space-y-1">
                         <div className="flex justify-between">
                           <span className="text-gray-500">주문번호</span>
-                          <span className="font-medium">#{a.orderId}</span>
+                          <span className="font-medium">{a.displayCode}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">성명</span>

@@ -7,6 +7,7 @@ import { printReceipt, PrintReceiptData } from '../../utils/printBridge';
 
 interface DeliveryRow {
   id: number;
+  displayCode: string;
   reservationItems: { id: number; productName: string; quantity: number; amount: number }[];
   buyerName: string;
   totalAmount: number;
@@ -127,6 +128,7 @@ export default function AdminDeliveriesPage() {
         const list = Array.isArray(data?.response) ? data.response : [];
         const mapped = list.map((r: any) => ({
           id: Number(r.id),
+          displayCode: String(r.display_code ?? r.displayCode ?? r.id),
           reservationItems: Array.isArray(r.reservation_items)
             ? r.reservation_items.map((item: any) => ({
               id: Number(item.id ?? item.reservation_id ?? 0),
@@ -712,7 +714,7 @@ export default function AdminDeliveriesPage() {
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-800">#{r.id}</span>
+                        <span className="font-medium text-gray-800">{r.displayCode}</span>
                         {r.scheduledDeliveryHour !== null && (
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                             {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
@@ -779,7 +781,7 @@ export default function AdminDeliveriesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-gray-800">#{r.id}</span>
+                      <span className="font-semibold text-gray-800">{r.displayCode}</span>
                       {r.scheduledDeliveryHour !== null && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                           {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정

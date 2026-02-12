@@ -47,6 +47,7 @@ type DeliveryOrderItem = {
 
 type DeliveryOrderRow = {
   id: number;
+  displayCode: string;
   date: string;
   status: 'pending' | 'picked' | 'canceled';
   items: DeliveryOrderItem[];
@@ -444,10 +445,10 @@ export default function DeliveryPage() {
   };
 
   useEffect(() => {
-    const pendingOrderId = localStorage.getItem('pendingDeliveryOrderId');
-    if (pendingOrderId) {
-      localStorage.removeItem('pendingDeliveryOrderId');
-      cancelDeliveryPayment(Number(pendingOrderId)).catch(() => { });
+    const pendingOrderCode = localStorage.getItem('pendingDeliveryOrderCode');
+    if (pendingOrderCode) {
+      localStorage.removeItem('pendingDeliveryOrderCode');
+      cancelDeliveryPayment(pendingOrderCode).catch(() => { });
     }
   }, []);
 
@@ -506,6 +507,7 @@ export default function DeliveryPage() {
             : (typeof r.deliveryAvailable === 'boolean' ? Boolean(r.deliveryAvailable) : true);
           return {
             id: r.id,
+            displayCode: String(r.display_code ?? r.displayCode ?? r.id),
             date: r.order_date,
             status: 'pending' as const,
             items: [{
@@ -633,7 +635,7 @@ export default function DeliveryPage() {
         const idempotencyKey = idempotencyKeyRef.current ?? buildIdempotencyKey();
         idempotencyKeyRef.current = idempotencyKey;
         const res = await createDeliveryPaymentReady({
-          reservationIds: selectedIds,
+          reservationCodes: selectedOrders.map(o => o.displayCode),
           deliveryHour: currentHour,
           deliveryMinute: currentMinute,
           phone: deliveryInfo.phone,
@@ -655,8 +657,8 @@ export default function DeliveryPage() {
           throw new Error('배달 결제 준비 실패');
         }
         const data = await res.json();
-        const orderId = data.orderId || data.order_id;
-        if (orderId) localStorage.setItem('pendingDeliveryOrderId', String(orderId));
+        const orderCode = data.orderCode || data.order_code || data.orderId || data.order_id;
+        if (orderCode) localStorage.setItem('pendingDeliveryOrderCode', String(orderCode));
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const mobileUrl = data.mobileRedirectUrl || data.mobile_redirect_url;
         const pcUrl = data.redirectUrl || data.redirect_url;

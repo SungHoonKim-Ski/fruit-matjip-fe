@@ -19,17 +19,17 @@ export default function DeliveryApprovePage() {
 
   useEffect(() => {
     const pgToken = params.get('pg_token');
-    const orderId = params.get('order_id');
-    if (!pgToken || !orderId) {
+    const orderCode = params.get('order_id');
+    if (!pgToken || !orderCode) {
       setStatus('error');
       return;
     }
 
-    localStorage.removeItem('pendingDeliveryOrderId');
+    localStorage.removeItem('pendingDeliveryOrderCode');
 
     const approve = async () => {
       try {
-        const res = await approveDeliveryPayment(Number(orderId), pgToken);
+        const res = await approveDeliveryPayment(orderCode, pgToken);
         if (!res.ok) {
           throw new Error('approve failed');
         }

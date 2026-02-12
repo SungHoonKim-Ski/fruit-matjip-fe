@@ -12,12 +12,14 @@ export type OrderItem = {
 
 export type OrderRow = {
   id: number;
+  displayCode: string;
   date: string;           // YYYY-MM-DD
   status: 'pending' | 'picked' | 'canceled';
   items: OrderItem[];
   deliveryOrderId?: number;
   delivery?: {
     status?: string;
+    displayCode?: string;
     deliveryHour?: number;
     deliveryMinute?: number;
     deliveryFee?: number;
@@ -31,6 +33,7 @@ export type OrderRow = {
 export const mockOrders: OrderRow[] = [
   {
     id: 101,
+    displayCode: 'R-101',
     date: '2025-08-11',
     status: 'pending',
     items: [
@@ -39,6 +42,7 @@ export const mockOrders: OrderRow[] = [
   },
   {
     id: 102,
+    displayCode: 'R-102',
     date: '2025-08-12',
     status: 'picked',
     items: [
@@ -48,6 +52,7 @@ export const mockOrders: OrderRow[] = [
   },
   {
     id: 103,
+    displayCode: 'R-103',
     date: '2025-08-13',
     status: 'pending',
     items: [
@@ -56,6 +61,7 @@ export const mockOrders: OrderRow[] = [
   },
   {
     id: 104,
+    displayCode: 'R-104',
     date: '2025-08-14',
     status: 'canceled',
     items: [
@@ -64,6 +70,7 @@ export const mockOrders: OrderRow[] = [
   },
   {
     id: 105,
+    displayCode: 'R-105',
     date: '2025-08-15',
     status: 'pending',
     items: [
@@ -72,6 +79,7 @@ export const mockOrders: OrderRow[] = [
   },
   {
     id: 106,
+    displayCode: 'R-106',
     date: '2025-08-16',
     status: 'pending',
     items: [

@@ -41,6 +41,7 @@ export default function OrdersPage() {
   const [statusDialog, setStatusDialog] = useState<{
     isOpen: boolean;
     orderId: number;
+    displayCode: string;
     productName: string;
     currentStatus: 'pending';
     newStatus: 'canceled';
@@ -48,6 +49,7 @@ export default function OrdersPage() {
   }>({
     isOpen: false,
     orderId: 0,
+    displayCode: '',
     productName: '',
     currentStatus: 'pending',
     newStatus: 'canceled',
@@ -71,10 +73,10 @@ export default function OrdersPage() {
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
 
   useEffect(() => {
-    const pendingOrderId = localStorage.getItem('pendingDeliveryOrderId');
-    if (pendingOrderId) {
-      localStorage.removeItem('pendingDeliveryOrderId');
-      cancelDeliveryPayment(Number(pendingOrderId)).catch(() => {});
+    const pendingOrderCode = localStorage.getItem('pendingDeliveryOrderCode');
+    if (pendingOrderCode) {
+      localStorage.removeItem('pendingDeliveryOrderCode');
+      cancelDeliveryPayment(pendingOrderCode).catch(() => {});
     }
   }, []);
 
@@ -189,6 +191,7 @@ export default function OrdersPage() {
               const delivery = r.delivery
                 ? {
                   status: r.delivery.status ?? r.delivery_status ?? r.deliveryStatus,
+                  displayCode: String(r.delivery.display_code ?? r.delivery.displayCode ?? ''),
                   deliveryHour: Number(r.delivery.delivery_hour ?? r.delivery.deliveryHour ?? r.deliveryHour ?? 0),
                   deliveryMinute: Number(r.delivery.delivery_minute ?? r.delivery.deliveryMinute ?? r.deliveryMinute ?? 0),
                   deliveryFee: Number(r.delivery.delivery_fee ?? r.delivery.deliveryFee ?? r.deliveryFee ?? 0),
@@ -201,6 +204,7 @@ export default function OrdersPage() {
 
               return {
                 id: r.id,
+                displayCode: String(r.display_code ?? r.displayCode ?? r.id),
                 date: r.order_date, // orderDate -> order_date로 수정
                 status: orderStatus,
                 items: [{
@@ -281,6 +285,7 @@ export default function OrdersPage() {
     if (order.status === 'pending' && !isDeliveryLocked(order)) {
       openStatusDialog(
         order.id,
+        order.displayCode,
         order.items.map(item => item.name).join(', '),
         order.status,
         order.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -331,6 +336,7 @@ export default function OrdersPage() {
   // 상태 변경 dialog 열기
   const openStatusDialog = (
     orderId: number,
+    displayCode: string,
     productName: string,
     currentStatus: 'pending',
     quantity: number
@@ -338,6 +344,7 @@ export default function OrdersPage() {
     setStatusDialog({
       isOpen: true,
       orderId,
+      displayCode,
       productName,
       currentStatus,
       newStatus: 'canceled', // 기본값은 canceled로 설정
@@ -412,10 +419,10 @@ export default function OrdersPage() {
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
 
         // dialog 닫기
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+        setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       } else {
         // 실제 API 호출
-        const res = await minusQuantity(statusDialog.orderId, decreaseAmount);
+        const res = await minusQuantity(statusDialog.displayCode, decreaseAmount);
         if (!res.ok) {
           if (res.status === 400) {
             show('수량을 줄일 수 없습니다. 최소 수량은 1개입니다.', { variant: 'error' });
@@ -443,7 +450,7 @@ export default function OrdersPage() {
         show(`${statusDialog.productName} 수량이 ${decreaseAmount}개 감소되었습니다.`);
 
         // dialog 닫기
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+        setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       }
     } catch (e: any) {
       safeErrorLog(e, 'OrderPage - handleConfirmQuantityChange');
@@ -475,7 +482,7 @@ export default function OrdersPage() {
 
         if (orderDateOnly.getTime() < todayDate.getTime()) {
           show('과거 예약은 취소할 수 없습니다.', { variant: 'error' });
-          setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+          setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
           return;
         }
 
@@ -493,15 +500,15 @@ export default function OrdersPage() {
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         }
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+        setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       } else {
         // 실제 API 호출 (cancelReservation)
         if (targetStatus === 'canceled') {
-          const res = await cancelReservation(statusDialog.orderId);
+          const res = await cancelReservation(statusDialog.displayCode);
           if (!res.ok) {
             if (res.status === 400) {
               // 400 에러는 사용자 이슈 - dialog만 닫기
-              setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+              setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
               return;
             }
             throw new Error('주문 취소에 실패했습니다.');
@@ -518,12 +525,12 @@ export default function OrdersPage() {
         if (targetStatus === 'canceled') {
           show(`${statusDialog.productName} 주문이 취소되었습니다.`);
         }
-        setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+        setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
       }
     } catch (e: any) {
       safeErrorLog(e, 'OrderPage - handleStatusChange');
       show(getSafeErrorMessage(e, '상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
-      setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
+      setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 });
     }
   };
 
@@ -797,7 +804,7 @@ export default function OrdersPage() {
                 aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
               >
                 <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
-                  <span>#{o.id}</span>
+                  <span>#{o.displayCode}</span>
                   {renderReservationStatusBadge(o)}
                 </div>
                 {getDeliveryProgressLabel(o) && (
@@ -916,7 +923,7 @@ export default function OrdersPage() {
               aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
             >
               <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
-                <span>#{o.id}</span>
+                <span>#{o.displayCode}</span>
                 {renderReservationStatusBadge(o)}
               </div>
               {getDeliveryProgressLabel(o) && (
@@ -1077,7 +1084,7 @@ export default function OrdersPage() {
                 예약 취소
               </button>
               <button
-                onClick={() => setStatusDialog({ isOpen: false, orderId: 0, productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 })}
+                onClick={() => setStatusDialog({ isOpen: false, orderId: 0, displayCode: '', productName: '', currentStatus: 'pending', newStatus: 'canceled', quantity: 0 })}
                 className="flex-1 h-10 rounded bg-gray-500 hover:bg-gray-600 text-white"
               >
                 닫기

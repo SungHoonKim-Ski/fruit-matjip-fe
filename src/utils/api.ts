@@ -430,11 +430,11 @@ export const createReservation = async (data: any) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const cancelReservation = async (id: number) => {
+export const cancelReservation = async (code: string) => {
   const key = 'cancelReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/cancel/${id}`, { method: 'PATCH' });
+    const res = await userFetch(`/api/auth/reservations/cancel/${code}`, { method: 'PATCH' });
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -569,7 +569,7 @@ export const saveDeliveryInfo = async (info: DeliveryInfo) => {
 };
 
 export const createDeliveryPaymentReady = async (data: {
-  reservationIds: number[];
+  reservationCodes: string[];
   deliveryHour: number;
   deliveryMinute: number;
   phone: string;
@@ -588,7 +588,7 @@ export const createDeliveryPaymentReady = async (data: {
     const res = await userFetch('/api/auth/deliveries/ready', {
       method: 'POST',
       body: JSON.stringify({
-        reservation_ids: data.reservationIds,
+        reservation_codes: data.reservationCodes,
         delivery_hour: data.deliveryHour,
         delivery_minute: data.deliveryMinute,
         phone: data.phone,
@@ -607,41 +607,41 @@ export const createDeliveryPaymentReady = async (data: {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const approveDeliveryPayment = async (orderId: number, pgToken: string) => {
+export const approveDeliveryPayment = async (code: string, pgToken: string) => {
   const key = 'approveDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/approve?orderId=${orderId}&pg_token=${encodeURIComponent(pgToken)}`);
+    const res = await userFetch(`/api/auth/deliveries/approve?order_id=${code}&pg_token=${encodeURIComponent(pgToken)}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const cancelDeliveryPayment = async (orderId: number) => {
+export const cancelDeliveryPayment = async (code: string) => {
   const key = 'cancelDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/cancel?orderId=${orderId}`);
+    const res = await userFetch(`/api/auth/deliveries/cancel?order_id=${code}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const failDeliveryPayment = async (orderId: number) => {
+export const failDeliveryPayment = async (code: string) => {
   const key = 'failDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/fail?orderId=${orderId}`);
+    const res = await userFetch(`/api/auth/deliveries/fail?order_id=${code}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const minusQuantity = async (id: number, quantity: number) => {
+export const minusQuantity = async (code: string, quantity: number) => {
   const key = 'minusQuantity';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/${id}/quantity?minus=${quantity}`, { method: 'PATCH' });
+    const res = await userFetch(`/api/auth/reservations/${code}/quantity?minus=${quantity}`, { method: 'PATCH' });
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }

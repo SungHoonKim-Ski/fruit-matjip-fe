@@ -9,17 +9,17 @@ export default function DeliveryCancelPage() {
   const [status, setStatus] = useState<'pending' | 'success' | 'error'>('pending');
 
   useEffect(() => {
-    const orderId = params.get('order_id');
-    if (!orderId) {
+    const orderCode = params.get('order_id');
+    if (!orderCode) {
       setStatus('error');
       return;
     }
 
-    localStorage.removeItem('pendingDeliveryOrderId');
+    localStorage.removeItem('pendingDeliveryOrderCode');
 
     const cancel = async () => {
       try {
-        const res = await cancelDeliveryPayment(Number(orderId));
+        const res = await cancelDeliveryPayment(orderCode);
         if (!res.ok) throw new Error('cancel failed');
         setStatus('success');
       } catch (e) {
