@@ -10,6 +10,14 @@ import BottomNav from '../../components/BottomNav';
 const KRW = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
+// R-26020216-VWQPA → R-VWQPA (중간 날짜 영역 제거)
+const shortCode = (code?: string) => {
+  if (!code) return '';
+  const parts = code.split('-');
+  if (parts.length >= 3) return `${parts[0]}-${parts.slice(2).join('-')}`;
+  return code;
+};
+
 export default function OrdersPage() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
@@ -186,8 +194,6 @@ export default function OrdersPage() {
               const qty = Math.max(1, Number(r.quantity ?? 1));
               const amt = Number(r.amount ?? 0);
               const unit = qty > 0 ? amt / qty : amt;
-              const deliveryOrderIdRaw = r.delivery?.order_id ?? r.delivery?.orderId ?? r.delivery_order_id ?? r.deliveryOrderId;
-              const deliveryOrderId = Number(deliveryOrderIdRaw ?? 0) || undefined;
               const delivery = r.delivery
                 ? {
                   status: r.delivery.status ?? r.delivery_status ?? r.deliveryStatus,
@@ -215,7 +221,7 @@ export default function OrdersPage() {
                   imageUrl: r.product_image ? `${process.env.REACT_APP_IMG_URL}/${r.product_image}` : '',
                   productId: r.product_id,
                 }],
-                deliveryOrderId,
+                deliveryOrderCode: delivery?.displayCode,
                 delivery,
               };
             });
@@ -537,24 +543,24 @@ export default function OrdersPage() {
   const getKstNow = () => new Date(Date.now() + serverTimeOffsetMs);
 
   const groupedOrders = useMemo(() => {
-    const groups: { key: string; deliveryOrderId?: number; orders: OrderRow[] }[] = [];
-    const groupMap = new Map<string, { key: string; deliveryOrderId?: number; orders: OrderRow[] }>();
+    const groups: { key: string; deliveryOrderCode?: string; orders: OrderRow[] }[] = [];
+    const groupMap = new Map<string, { key: string; deliveryOrderCode?: string; orders: OrderRow[] }>();
     filtered.forEach(order => {
-      const key = order.deliveryOrderId ? `delivery-${order.deliveryOrderId}` : `order-${order.id}`;
+      const key = order.deliveryOrderCode ? `delivery-${order.deliveryOrderCode}` : `order-${order.displayCode}`;
       if (!groupMap.has(key)) {
-        groupMap.set(key, { key, deliveryOrderId: order.deliveryOrderId, orders: [] });
+        groupMap.set(key, { key, deliveryOrderCode: order.deliveryOrderCode, orders: [] });
         groups.push(groupMap.get(key)!);
       }
       groupMap.get(key)!.orders.push(order);
     });
     const sortedGroups = groups.map(group => ({
       ...group,
-      orders: [...group.orders].sort((a, b) => b.id - a.id),
+      orders: [...group.orders].sort((a, b) => b.displayCode.localeCompare(a.displayCode)),
     }));
     return sortedGroups.sort((a, b) => {
-      const aId = a.deliveryOrderId ?? a.orders[0]?.id ?? 0;
-      const bId = b.deliveryOrderId ?? b.orders[0]?.id ?? 0;
-      return bId - aId;
+      const aKey = a.deliveryOrderCode ?? a.orders[0]?.displayCode ?? '';
+      const bKey = b.deliveryOrderCode ?? b.orders[0]?.displayCode ?? '';
+      return bKey.localeCompare(aKey);
     });
   }, [filtered]);
 
@@ -791,7 +797,7 @@ export default function OrdersPage() {
         )}
         {filtered.length > 0 && viewTab === 'reservation' && (
           <div className="space-y-3">
-            {filtered.filter(o => !o.deliveryOrderId).map(o => (
+            {filtered.filter(o => !o.deliveryOrderCode).map(o => (
               <div
                 key={o.id}
                 className={`rounded-lg border-2 p-4 pt-3 shadow-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer' : ''}`}
@@ -804,7 +810,7 @@ export default function OrdersPage() {
                 aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
               >
                 <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
-                  <span>#{o.displayCode}</span>
+                  <span>#{shortCode(o.displayCode)}</span>
                   {renderReservationStatusBadge(o)}
                 </div>
                 {getDeliveryProgressLabel(o) && (
@@ -841,7 +847,7 @@ export default function OrdersPage() {
         )}
         {filtered.length > 0 && viewTab === 'delivery' && (
           <div className="space-y-3">
-            {groupedOrders.filter(g => g.deliveryOrderId).map(group => (
+            {groupedOrders.filter(g => g.deliveryOrderCode).map(group => (
               <div
                 key={group.key}
                 className="rounded-lg border-2 p-4 shadow-sm cursor-pointer"
@@ -853,14 +859,8 @@ export default function OrdersPage() {
                 role="button"
                 aria-label="배달 주문 상세 보기"
               >
-                <div className="flex items-center justify-between text-sm font-semibold" style={{ color: 'var(--color-primary-900)' }}>
-                  <span>
-                    {splitHeaderLine(getDeliveryOrderSummary(group.orders)).map((line, idx) => (
-                      <span key={`${group.key}-header-${idx}`} className={idx === 0 ? 'block' : 'block'}>
-                        {line}
-                      </span>
-                    ))}
-                  </span>
+                <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
+                  <span>#{shortCode(group.deliveryOrderCode)}</span>
                   {renderDeliveryStatusBadge(group.orders)}
                 </div>
                 {(() => {
@@ -910,7 +910,7 @@ export default function OrdersPage() {
           <div className="bg-white rounded-lg shadow p-6 mt-4 text-center text-gray-500">주문 내역이 없습니다.</div>
         )}
         <div className="space-y-3 mt-4">
-          {viewTab === 'reservation' && filtered.filter(o => !o.deliveryOrderId).map(o => (
+          {viewTab === 'reservation' && filtered.filter(o => !o.deliveryOrderCode).map(o => (
             <div
               key={o.id}
               className={`rounded-lg border-2 p-4 pt-3 shadow-sm ${(o.status === 'pending' && !isDeliveryLocked(o)) ? 'cursor-pointer' : ''}`}
@@ -923,7 +923,7 @@ export default function OrdersPage() {
               aria-label={(o.status === 'pending' && !isDeliveryLocked(o)) ? '상태 변경' : undefined}
             >
               <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
-                <span>#{o.displayCode}</span>
+                <span>#{shortCode(o.displayCode)}</span>
                 {renderReservationStatusBadge(o)}
               </div>
               {getDeliveryProgressLabel(o) && (
@@ -956,7 +956,7 @@ export default function OrdersPage() {
               </div>
             </div>
           ))}
-          {viewTab === 'delivery' && groupedOrders.filter(g => g.deliveryOrderId).map(group => (
+          {viewTab === 'delivery' && groupedOrders.filter(g => g.deliveryOrderCode).map(group => (
             <div
               key={group.key}
               className="rounded-lg border-2 p-5 shadow-sm cursor-pointer"
@@ -968,14 +968,8 @@ export default function OrdersPage() {
               role="button"
               aria-label="배달 주문 상세 보기"
             >
-              <div className="flex items-center justify-between text-base font-semibold" style={{ color: 'var(--color-primary-900)' }}>
-                <span>
-                  {splitHeaderLine(getDeliveryOrderSummary(group.orders)).map((line, idx) => (
-                    <span key={`${group.key}-header-m-${idx}`} className={idx === 0 ? 'block' : 'block'}>
-                      {line}
-                    </span>
-                  ))}
-                </span>
+              <div className="flex items-center justify-between text-sm font-semibold mb-1" style={{ color: 'var(--color-primary-900)' }}>
+                <span>#{shortCode(group.deliveryOrderCode)}</span>
                 {renderDeliveryStatusBadge(group.orders)}
               </div>
               {(() => {
@@ -1115,8 +1109,8 @@ export default function OrdersPage() {
                 ✕
               </button>
             </div>
-            <div className="text-sm font-semibold text-gray-800 mb-2">
-              {getDeliveryOrderSummary(selectedDeliveryGroup.orders)}
+            <div className="text-sm font-semibold mb-2" style={{ color: 'var(--color-primary-900)' }}>
+              #{shortCode(selectedDeliveryGroup.deliveryOrderCode)}
             </div>
             <div className="space-y-3">
               {getGroupItemTotals(selectedDeliveryGroup.orders).map(item => (

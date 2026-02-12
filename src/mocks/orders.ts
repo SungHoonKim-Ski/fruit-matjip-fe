@@ -16,7 +16,7 @@ export type OrderRow = {
   date: string;           // YYYY-MM-DD
   status: 'pending' | 'picked' | 'canceled';
   items: OrderItem[];
-  deliveryOrderId?: number;
+  deliveryOrderCode?: string;
   delivery?: {
     status?: string;
     displayCode?: string;

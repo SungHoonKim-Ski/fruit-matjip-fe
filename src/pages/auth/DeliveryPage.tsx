@@ -178,7 +178,7 @@ export default function DeliveryPage() {
   const [today, setToday] = useState<string>('');
   const [orders, setOrders] = useState<DeliveryOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
 
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     phone: '',
@@ -218,8 +218,8 @@ export default function DeliveryPage() {
     o.items.reduce((sum, it) => sum + it.price * it.quantity, 0);
 
   const selectedOrders = useMemo(
-    () => orders.filter(order => selectedIds.includes(order.id)),
-    [orders, selectedIds]
+    () => orders.filter(order => selectedCodes.includes(order.displayCode)),
+    [orders, selectedCodes]
   );
 
   const selectedAmount = useMemo(
@@ -262,7 +262,7 @@ export default function DeliveryPage() {
   };
   const canSubmit = PAYMENT_READY
     && deliveryEnabled
-    && selectedIds.length > 0
+    && selectedCodes.length > 0
     && deliveryHour >= 0
     && !deliverySubmitting
     && !isGeocoding
@@ -277,7 +277,7 @@ export default function DeliveryPage() {
   const submitBlockers = useMemo(() => {
     const reasons: string[] = [];
     if (!deliveryEnabled) reasons.push('현재 배달 주문이 중단되어 있습니다.');
-    if (selectedIds.length === 0) reasons.push('배달할 예약을 선택해주세요.');
+    if (selectedCodes.length === 0) reasons.push('배달할 예약을 선택해주세요.');
     if (!deliveryInfo.phone) reasons.push('연락처를 입력해주세요.');
     if (!deliveryInfo.postalCode || !deliveryInfo.address1) reasons.push('주소를 입력해주세요.');
     if (deliveryDistanceError) reasons.push(deliveryDistanceError);
@@ -298,7 +298,7 @@ export default function DeliveryPage() {
     return reasons;
   }, [
     deliveryEnabled,
-    selectedIds.length,
+    selectedCodes.length,
     deliveryInfo.phone,
     deliveryInfo.postalCode,
     deliveryInfo.address1,
@@ -585,15 +585,15 @@ export default function DeliveryPage() {
       show('배달 불가 상품입니다.', { variant: 'info' });
       return;
     }
-    setSelectedIds(prev => {
-      const exists = prev.includes(order.id);
-      if (exists) return prev.filter(id => id !== order.id);
-      return [...prev, order.id];
+    setSelectedCodes(prev => {
+      const exists = prev.includes(order.displayCode);
+      if (exists) return prev.filter(code => code !== order.displayCode);
+      return [...prev, order.displayCode];
     });
   };
 
   const handleSubmit = async () => {
-    if (selectedIds.length === 0) {
+    if (selectedCodes.length === 0) {
       show('배달할 예약을 선택해주세요.', { variant: 'info' });
       return;
     }
@@ -846,7 +846,7 @@ export default function DeliveryPage() {
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-800">배달 대상 선택</h2>
-          <div className="text-xs text-gray-500">선택 {selectedIds.length}건</div>
+          <div className="text-xs text-gray-500">선택 {selectedCodes.length}건</div>
         </div>
         {loading && <div className="text-sm text-gray-500">불러오는 중…</div>}
         {!loading && orders.length === 0 && (
@@ -855,12 +855,12 @@ export default function DeliveryPage() {
         <div className="space-y-3">
           {[...orders].sort((a, b) => (a.deliveryAvailable === b.deliveryAvailable ? 0 : a.deliveryAvailable ? -1 : 1)).map(order => (
             <label
-              key={order.id}
+              key={order.displayCode}
               className={`flex items-center gap-3 border rounded-xl p-4 ${order.deliveryAvailable ? 'cursor-pointer hover:bg-gray-50' : 'opacity-60 bg-gray-50'}`}
             >
               <input
                 type="checkbox"
-                checked={selectedIds.includes(order.id)}
+                checked={selectedCodes.includes(order.displayCode)}
                 onChange={() => toggleSelection(order)}
                 disabled={!order.deliveryAvailable}
                 className="flex-shrink-0"

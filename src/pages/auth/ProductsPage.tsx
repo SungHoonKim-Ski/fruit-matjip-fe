@@ -672,24 +672,11 @@ export default function ReservePage() {
           throw new Error(errorData.message || '예약에 실패했습니다.');
         }
 
-        const reservationResponse = await res.json();
+        // BE는 displayCode를 plain text로 반환 (e.g. "R-26020216-VWQPA")
+        const displayCode = await res.text();
 
-        // API 응답에서 예약 ID 추출 (443이 오는 경우)
-        let reservationId = null;
-        if (reservationResponse && typeof reservationResponse === 'object') {
-          // 객체인 경우 다양한 필드에서 ID 추출
-          reservationId = reservationResponse.id ||
-            reservationResponse.reservation_id ||
-            reservationResponse.reservationId ||
-            null;
-        } else if (typeof reservationResponse === 'number') {
-          // 숫자 ID가 직접 오는 경우 (예: 443)
-          reservationId = reservationResponse;
-        }
-
-        // reservationId가 없으면 에러 처리
-        if (!reservationId) {
-          show('예약 ID를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
+        if (!displayCode) {
+          show('예약 코드를 찾을 수 없습니다. 관리자에게 문의해주세요.', { variant: 'error' });
         } else {
           show(`${product.name} ${product.quantity}개 예약 완료!`, { variant: 'info' });
 
