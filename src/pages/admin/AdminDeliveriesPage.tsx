@@ -711,7 +711,7 @@ export default function AdminDeliveriesPage() {
                         <span className="font-medium text-gray-800">#{r.id}</span>
                         {r.scheduledDeliveryHour !== null && (
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 배달예약
+                            {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
                           </span>
                         )}
                       </div>
@@ -778,7 +778,7 @@ export default function AdminDeliveriesPage() {
                       <span className="font-semibold text-gray-800">#{r.id}</span>
                       {r.scheduledDeliveryHour !== null && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 배달예약
+                          {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
                         </span>
                       )}
                     </div>

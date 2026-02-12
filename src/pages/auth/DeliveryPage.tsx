@@ -53,6 +53,121 @@ type DeliveryOrderRow = {
   deliveryAvailable: boolean;
 };
 
+const ITEM_HEIGHT = 50;
+const VISIBLE_ITEMS = 3;
+
+type DrumPickerProps = {
+  slots: { hour: number; minute: number }[];
+  selectedSlot: { hour: number; minute: number } | null;
+  onSelectSlot: (slot: { hour: number; minute: number }) => void;
+};
+
+function DrumPicker({ slots, selectedSlot, onSelectSlot }: DrumPickerProps) {
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const formatRange = (slot: { hour: number; minute: number }) => {
+    const endTotal = slot.hour * 60 + slot.minute;
+    const startTotal = endTotal - 60;
+    const sH = Math.floor(startTotal / 60);
+    const sM = startTotal % 60;
+    return `${sH}:${String(sM).padStart(2, '0')} ~ ${slot.hour}:${String(slot.minute).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    if (slots.length === 0) return;
+    const index = selectedSlot
+      ? slots.findIndex(s => s.hour === selectedSlot.hour && s.minute === selectedSlot.minute)
+      : 0;
+    const finalIndex = index >= 0 ? index : 0;
+    setSelectedIndex(finalIndex);
+    if (pickerRef.current) {
+      pickerRef.current.scrollTop = finalIndex * ITEM_HEIGHT;
+    }
+  }, [slots, selectedSlot]);
+
+  const handleScroll = () => {
+    if (!pickerRef.current || slots.length === 0) return;
+    const scrollTop = pickerRef.current.scrollTop;
+    const index = Math.round(scrollTop / ITEM_HEIGHT);
+    const clampedIndex = Math.max(0, Math.min(slots.length - 1, index));
+    setSelectedIndex(clampedIndex);
+    onSelectSlot(slots[clampedIndex]);
+  };
+
+  if (slots.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 text-center py-4">
+        선택 가능한 시간이 없습니다
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <style>
+        {`
+          .drum-picker::-webkit-scrollbar {
+            display: none;
+          }
+        `}
+      </style>
+      {/* 상단 마스크 */}
+      <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-white to-transparent pointer-events-none z-10" />
+
+      {/* 중앙 선택 영역 하이라이트 */}
+      <div
+        className="absolute left-0 right-0 border-t border-b border-green-500 pointer-events-none z-10"
+        style={{
+          top: ITEM_HEIGHT,
+          height: ITEM_HEIGHT
+        }}
+      />
+
+      {/* 스크롤 컨테이너 */}
+      <div
+        ref={pickerRef}
+        onScroll={handleScroll}
+        className="drum-picker"
+        style={{
+          height: ITEM_HEIGHT * VISIBLE_ITEMS,
+          overflowY: 'auto',
+          scrollSnapType: 'y mandatory',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {/* 상단 빈 공간 */}
+        <div style={{ height: ITEM_HEIGHT }} />
+
+        {slots.map((slot, i) => (
+          <div
+            key={`${slot.hour}-${slot.minute}`}
+            style={{
+              height: ITEM_HEIGHT,
+              scrollSnapAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            className={`text-lg font-medium transition-all ${
+              selectedIndex === i ? 'text-green-700 scale-105' : 'text-gray-400'
+            }`}
+          >
+            {formatRange(slot)}
+          </div>
+        ))}
+
+        {/* 하단 빈 공간 */}
+        <div style={{ height: ITEM_HEIGHT }} />
+      </div>
+
+      {/* 하단 마스크 */}
+      <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
+    </div>
+  );
+}
+
 export default function DeliveryPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
@@ -674,62 +789,51 @@ export default function DeliveryPage() {
       </section>
 
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
-        <h2 className="text-base font-semibold text-gray-800 mb-3">도착 시간</h2>
-        <div
-          className="flex gap-2 overflow-x-auto pb-2"
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          }}
-        >
-          <style>
-            {`
-              .flex.gap-2.overflow-x-auto::-webkit-scrollbar {
-                display: none;
-              }
-            `}
-          </style>
+        <h2 className="text-base font-semibold text-gray-800 mb-3">도착 예정 시간</h2>
+
+        {/* 세그먼트 토글 */}
+        <div className="flex gap-2 mb-4">
           <button
             type="button"
             onClick={() => { setDeliveryType('normal'); setScheduledSlot(null); }}
-            className={`flex-shrink-0 px-4 h-10 rounded-full text-sm font-medium border whitespace-nowrap ${
-              deliveryType === 'normal' && scheduledSlot === null
-                ? 'bg-green-600 text-white border-green-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all ${
+              deliveryType === 'normal'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-600'
             }`}
           >
             바로배달
           </button>
-          {scheduledSlots
-            .filter(slot => !isAfterScheduledCutoff && isSlotAvailable(slot))
-            .map(slot => {
-              const selected = deliveryType === 'scheduled' && scheduledSlot?.hour === slot.hour && scheduledSlot?.minute === slot.minute;
-              return (
-                <button
-                  key={`${slot.hour}-${slot.minute}`}
-                  type="button"
-                  onClick={() => {
-                    setDeliveryType('scheduled');
-                    setScheduledSlot(slot);
-                  }}
-                  className={`flex-shrink-0 px-4 h-10 rounded-full text-sm font-medium border whitespace-nowrap ${
-                    selected
-                      ? 'bg-green-600 text-white border-green-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {(() => {
-                    const endTotal = slot.hour * 60 + slot.minute;
-                    const startTotal = endTotal - 30;
-                    const sH = Math.floor(startTotal / 60);
-                    const sM = startTotal % 60;
-                    return `${sH}:${String(sM).padStart(2, '0')}~${slot.hour}:${String(slot.minute).padStart(2, '0')}`;
-                  })()}
-                </button>
-              );
-            })}
+          <button
+            type="button"
+            onClick={() => {
+              if (isAfterScheduledCutoff) return;
+              setDeliveryType('scheduled');
+              const availableSlots = scheduledSlots.filter(isSlotAvailable);
+              if (availableSlots.length > 0 && !scheduledSlot) {
+                setScheduledSlot(availableSlots[0]);
+              }
+            }}
+            disabled={isAfterScheduledCutoff}
+            className={`flex-1 h-11 rounded-lg text-sm font-medium transition-all ${
+              deliveryType === 'scheduled'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-600'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            예약배달
+          </button>
         </div>
+
+        {/* Drum Picker (예약배달 선택 시에만 표시) */}
+        {deliveryType === 'scheduled' && (
+          <DrumPicker
+            slots={scheduledSlots.filter(isSlotAvailable)}
+            selectedSlot={scheduledSlot}
+            onSelectSlot={setScheduledSlot}
+          />
+        )}
+
         {isAfterScheduledCutoff && (
           <div className="text-xs text-red-600 mt-2">
             예약배달은 {Math.floor(scheduledCutoffTotal / 60)}시{scheduledCutoffTotal % 60 > 0 ? ` ${scheduledCutoffTotal % 60}분` : ''}까지만 접수 가능합니다.
@@ -747,7 +851,7 @@ export default function DeliveryPage() {
           <div className="text-sm text-gray-500">오늘 배달 가능한 예약이 없습니다.</div>
         )}
         <div className="space-y-3">
-          {orders.map(order => (
+          {[...orders].sort((a, b) => (a.deliveryAvailable === b.deliveryAvailable ? 0 : a.deliveryAvailable ? -1 : 1)).map(order => (
             <label
               key={order.id}
               className={`flex items-center gap-3 border rounded-xl p-4 ${order.deliveryAvailable ? 'cursor-pointer hover:bg-gray-50' : 'opacity-60 bg-gray-50'}`}

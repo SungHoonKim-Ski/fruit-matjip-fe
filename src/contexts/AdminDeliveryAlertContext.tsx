@@ -298,7 +298,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         if (isScheduled) {
           const h = alert!.scheduledDeliveryHour;
           const m = String(alert!.scheduledDeliveryMinute ?? 0).padStart(2, '0');
-          snackbar.show(`주문 #${orderId} 접수 완료 (예약배달 ${h}:${m})`, { variant: 'success' });
+          snackbar.show(`주문 #${orderId} 접수 완료 (${h}:${m} 도착예정)`, { variant: 'success' });
         } else {
           snackbar.show(`주문 #${orderId} 접수 완료 (${getEstimated(orderId)}분)`, { variant: 'success' });
         }
@@ -345,7 +345,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                     <>
                       <div className="text-sm font-semibold text-orange-600 mb-2">예약배달 알림</div>
                       <p className="text-sm text-gray-700 mb-3">
-                        {a.buyerName}님의 예약배달({a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')})이 1시간 이내로 예정되어 있습니다.
+                        {a.buyerName}님의 배달({a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')} 도착예정)이 1시간 이내로 예정되어 있습니다.
                       </p>
                     </>
                   ) : (
@@ -354,7 +354,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
                         결제 완료
                         {a.scheduledDeliveryHour !== null && (
                           <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            예약배달 {a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')}
+                            {a.scheduledDeliveryHour}:{String(a.scheduledDeliveryMinute ?? 0).padStart(2, '0')} 도착예정
                           </span>
                         )}
                       </div>

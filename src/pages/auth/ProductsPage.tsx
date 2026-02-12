@@ -150,9 +150,10 @@ export default function ReservePage() {
   // 이용제한 상태
   const [restricted, setRestricted] = useState(false);
 
-  // 배달 안내 다이얼로그
+  // 예약 완료 다이얼로그
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryMinAmount, setDeliveryMinAmount] = useState<number | null>(null);
+  const [reservedProduct, setReservedProduct] = useState<{ name: string; quantity: number; deliveryAvailable: boolean } | null>(null);
 
   // 모달(상세/닉네임/개인정보/검색/메시지) 오픈 시 백그라운드 스크롤 잠금
   useEffect(() => {
@@ -699,16 +700,17 @@ export default function ReservePage() {
             )
           );
 
-          // 배달 안내 다이얼로그 표시
+          // 예약 완료 다이얼로그 표시
+          setReservedProduct({ name: product.name, quantity: product.quantity, deliveryAvailable: product.deliveryAvailable !== false });
           try {
             const config = await getDeliveryConfig();
             if (config?.enabled) {
               setDeliveryMinAmount(config.minAmount);
-              setDeliveryDialogOpen(true);
             }
           } catch {
-            // 배달 설정 조회 실패 시 다이얼로그 미표시
+            // 배달 설정 조회 실패 시 배달 버튼 미표시
           }
+          setDeliveryDialogOpen(true);
         }
       }
     } catch (e: any) {
@@ -1350,36 +1352,51 @@ export default function ReservePage() {
         />
       )}
 
-      {/* 배달 안내 다이얼로그 */}
+      {/* 예약 완료 후 액션 다이얼로그 */}
       {deliveryDialogOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4" aria-modal="true" role="dialog">
           <div className="absolute inset-0 bg-black/40" onClick={() => setDeliveryDialogOpen(false)} />
           <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl p-6 text-center">
-            <div className="text-3xl mb-3">🚚</div>
-            <h3 className="text-lg font-bold text-gray-800 mb-2">배달 서비스 이용 안내</h3>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              {deliveryMinAmount != null && deliveryMinAmount > 0
-                ? <><b>{deliveryMinAmount.toLocaleString()}원</b> 이상 예약하셨다면<br />배달 주문이 가능합니다!</>
-                : <>예약하신 상품을 집까지 배달해드립니다!</>}
-            </p>
-            <div className="mt-5 flex gap-3">
+            <div className="text-3xl mb-3">🎉</div>
+            <h3 className="text-lg font-bold text-gray-800 mb-1">예약이 완료되었습니다!</h3>
+            {reservedProduct && (
+              <p className="text-sm text-gray-600 mb-4">{reservedProduct.name} {reservedProduct.quantity}개</p>
+            )}
+            <div className="flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => setDeliveryDialogOpen(false)}
-                className="flex-1 h-11 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+                className="w-full h-12 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
               >
-                괜찮아요
+                <span>🛒</span> 계속 둘러보기
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setDeliveryDialogOpen(false);
-                  nav('/me/delivery');
+                  nav('/me/orders');
                 }}
-                className="flex-1 h-11 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
+                className="w-full h-12 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
               >
-                배달 주문하기
+                <span>📋</span> 주문 내역 보기
               </button>
+              {deliveryMinAmount != null && reservedProduct?.deliveryAvailable && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeliveryDialogOpen(false);
+                      nav('/me/delivery');
+                    }}
+                    className="w-full h-12 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    <span>🚚</span> 맛집퀵 배달하기
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {deliveryMinAmount > 0 && <>{deliveryMinAmount.toLocaleString()}원 이상 예약 시 배달 가능 · </>}배달 불가 상품 제외
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
