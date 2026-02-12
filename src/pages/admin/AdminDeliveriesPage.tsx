@@ -5,6 +5,14 @@ import { safeErrorLog } from '../../utils/environment';
 import { useSnackbar } from '../../components/snackbar';
 import { printReceipt, PrintReceiptData } from '../../utils/printBridge';
 
+// R-26020216-VWQPA → R-VWQPA (중간 날짜 영역 제거)
+const shortCode = (code?: string) => {
+  if (!code) return '';
+  const parts = code.split('-');
+  if (parts.length >= 3) return `${parts[0]}-${parts.slice(2).join('-')}`;
+  return code;
+};
+
 interface DeliveryRow {
   id: number;
   displayCode: string;
@@ -44,6 +52,26 @@ export default function AdminDeliveriesPage() {
   const [deliveryFilter, setDeliveryFilter] = useState<'in_progress' | 'out_for_delivery' | 'delivered' | 'canceled'>('in_progress');
   const [scheduledFilter, setScheduledFilter] = useState<'all' | 'normal' | 'scheduled'>('all');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [checklist, setChecklist] = useState<Record<number, { accepted: boolean; prepared: boolean }>>({});
+
+  // localStorage에서 체크리스트 복원
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`delivery-checklist-${selectedDate}`);
+      setChecklist(saved ? JSON.parse(saved) : {});
+    } catch {
+      setChecklist({});
+    }
+  }, [selectedDate]);
+
+  const toggleCheck = (orderId: number, field: 'accepted' | 'prepared') => {
+    setChecklist(prev => {
+      const current = prev[orderId] ?? { accepted: false, prepared: false };
+      const next = { ...prev, [orderId]: { ...current, [field]: !current[field] } };
+      localStorage.setItem(`delivery-checklist-${selectedDate}`, JSON.stringify(next));
+      return next;
+    });
+  };
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
@@ -166,17 +194,20 @@ export default function AdminDeliveriesPage() {
           CANCELED: 4,
         };
         const sorted = mapped.sort((a: DeliveryRow, b: DeliveryRow) => {
+          // 1. 즉시배달 우선 (scheduledDeliveryHour === null)
+          const aScheduled = a.scheduledDeliveryHour !== null;
+          const bScheduled = b.scheduledDeliveryHour !== null;
+          if (aScheduled !== bScheduled) return aScheduled ? 1 : -1;
+          // 2. 같은 배달방식 내에서 상태 우선순위
           const aPriority = statusPriority[a.status] ?? 99;
           const bPriority = statusPriority[b.status] ?? 99;
           if (aPriority !== bPriority) return aPriority - bPriority;
-          const aScheduled = a.scheduledDeliveryHour !== null;
-          const bScheduled = b.scheduledDeliveryHour !== null;
+          // 3. 예약배달끼리는 도착 예정 시간순
           if (aScheduled && bScheduled) {
             const aTime = a.scheduledDeliveryHour! * 60 + (a.scheduledDeliveryMinute ?? 0);
             const bTime = b.scheduledDeliveryHour! * 60 + (b.scheduledDeliveryMinute ?? 0);
             if (aTime !== bTime) return aTime - bTime;
           }
-          if (aScheduled !== bScheduled) return aScheduled ? 1 : -1;
           return b.id - a.id;
         });
         setRows(sorted);
@@ -677,6 +708,7 @@ export default function AdminDeliveriesPage() {
                   <th className="py-2 pr-3">연락처/주소</th>
                   <th className="py-2 pr-3">주문</th>
                   <th className="py-2 pr-3">금액</th>
+                  <th className="py-2 pr-3">체크</th>
                   <th className="py-2 pr-3">상태</th>
                   <th className="py-2 pr-3">관리</th>
                 </tr>
@@ -714,7 +746,7 @@ export default function AdminDeliveriesPage() {
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-800">{r.displayCode}</span>
+                        <span className="font-medium text-gray-800">{shortCode(r.displayCode)}</span>
                         {r.scheduledDeliveryHour !== null && (
                           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                             {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
@@ -728,36 +760,48 @@ export default function AdminDeliveriesPage() {
                     <td className="py-2 pr-3">
                       <div className="text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
                     </td>
+                    <td className="py-2 pr-3">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input type="checkbox" checked={checklist[r.id]?.accepted ?? false} onChange={() => toggleCheck(r.id, 'accepted')} className="accent-blue-500" />
+                          배달접수
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input type="checkbox" checked={checklist[r.id]?.prepared ?? false} onChange={() => toggleCheck(r.id, 'prepared')} className="accent-green-600" />
+                          상품준비
+                        </label>
+                      </div>
+                    </td>
                     <td className="py-2 pr-3">{getStatusLabel(r.status)}</td>
                     <td className="py-2 pr-3">
-                      <div className="flex flex-col gap-1">
+                      <div className="grid grid-cols-2 gap-1 min-w-[120px]">
                         <button
                           type="button"
-                          className="h-8 px-2 rounded bg-blue-500 text-white text-xs disabled:opacity-50"
+                          className="h-8 px-1.5 rounded bg-blue-500 text-white text-xs whitespace-nowrap disabled:opacity-50"
                           onClick={() => handleStatusChange(r, 'out_for_delivery')}
                           disabled={updatingId === r.id || r.status !== 'PAID'}
                         >
-                          배달 시작
+                          배달시작
                         </button>
                         <button
                           type="button"
-                          className="h-8 px-2 rounded bg-green-600 text-white text-xs disabled:opacity-50"
+                          className="h-8 px-1.5 rounded bg-green-600 text-white text-xs whitespace-nowrap disabled:opacity-50"
                           onClick={() => handleStatusChange(r, 'delivered')}
                           disabled={updatingId === r.id || r.status !== 'OUT_FOR_DELIVERY'}
                         >
-                          배달 완료
+                          배달완료
                         </button>
                         <button
                           type="button"
-                          className="h-8 px-2 rounded bg-gray-500 text-white text-xs disabled:opacity-50"
+                          className="h-8 px-1.5 rounded bg-gray-500 text-white text-xs whitespace-nowrap disabled:opacity-50"
                           onClick={() => handleStatusChange(r, 'canceled')}
                           disabled={updatingId === r.id || r.status === 'DELIVERED' || r.status === 'CANCELED' || r.status === 'FAILED'}
                         >
-                          주문 취소
+                          취소
                         </button>
                         <button
                           type="button"
-                          className="h-8 px-2 rounded bg-purple-500 text-white text-xs disabled:opacity-50"
+                          className="h-8 px-1.5 rounded bg-purple-500 text-white text-xs whitespace-nowrap disabled:opacity-50"
                           onClick={() => handlePrint(r)}
                           disabled={updatingId === r.id || r.status === 'CANCELED' || r.status === 'FAILED'}
                         >
@@ -781,7 +825,7 @@ export default function AdminDeliveriesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-gray-800">{r.displayCode}</span>
+                      <span className="font-semibold text-gray-800">{shortCode(r.displayCode)}</span>
                       {r.scheduledDeliveryHour !== null && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                           {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
