@@ -229,11 +229,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     };
     connect();
 
-    const checkUpcomingDeliveries = async () => {
+    const checkDeliveries = async () => {
       try {
-        const scheduledAlertOn = localStorage.getItem('scheduled-delivery-alert') !== 'false';
-        if (!scheduledAlertOn) return;
-
         const serverMs = await getServerTime();
         const today = formatKstDate(serverMs);
         const res = await getAdminDeliveries(today);
@@ -241,7 +238,20 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         const data = await res.json();
         const list = Array.isArray(data?.response) ? data.response : [];
 
-        // localStorage에서 dismissed 목록 로드
+        // paid 보완 폴링 (SSE 누락 대비)
+        const paidCandidates = list.filter((r: any) => {
+          if (String(r.status || '') !== 'PAID') return false;
+          const acceptedAt = r.accepted_at ?? r.acceptedAt ?? null;
+          return acceptedAt === null;
+        });
+        paidCandidates.forEach((r: any) => {
+          pushAlert(parseAlertPayload(r, 'paid'));
+        });
+
+        // 예약배달 upcoming 체크
+        const scheduledAlertOn = localStorage.getItem('scheduled-delivery-alert') !== 'false';
+        if (!scheduledAlertOn) return;
+
         const dismissedKey = `dismissed-upcoming-alerts-${today}`;
         const dismissed: number[] = JSON.parse(localStorage.getItem(dismissedKey) || '[]');
 
@@ -262,18 +272,18 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           pushAlert(parseAlertPayload(r, 'upcoming'));
         });
       } catch (err) {
-        safeErrorLog(err, 'AdminDeliveryAlertProvider - checkUpcoming');
+        safeErrorLog(err, 'AdminDeliveryAlertProvider - checkDeliveries');
       }
     };
 
-    // 즉시 1회 체크 + 매시 정각 aligned 타이머
-    checkUpcomingDeliveries();
+    // 즉시 1회 체크 + 30분 정각 aligned 타이머
+    checkDeliveries();
     const now = new Date();
-    const msUntilNextHour = (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
+    const msUntilNextHalf = ((30 - (now.getMinutes() % 30)) * 60 * 1000) - now.getSeconds() * 1000 - now.getMilliseconds();
     const alignTimer = window.setTimeout(() => {
-      checkUpcomingDeliveries();
-      pollTimerRef.current = window.setInterval(checkUpcomingDeliveries, 3600000);
-    }, msUntilNextHour);
+      checkDeliveries();
+      pollTimerRef.current = window.setInterval(checkDeliveries, 1800000);
+    }, msUntilNextHalf);
 
     return () => {
       if (sourceRef.current) {
