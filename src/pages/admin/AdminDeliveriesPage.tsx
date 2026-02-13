@@ -13,6 +13,12 @@ const shortCode = (code?: string) => {
   return code;
 };
 
+// D-VWQPA → VWQPA (배달 주문 prefix 제거)
+const stripDeliveryPrefix = (code?: string) => {
+  const short = shortCode(code);
+  return short.startsWith('D-') ? short.slice(2) : short;
+};
+
 interface DeliveryRow {
   id: number;
   displayCode: string;
@@ -706,7 +712,7 @@ export default function AdminDeliveriesPage() {
                 <tr className="text-left text-gray-600 border-b">
                   <th className="py-2 pr-3">상품</th>
                   <th className="py-2 pr-3">연락처/주소</th>
-                  <th className="py-2 pr-3">주문</th>
+                  <th className="py-2 pr-3">주문번호</th>
                   <th className="py-2 pr-3">금액</th>
                   <th className="py-2 pr-3">체크</th>
                   <th className="py-2 pr-3">상태</th>
@@ -723,17 +729,16 @@ export default function AdminDeliveriesPage() {
                   <tr key={r.id} className="border-b">
                     <td className="py-2 pr-3">
                       {r.reservationItems.length > 0 ? (
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           {r.reservationItems.map(item => (
-                            <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
-                              {item.productName} · {item.quantity}개 · {item.amount.toLocaleString()}원
+                            <div key={`${r.id}-${item.id}`}>
+                              <div className="text-sm font-medium text-gray-900">{item.productName}</div>
+                              <div className="text-xs text-gray-500">{item.quantity}개 · {item.amount.toLocaleString()}원</div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <>
-                          <div className="text-base font-semibold text-gray-900">상품 정보 없음</div>
-                        </>
+                        <div className="text-sm text-gray-500">상품 정보 없음</div>
                       )}
                     </td>
                     <td className="py-2 pr-3">
@@ -742,17 +747,16 @@ export default function AdminDeliveriesPage() {
                         {r.phone ? formatPhone(r.phone) : '휴대폰 없음'}
                       </div>
                       <div className="text-xs text-gray-500">{r.postalCode}</div>
-                      <div className="text-xs text-gray-600">{r.address1} {r.address2}</div>
+                      <div className="text-xs text-gray-600">{r.address1}</div>
+                      {r.address2 && <div className="text-xs text-gray-600">{r.address2}</div>}
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-gray-800">{shortCode(r.displayCode)}</span>
-                        {r.scheduledDeliveryHour !== null && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
-                          </span>
-                        )}
-                      </div>
+                      {r.scheduledDeliveryHour !== null && (
+                        <span className="inline-block mb-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
+                        </span>
+                      )}
+                      <div className="font-medium text-gray-800">{stripDeliveryPrefix(r.displayCode)}</div>
                       {r.paidAt && (
                         <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                       )}
@@ -761,15 +765,29 @@ export default function AdminDeliveriesPage() {
                       <div className="text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
                     </td>
                     <td className="py-2 pr-3">
-                      <div className="flex flex-col gap-1 text-xs">
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={checklist[r.id]?.accepted ?? false} onChange={() => toggleCheck(r.id, 'accepted')} className="accent-blue-500" />
-                          배달접수
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={checklist[r.id]?.prepared ?? false} onChange={() => toggleCheck(r.id, 'prepared')} className="accent-green-600" />
-                          상품준비
-                        </label>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleCheck(r.id, 'accepted')}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            checklist[r.id]?.accepted
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-red-100 text-red-600'
+                          }`}
+                        >
+                          {checklist[r.id]?.accepted ? '배달접수O' : '배달접수X'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleCheck(r.id, 'prepared')}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            checklist[r.id]?.prepared
+                              ? 'bg-green-600 text-white'
+                              : 'bg-red-100 text-red-600'
+                          }`}
+                        >
+                          {checklist[r.id]?.prepared ? '상품준비O' : '상품준비X'}
+                        </button>
                       </div>
                     </td>
                     <td className="py-2 pr-3">{getStatusLabel(r.status)}</td>
@@ -824,37 +842,37 @@ export default function AdminDeliveriesPage() {
               <div key={r.id} className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-gray-800">{shortCode(r.displayCode)}</span>
-                      {r.scheduledDeliveryHour !== null && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
-                        </span>
-                      )}
-                    </div>
+                    {r.scheduledDeliveryHour !== null && (
+                      <span className="inline-block mb-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
+                      </span>
+                    )}
+                    <div className="font-semibold text-gray-800">{stripDeliveryPrefix(r.displayCode)}</div>
                     {r.paidAt && (
                       <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                     )}
                   </div>
                   <span className="text-xs text-gray-500">{getStatusLabel(r.status)}</span>
                 </div>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-2">
                   {r.reservationItems.length > 0 ? (
                     r.reservationItems.map(item => (
-                      <div key={`${r.id}-${item.id}`} className="text-sm text-gray-900">
-                        {item.productName} · {item.quantity}개 · {item.amount.toLocaleString()}원
+                      <div key={`${r.id}-${item.id}`}>
+                        <div className="text-sm font-medium text-gray-900">{item.productName}</div>
+                        <div className="text-xs text-gray-500">{item.quantity}개 · {item.amount.toLocaleString()}원</div>
                       </div>
                     ))
                   ) : (
-                    <div className="text-base font-semibold text-gray-900">상품 정보 없음</div>
+                    <div className="text-sm text-gray-500">상품 정보 없음</div>
                   )}
                 </div>
                 <div className="mt-2 text-base font-semibold text-gray-900">{r.buyerName}</div>
                 <div className={`mt-1 text-sm ${r.phone ? 'text-gray-700' : 'text-rose-600'}`}>
                   {r.phone ? formatPhone(r.phone) : '휴대폰 없음'}
                 </div>
-                <div className="mt-1 text-sm text-gray-700">{r.address1} {r.address2}</div>
                 <div className="mt-1 text-xs text-gray-500">{r.postalCode}</div>
+                <div className="text-sm text-gray-700">{r.address1}</div>
+                {r.address2 && <div className="text-sm text-gray-700">{r.address2}</div>}
                 <div className="mt-1 text-sm text-gray-700">총 {r.totalAmount.toLocaleString()}원</div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
