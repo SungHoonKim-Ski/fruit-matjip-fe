@@ -1284,7 +1284,7 @@ export const getServerTime = async (): Promise<number> => {
 };
 
 // 고객 관리 API
-export type CustomerSortKey = 'TOTAL_REVENUE' | 'WARN_COUNT' | 'TOTAL_WARN_COUNT';
+export type CustomerSortKey = 'TOTAL_REVENUE' | 'WARN_COUNT' | 'TOTAL_WARN_COUNT' | 'RESTRICTED_UNTIL';
 export type SortOrder = 'ASC' | 'DESC';
 
 export type CustomerListItem = {

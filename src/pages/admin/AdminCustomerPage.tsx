@@ -269,6 +269,7 @@ export default function AdminCustomerPage() {
                 <option value="TOTAL_REVENUE">누적 매출</option>
                 <option value="WARN_COUNT">이번 달 경고순</option>
                 <option value="TOTAL_WARN_COUNT">누적 경고순</option>
+                <option value="RESTRICTED_UNTIL">이용제한 기간순</option>
               </select>
             </div>
 
