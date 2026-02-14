@@ -9,6 +9,7 @@ import { getProducts, modifyName, checkNameExists, createReservation, getServerT
 import ProductDetailPage from './ProductDetailPage';
 import Footer from '../../components/Footer';
 import { theme, logoText, defaultKeywordImage } from '../../brand';
+import DOMPurify from 'dompurify';
 
 const MAX_DAYS = 10; // 최대 10일 예약 가능
 
@@ -149,6 +150,12 @@ export default function ReservePage() {
 
   // 이용제한 상태
   const [restricted, setRestricted] = useState(false);
+
+  // 상단 안내 접기/펼치기
+  const [infoExpanded, setInfoExpanded] = useState(false);
+
+  // 예약 확인 다이얼로그
+  const [confirmTarget, setConfirmTarget] = useState<Product | null>(null);
 
   // 예약 완료 다이얼로그
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
@@ -346,7 +353,7 @@ export default function ReservePage() {
           setProducts(productsArray.map((p: any, i: number) => ({
             id: p.id,
             name: p.name,
-            quantity: 0,
+            quantity: p.stock > 0 ? 1 : 0,
             price: p.price,
             stock: p.stock,
             imageUrl: p.image_url ? `${theme.config.imgUrl}/${p.image_url}` : p.imageUrl,
@@ -614,10 +621,18 @@ export default function ReservePage() {
   }, [availableDates, activeDate]);
 
   const handleQuantity = (id: number, diff: number) => {
+    // 수정/취소 제한 시간 이후 경고
+    const { timeStr } = getKstNowStrings(timeOffsetMs);
+    const deadline = theme.config.cancellationDeadline?.slice(0, 5) ?? '19:00';
+    const product = products.find(p => p.id === id);
+    if (product && product.sellDate === getKstNowStrings(timeOffsetMs).dateStr && timeStr >= deadline) {
+      show(`${deadline} 이후에는 예약 수정이 불가합니다.`, { variant: 'error' });
+      return;
+    }
     setProducts(prev =>
       prev.map(p => {
         if (p.id !== id) return p;
-        const nextQty = Math.max(0, Math.min(p.stock, p.quantity + diff));
+        const nextQty = Math.max(0, Math.min(99, p.quantity + diff));
         return { ...p, quantity: nextQty };
       })
     );
@@ -632,10 +647,6 @@ export default function ReservePage() {
 
       if (product.quantity <= 0) {
         show('1개 이상 선택해주세요.', { variant: 'error' });
-        return;
-      }
-      if (product.quantity > product.stock) {
-        show('재고보다 많이 예약할 수 없어요.', { variant: 'error' });
         return;
       }
       if (USE_MOCKS) {
@@ -1017,54 +1028,52 @@ export default function ReservePage() {
       )}
 
       <section className="w-full max-w-md">
-        {/* 안내 카드 */}
-        <div className="bg-white p-2 rounded-lg shadow mb-1 text-center">
-          {!theme.config.hideTagline && <h1 className="text-base font-bold text-gray-800">{theme.tagline}</h1>}
-          <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
-
-            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
-              <span className="text-orange-600">⚠</span>
-              <span>판매일 <strong className="text-orange-900">{theme.config.pickupDeadline.split(':')[0]}시까지 매장을 방문</strong>하셔야</span>
-            </p>
-            <p className="text-sm text-orange-800 font-medium flex items-center justify-center gap-1">
-              <span><strong className="text-orange-900">예약 상품 구매가 가능</strong>합니다</span>
-            </p>
-
-            <p className="text-xs text-orange-900 mt-0.5 text-center">
-              [{theme.config.pickupDeadline.split(':')[0]}시 기준 미수령 예약 자동 취소]
-            </p>
+        {/* 상단 요약 바 */}
+        <div
+          className="bg-white rounded-lg shadow mb-1 cursor-pointer select-none"
+          onClick={() => setInfoExpanded(prev => !prev)}
+        >
+          <div className="flex items-center justify-between px-3 py-2.5">
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-700 overflow-x-auto whitespace-nowrap">
+              <span>🗓 {prettyKdate(activeDate)} 판매</span>
+              <span className="text-gray-300">·</span>
+              <span>⏰ {theme.config.reservationDeadline} 마감</span>
+              <span className="text-gray-300">·</span>
+              <span>🏪 {theme.config.pickupDeadline.split(':')[0]}시 수령</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-2 transition-transform ${infoExpanded ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-          <div className="mt-2 bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-              <span className="text-xs font-medium text-green-700">
-                <strong>[{prettydate(activeDate)} {prettyDay(activeDate)}]</strong> 매장 판매 상품이에요
-              </span>
+          {infoExpanded && (
+            <div className="px-3 pb-3 border-t border-gray-100">
+              <ul className="mt-2 space-y-1.5 text-xs text-gray-600">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-orange-500 mt-0.5">•</span>
+                  <span><strong className="text-gray-800">{theme.config.pickupDeadline.split(':')[0]}시</strong>까지 미방문 시 예약이 <strong className="text-gray-800">자동 취소</strong>됩니다</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-orange-500 mt-0.5">•</span>
+                  <span><strong className="text-gray-800">{theme.config.cancellationDeadline}</strong> 이후 예약 수정/취소가 <strong className="text-gray-800">불가</strong>합니다</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-red-500 mt-0.5">•</span>
+                  <span className="text-red-600">노쇼 시 <strong>이용 제한</strong> 및 예약이 <strong>자동 취소</strong>됩니다</span>
+                </li>
+              </ul>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-              <span className="text-xs font-medium text-green-700">
-                예약 마감 <strong>[{theme.config.reservationDeadline}]</strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-
-              <span className="text-xs font-medium text-green-700">
-
-                ※ <strong>[{theme.config.cancellationDeadline}] 이후에는 예약 수정/취소가 불가능합니다</strong>
-
-              </span>
-            </div>
-          </div>
+          )}
         </div>
-        {/* 수령 가능 안내 문구 */}
 
 
 
 
 
-        {/* 날짜 탭 + 검색 칩 (항상 표시) */}
-        <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-2 mb-4">
+        {/* 날짜 탭 */}
+        <div className="bg-white p-2 rounded-lg shadow mt-2">
           <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
             {availableDates.length > 0 ? availableDates.map(date => {
               const active = activeDate === date;
@@ -1094,24 +1103,12 @@ export default function ReservePage() {
               </div>
             )}
           </div>
-          {/* 검색 칩 */}
-          <div className="mt-2 px-3 pb-2">
-            <div className="grid grid-cols-5 gap-y-3 gap-x-2">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  clearSearch();
-                  setActiveCategoryId(null); // 카테고리 필터도 초기화
-                }}
-                className="flex flex-col items-center gap-1"
-              >
-                <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${!activeChip ? 'border-orange-500' : 'border-gray-200'}`}>
-                  <img src={defaultKeywordImage} alt="ALL" className="w-full h-full object-contain p-2 bg-gray-50" />
-                </div>
-                <span className={`text-xs font-medium whitespace-nowrap ${!activeChip ? 'text-orange-500' : 'text-gray-700'}`}>
-                  ALL
-                </span>
-              </button>
+        </div>
+
+        {/* 카테고리 칩 (sticky) */}
+        <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-1 mb-4">
+          <div className="px-3 py-1 overflow-x-auto">
+            <div className="flex gap-3">
               {((recommendedKeywords.length > 0 ? recommendedKeywords : [
                 { id: 0, keyword: '케이크', keywordUrl: undefined },
                 { id: 0, keyword: '할인', keywordUrl: undefined },
@@ -1134,7 +1131,7 @@ export default function ReservePage() {
                         setActiveCategoryId(item.id || null);
                       }
                     }}
-                    className="flex flex-col items-center gap-1"
+                    className="flex flex-col items-center gap-1 flex-shrink-0"
                   >
                     {/* 이미지 원형 */}
                     <div className={`w-12 h-12 rounded-full overflow-hidden border-2 transition-colors ${isActive ? 'border-orange-500' : 'border-gray-200'
@@ -1211,81 +1208,78 @@ export default function ReservePage() {
 
         {/* 상품 목록(선택 날짜) */}
         {!restricted && availableDates.length > 0 && (
-          <div className="space-y-4 mb-6">
+          <div className="space-y-2 mb-6">
             {productsOfDay.map((item) => (
               <div
                 key={item.id}
-                className="rounded-lg border-2 p-3 shadow-sm"
-                style={{
-                  borderColor: 'var(--color-primary-500)',
-                  backgroundColor: 'var(--color-primary-50)',
-                }}
+                className="rounded-lg border p-2.5 shadow-sm"
+                style={{ borderColor: 'var(--color-primary-500)', backgroundColor: 'var(--color-primary-50)' }}
               >
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-full aspect-[5/3] object-cover cursor-pointer rounded-lg border"
-                  onClick={() => openDetail(item.id)}
-                  role="button"
-                  aria-label={`${item.name} 상세보기`}
-                />
-                <div className="mt-3">
-                  <div className="flex items-start justify-between gap-2">
+                <div className="flex gap-3">
+                  {/* 썸네일 */}
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="w-20 h-20 object-cover cursor-pointer rounded-lg border flex-shrink-0"
+                    onClick={() => openDetail(item.id)}
+                    role="button"
+                    aria-label={`${item.name} 상세보기`}
+                  />
+                  {/* 상품 정보 */}
+                  <div className="flex-1 min-w-0">
                     <h2
-                      className="font-semibold cursor-pointer flex-1 text-[clamp(0.95rem,4vw,1.15rem)] leading-tight"
+                      className="font-semibold cursor-pointer text-sm leading-tight truncate"
                       onClick={() => openDetail(item.id)}
                       role="button"
                     >
                       <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
                     </h2>
-                    <span className="text-[clamp(0.95rem,4vw,1.15rem)] text-orange-500 font-semibold flex-shrink-0">{formatPrice(item.price)}</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center gap-2">
-                      {item.deliveryAvailable === false && (
-                        <span className="text-[11px] bg-rose-100 text-rose-700 border border-rose-300 px-2 py-0.5 rounded-full">배달 불가</span>
+                    <span
+                      className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600"
+                      onClick={() => openDetail(item.id)}
+                      role="button"
+                    >
+                      상세보기 &gt;
+                    </span>
+                    <div className="text-sm text-orange-500 font-semibold mt-0.5">
+                      {item.quantity > 1
+                        ? <>{formatPrice(item.price * item.quantity)} <span className="text-[10px] text-gray-400 font-normal">({formatPrice(item.price)} x {item.quantity})</span></>
+                        : formatPrice(item.price)}
+                      {item.stock > 0 && item.stock < 10 && (
+                        <span className="ml-1.5 text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium">재고 10개 미만</span>
                       )}
-                      {item.stock > 0 && (
-                        <span className="text-xs">
-                          {(item.stock - item.quantity) === 0 ? '재고를 모두 담았어요!' : `${item.stock - item.quantity}개 남았어요!`}
-                        </span>
+                      {item.stock >= 10 && item.stock < 20 && (
+                        <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium">재고 20개 미만</span>
                       )}
                     </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-[1fr,auto] gap-2">
-                    <div className="flex items-center border rounded overflow-hidden h-9 bg-white">
+                    {item.deliveryAvailable === false && (
+                      <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded-full">배달 불가</span>
+                    )}
+                    {/* 수량 + 버튼 */}
+                    <div className="mt-1.5 flex items-center justify-between">
+                      <div className="flex items-center border rounded overflow-hidden h-7 bg-white flex-1 mr-1.5">
+                        <button
+                          onClick={() => handleQuantity(item.id, -1)}
+                          className="w-8 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm disabled:opacity-30 flex-shrink-0"
+                          disabled={item.quantity <= 0}
+                          aria-label="수량 감소"
+                        >
+                          -
+                        </button>
+                        <span className="flex-1 text-center text-xs">{item.quantity}</span>
+                        <button
+                          onClick={() => handleQuantity(item.id, 1)}
+                          className="w-8 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm disabled:opacity-30 flex-shrink-0"
+                          disabled={item.quantity >= 99}
+                          aria-label="수량 증가"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleQuantity(item.id, -1)}
-                        className="w-10 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
-                        disabled={item.quantity <= 0}
-                        aria-label="수량 감소"
-                      >
-                        -
-                      </button>
-                      <span className="flex-1 text-center text-sm">{item.quantity}</span>
-                      <button
-                        onClick={() => handleQuantity(item.id, 1)}
-                        className="w-10 h-full bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
-                        disabled={item.quantity >= item.stock}
-                        aria-label="수량 증가"
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openDetail(item.id)}
-                        className="h-9 px-3 rounded border border-gray-300 hover:bg-gray-50 text-sm font-medium"
-                        type="button"
-                      >
-                        상세
-                      </button>
-                      <button
-                        onClick={() => handleReserve(item)}
+                        onClick={() => setConfirmTarget(item)}
                         disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
-                        className={`h-9 px-4 rounded text-sm font-medium ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
+                        className={`h-7 w-20 rounded text-xs font-medium flex-shrink-0 ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                       >
                         {item.stock === 0
                           ? '품절'
@@ -1337,6 +1331,53 @@ export default function ReservePage() {
           onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
           productId={detailDialog.productId}
         />
+      )}
+
+      {/* 예약 확인 다이얼로그 */}
+      {confirmTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4" aria-modal="true" role="dialog">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmTarget(null)} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl p-5">
+            <h3 className="text-base font-bold text-gray-800 mb-3">예약 확인</h3>
+            <div className="space-y-2 text-sm text-gray-700">
+              <div className="flex justify-between">
+                <span className="text-gray-500">상품</span>
+                <span className="font-medium">{confirmTarget.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">수량</span>
+                <span className="font-medium">{confirmTarget.quantity}개</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">금액</span>
+                <span className="font-semibold text-orange-500">{formatPrice(confirmTarget.price * confirmTarget.quantity)}</span>
+              </div>
+            </div>
+            <div className="mt-4 p-2.5 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-xs text-orange-800">
+                ⚠ <strong>{prettydate(confirmTarget.sellDate)} {theme.config.pickupDeadline.split(':')[0]}시까지</strong> 매장 방문 수령이 필요합니다. 미수령 시 자동 취소됩니다.
+              </p>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium text-sm"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  const target = confirmTarget;
+                  setConfirmTarget(null);
+                  handleReserve(target);
+                }}
+                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm"
+              >
+                예약하기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 예약 완료 후 액션 다이얼로그 */}
@@ -1520,9 +1561,12 @@ export default function ReservePage() {
                           {product.price.toLocaleString()}원
                         </div>
                       </div>
-                      <div className="text-xs text-orange-600 font-semibold">
-                        {product.stock > 0 ? '재고 있음' : '품절'}
-                      </div>
+                      {product.stock > 0 && product.stock < 10 && (
+                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">재고 10개 미만</span>
+                      )}
+                      {product.stock >= 10 && product.stock < 20 && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">재고 20개 미만</span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1569,7 +1613,7 @@ export default function ReservePage() {
           }} />
           <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">{messageDialog.title}</h3>
-            <p className="text-gray-700 mb-6 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: messageDialog.body.replace(/\n/g, '<br/>') }} />
+            <p className="text-gray-700 mb-6 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(messageDialog.body.replace(/\n/g, '<br/>')) }} />
             <div className="flex justify-end">
               <button
                 onClick={async () => {
