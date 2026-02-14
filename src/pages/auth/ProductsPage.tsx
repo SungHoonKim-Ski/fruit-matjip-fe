@@ -157,9 +157,6 @@ export default function ReservePage() {
   // 날짜 전환 fade 효과
   const [dateFading, setDateFading] = useState(false);
 
-  // 예약 확인 다이얼로그
-  const [confirmTarget, setConfirmTarget] = useState<Product | null>(null);
-
   // 예약 완료 다이얼로그
   const [deliveryDialogOpen, setDeliveryDialogOpen] = useState(false);
   const [deliveryMinAmount, setDeliveryMinAmount] = useState<number | null>(null);
@@ -1179,14 +1176,14 @@ export default function ReservePage() {
 
         {/* 전체 비어있을 때 안내 */}
         {allProductDates.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             현재 예약중인 상품이 없습니다.
           </div>
         )}
 
         {/* 필터링 결과 없음 (검색어 없는 경우 - 카테고리 등) */}
         {allProductDates.length > 0 && availableDates.length === 0 && !search && (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             조회된 상품이 없습니다.
             <div className="text-xs text-gray-400 mt-2">다른 카테고리를 선택해 보세요.</div>
           </div>
@@ -1194,7 +1191,7 @@ export default function ReservePage() {
 
         {/* 검색 결과 없음 */}
         {allProductDates.length > 0 && availableDates.length === 0 && search && (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             <div className="text-sm">
               <span
                 className="font-medium text-orange-600 cursor-pointer hover:underline"
@@ -1302,7 +1299,7 @@ export default function ReservePage() {
                         </button>
                       </div>
                       <button
-                        onClick={() => setConfirmTarget(item)}
+                        onClick={() => handleReserve(item)}
                         disabled={item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null}
                         className={`h-7 w-20 rounded text-xs font-medium flex-shrink-0 ${item.stock === 0 || !isReservationTimeOpen(item, timeOffsetMs) || reservingProductId !== null ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 text-white'}`}
                       >
@@ -1356,53 +1353,6 @@ export default function ReservePage() {
           onClose={() => setDetailDialog({ isOpen: false, productId: 0 })}
           productId={detailDialog.productId}
         />
-      )}
-
-      {/* 예약 확인 다이얼로그 */}
-      {confirmTarget && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4" aria-modal="true" role="dialog">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmTarget(null)} />
-          <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl p-5">
-            <h3 className="text-base font-bold text-gray-800 mb-3">예약 확인</h3>
-            <div className="space-y-2 text-sm text-gray-700">
-              <div className="flex justify-between">
-                <span className="text-gray-500">상품</span>
-                <span className="font-medium">{confirmTarget.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">수량</span>
-                <span className="font-medium">{confirmTarget.quantity}개</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">금액</span>
-                <span className="font-semibold text-orange-500">{formatPrice(confirmTarget.price * confirmTarget.quantity)}</span>
-              </div>
-            </div>
-            <div className="mt-4 p-2.5 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-xs text-orange-800">
-                ⚠ <strong>{prettydate(confirmTarget.sellDate)} {theme.config.pickupDeadline.split(':')[0]}시까지</strong> 매장 방문 수령이 필요합니다. 미수령 시 자동 취소됩니다.
-              </p>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setConfirmTarget(null)}
-                className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium text-sm"
-              >
-                취소
-              </button>
-              <button
-                onClick={() => {
-                  const target = confirmTarget;
-                  setConfirmTarget(null);
-                  handleReserve(target);
-                }}
-                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium text-sm"
-              >
-                예약하기
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* 예약 완료 후 액션 다이얼로그 */}
