@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AdminHeader from '../../components/AdminHeader';
 import { getAdminDeliveries, updateAdminDeliveryStatus, getAdminDeliveryConfig, updateAdminDeliveryConfig } from '../../utils/api';
 import { safeErrorLog } from '../../utils/environment';
@@ -133,6 +133,23 @@ export default function AdminDeliveriesPage() {
     }
     return raw;
   };
+
+  const deliverySummary = useMemo(() => {
+    let deliveredCount = 0;
+    let deliveredAmount = 0;
+    let inProgressCount = 0;
+    let inProgressAmount = 0;
+    for (const row of rows) {
+      if (row.status === 'DELIVERED') {
+        deliveredCount++;
+        deliveredAmount += row.totalAmount;
+      } else if (row.status === 'PAID' || row.status === 'OUT_FOR_DELIVERY') {
+        inProgressCount++;
+        inProgressAmount += row.totalAmount;
+      }
+    }
+    return { deliveredCount, deliveredAmount, inProgressCount, inProgressAmount };
+  }, [rows]);
 
   const filteredRows = rows.filter(row => {
     if (deliveryFilter === 'in_progress') {
@@ -622,8 +639,19 @@ export default function AdminDeliveriesPage() {
           )}
         </div>
         <div id="delivery-orders" className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-            <h2 className="text-xl font-bold text-gray-800">배달 주문 목록</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <div className="flex items-center justify-between sm:justify-start gap-3">
+              <h2 className="text-xl font-bold text-gray-800 whitespace-nowrap">배달 주문 목록</h2>
+              <div className="text-xs text-gray-600 leading-relaxed whitespace-nowrap">
+                <span className="text-green-700 font-semibold">완료 {deliverySummary.deliveredCount}건</span>
+                <span className="mx-0.5">/</span>
+                <span className="font-medium">{deliverySummary.deliveredAmount.toLocaleString()}원</span>
+                <span className="mx-1 text-gray-300">|</span>
+                <span className="text-blue-700 font-semibold">진행 {deliverySummary.inProgressCount}건</span>
+                <span className="mx-0.5">/</span>
+                <span className="font-medium">{deliverySummary.inProgressAmount.toLocaleString()}원</span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600">날짜</label>
               <input
