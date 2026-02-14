@@ -36,9 +36,6 @@ type CategoryItem = {
   productIds: number[];
 };
 
-// 상단 설정
-const MAX_CATEGORY_COUNT = 9;
-
 // 이미지 URL 절대경로 변환 유틸
 const getDisplayUrl = (url?: string) => {
   if (!url) return defaultKeywordImage;
@@ -155,8 +152,7 @@ export default function AdminCategoryPage() {
   const canAdd = (
     input.trim().length > 0 &&
     input.trim().length <= 5 &&
-    !categoryNameList.includes(input.trim()) &&
-    categories.length < MAX_CATEGORY_COUNT
+    !categoryNameList.includes(input.trim())
   );
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -342,7 +338,7 @@ export default function AdminCategoryPage() {
         </div>
 
         <div className="bg-gray-50 border-t px-6 py-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 카테고리 목록 ({categories.length} / {MAX_CATEGORY_COUNT})</div>
+          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 카테고리 목록 ({categories.length}개)</div>
           {loading ? (
             <div className="text-gray-500 text-sm">로딩 중...</div>
           ) : (
