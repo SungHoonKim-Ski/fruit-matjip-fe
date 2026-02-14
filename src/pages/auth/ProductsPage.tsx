@@ -154,6 +154,9 @@ export default function ReservePage() {
   // 상단 안내 접기/펼치기
   const [infoExpanded, setInfoExpanded] = useState(false);
 
+  // 날짜 전환 fade 효과
+  const [dateFading, setDateFading] = useState(false);
+
   // 예약 확인 다이얼로그
   const [confirmTarget, setConfirmTarget] = useState<Product | null>(null);
 
@@ -1073,40 +1076,60 @@ export default function ReservePage() {
 
 
         {/* 날짜 탭 */}
-        <div className="bg-white p-2 rounded-lg shadow mt-2">
-          <div className="flex items-center justify-start gap-2 overflow-x-auto pl-3 pr-3">
-            {availableDates.length > 0 ? availableDates.map(date => {
-              const active = activeDate === date;
-              return (
-                <button
-                  key={date}
-                  onClick={() => {
-                    setActiveDate(date);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={
-                    'px-2 py-1.5 rounded-lg border text-xs whitespace-nowrap transition ' +
-                    (active
-                      ? 'bg-orange-500 text-white border-orange-500 shadow'
-                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50')
-                  }
-                >
-                  <div className="font-semibold text-xs">{prettyKdate(date)}</div>
-                  <div className={`text-[11px] mt-0.5 text-center ${active ? 'text-white/90' : 'text-gray-600'}`}>
-                    {countOf(date)}개 예약중
-                  </div>
-                </button>
-              );
-            }) : (
-              <div className="text-gray-400 text-xs py-2">
-                {allProductDates.length === 0 ? '판매 예정 상품 준비 중' : '카테고리에 해당하는 상품이 없습니다'}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* 카테고리 칩 (sticky) */}
-        <div className="sticky top-14 z-30 bg-white p-2 rounded-lg shadow mt-1 mb-4">
+        {/* 날짜 + 카테고리 (sticky) */}
+        <div className="sticky top-14 z-30 bg-white rounded-lg shadow mt-1 mb-4">
+          {/* 날짜 내비게이션 */}
+          <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100">
+            <button
+              onClick={() => {
+                const idx = availableDates.indexOf(activeDate);
+                if (idx > 0) {
+                  setDateFading(true);
+                  setTimeout(() => {
+                    setActiveDate(availableDates[idx - 1]);
+                    setDateFading(false);
+                  }, 150);
+                }
+              }}
+              disabled={availableDates.indexOf(activeDate) <= 0}
+              className="flex-1 flex items-center justify-start gap-1 rounded-full px-1.5 py-1 hover:bg-gray-100 disabled:opacity-20 transition"
+              aria-label="이전 날짜"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              {availableDates.indexOf(activeDate) > 0 && (
+                <span className="text-[11px] text-gray-400">{prettydate(availableDates[availableDates.indexOf(activeDate) - 1])}</span>
+              )}
+            </button>
+            <span className="text-sm font-bold" style={{ color: 'var(--color-primary-500)' }}>
+              {prettyKdate(activeDate)}
+            </span>
+            <button
+              onClick={() => {
+                const idx = availableDates.indexOf(activeDate);
+                if (idx < availableDates.length - 1) {
+                  setDateFading(true);
+                  setTimeout(() => {
+                    setActiveDate(availableDates[idx + 1]);
+                    setDateFading(false);
+                  }, 150);
+                }
+              }}
+              disabled={availableDates.indexOf(activeDate) >= availableDates.length - 1}
+              className="flex-1 flex items-center justify-end gap-1 rounded-full px-1.5 py-1 hover:bg-gray-100 disabled:opacity-20 transition"
+              aria-label="다음 날짜"
+            >
+              {availableDates.indexOf(activeDate) < availableDates.length - 1 && (
+                <span className="text-[11px] text-gray-400">{prettydate(availableDates[availableDates.indexOf(activeDate) + 1])}</span>
+              )}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+          {/* 카테고리 칩 */}
           <div className="px-3 py-1 overflow-x-auto">
             <div className="flex gap-3">
               {((recommendedKeywords.length > 0 ? recommendedKeywords : [
@@ -1208,7 +1231,7 @@ export default function ReservePage() {
 
         {/* 상품 목록(선택 날짜) */}
         {!restricted && availableDates.length > 0 && (
-          <div className="space-y-2 mb-6">
+          <div className={`space-y-2 mb-6 transition-opacity duration-300 ${dateFading ? 'opacity-0' : 'opacity-100'}`}>
             {productsOfDay.map((item) => (
               <div
                 key={item.id}
@@ -1234,27 +1257,29 @@ export default function ReservePage() {
                     >
                       <span className="hover:underline">{highlightSearchTerm(item.name, search)}</span>
                     </h2>
-                    <span
-                      className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600"
-                      onClick={() => openDetail(item.id)}
-                      role="button"
-                    >
-                      상세보기 &gt;
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span
+                        className="text-[11px] text-gray-400 cursor-pointer hover:text-gray-600"
+                        onClick={() => openDetail(item.id)}
+                        role="button"
+                      >
+                        상세보기 &gt;
+                      </span>
+                      {item.stock > 0 && item.stock < 10 && (
+                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium">10개↓</span>
+                      )}
+                      {item.stock >= 10 && item.stock < 20 && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium">20개↓</span>
+                      )}
+                      {item.deliveryAvailable === false && (
+                        <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded-full">배달 X</span>
+                      )}
+                    </div>
                     <div className="text-sm text-orange-500 font-semibold mt-0.5">
                       {item.quantity > 1
                         ? <>{formatPrice(item.price * item.quantity)} <span className="text-[10px] text-gray-400 font-normal">({formatPrice(item.price)} x {item.quantity})</span></>
                         : formatPrice(item.price)}
-                      {item.stock > 0 && item.stock < 10 && (
-                        <span className="ml-1.5 text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium">재고 10개 미만</span>
-                      )}
-                      {item.stock >= 10 && item.stock < 20 && (
-                        <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium">재고 20개 미만</span>
-                      )}
                     </div>
-                    {item.deliveryAvailable === false && (
-                      <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded-full">배달 불가</span>
-                    )}
                     {/* 수량 + 버튼 */}
                     <div className="mt-1.5 flex items-center justify-between">
                       <div className="flex items-center border rounded overflow-hidden h-7 bg-white flex-1 mr-1.5">
@@ -1562,10 +1587,10 @@ export default function ReservePage() {
                         </div>
                       </div>
                       {product.stock > 0 && product.stock < 10 && (
-                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">재고 10개 미만</span>
+                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">10개↓</span>
                       )}
                       {product.stock >= 10 && product.stock < 20 && (
-                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">재고 20개 미만</span>
+                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">20개↓</span>
                       )}
                     </div>
                   ))}
