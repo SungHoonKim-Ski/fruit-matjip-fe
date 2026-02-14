@@ -13,6 +13,7 @@ type ProductForm = {
   image_url: File | null;
   sell_date: string;  // NotBlank, Pattern: YYYY-MM-DD
   visible: boolean;  // NotNull
+  delivery_available: boolean;
 };
 const PRICE_MAX = 1_000_000;
 type CategoryItem = {
@@ -47,6 +48,7 @@ export default function ProductCreatePage() {
     image_url: null,
     sell_date: getKstTodayStr(),
     visible: true,
+    delivery_available: true,
   });
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -153,10 +155,6 @@ export default function ProductCreatePage() {
       return;
     }
 
-    if (name === 'visible') {
-      setForm({ ...form, visible: value === 'true' });
-      return;
-    }
 
     setForm({ ...form, [name]: value } as any);
   };
@@ -166,6 +164,10 @@ export default function ProductCreatePage() {
       show('모든 값을 입력해주세요.', { variant: 'error' });
       return;
     }
+    if (selectedCategoryIds.length === 0) {
+      show('카테고리를 선택해주세요.', { variant: 'error' });
+      return;
+    }
 
     try {
       setUploading(true);
@@ -173,7 +175,7 @@ export default function ProductCreatePage() {
       if (USE_MOCKS) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         show('상품이 등록되었습니다!', { variant: 'success' });
-        setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true });
+        setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true, delivery_available: true });
         if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
         nav('/admin/products', { replace: true });
         return;
@@ -226,6 +228,7 @@ export default function ProductCreatePage() {
         image_url: key, // 서버는 S3 key 저장
         sell_date: form.sell_date,
         visible: form.visible,
+        delivery_available: form.delivery_available,
       };
 
       const res = await createAdminProduct(productPayload);
@@ -246,9 +249,10 @@ export default function ProductCreatePage() {
         createdId = null;
       }
 
-      if (createdId && selectedCategoryIds.length > 0) {
+      const realCategoryIds = selectedCategoryIds.filter(id => id > 0);
+      if (createdId && realCategoryIds.length > 0) {
         try {
-          await Promise.all(selectedCategoryIds.map(id => addCategoryToProduct(createdId as number, id)));
+          await Promise.all(realCategoryIds.map(id => addCategoryToProduct(createdId as number, id)));
         } catch (err) {
           safeErrorLog(err, 'ProductCreatePage - attach categories');
           show('카테고리 연결 중 오류가 발생했습니다.', { variant: 'error' });
@@ -256,7 +260,7 @@ export default function ProductCreatePage() {
       }
 
       show('상품이 등록되었습니다!', { variant: 'success' });
-      setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true });
+      setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true, delivery_available: true });
       if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
       setIsCompressed(false);
       setSelectedCategoryIds([]);
@@ -332,37 +336,45 @@ export default function ProductCreatePage() {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium">카테고리</label>
-          {categories.length === 0 ? (
-            <div className="text-xs text-gray-500">등록된 카테고리가 없습니다.</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {categories.map(category => {
-                const active = selectedCategoryIds.includes(category.id);
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategoryIds(prev =>
-                        prev.includes(category.id)
-                          ? prev.filter(id => id !== category.id)
-                          : [...prev, category.id]
-                      );
-                    }}
-                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
-                      active
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <p className="text-xs text-gray-400">여러 개 선택 가능합니다.</p>
+          <label className="block text-sm font-medium">카테고리 <span className="text-red-500">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryIds([-1])}
+              className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                selectedCategoryIds.includes(-1)
+                  ? 'bg-gray-600 border-gray-600 text-white'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              없음
+            </button>
+            {categories.map(category => {
+              const active = selectedCategoryIds.includes(category.id);
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategoryIds(prev => {
+                      const withoutNone = prev.filter(id => id !== -1);
+                      return withoutNone.includes(category.id)
+                        ? withoutNone.filter(id => id !== category.id)
+                        : [...withoutNone, category.id];
+                    });
+                  }}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                    active
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400">1개 이상 선택 필수 (없음 선택 시 카테고리 미지정)</p>
         </div>
 
         <div className="space-y-2">
@@ -378,17 +390,29 @@ export default function ProductCreatePage() {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium">노출 여부 <span className="text-red-500">*</span></label>
-          <select
-            name="visible"
-            value={form.visible ? 'true' : 'false'}
-            onChange={handleChange}
-            className="w-full border px-3 py-2 rounded"
-            required
+          <label className="block text-sm font-medium">상품 노출 / 배달 여부 설정 <span className="text-red-500">*</span></label>
+          <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setForm(prev => ({ ...prev, visible: !prev.visible }))}
+            className={`h-8 w-full rounded font-medium transition text-sm
+              ${form.visible
+                ? 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
           >
-            <option value="true">상품 목록 노출 O</option>
-            <option value="false">상품 목록 노출 X</option>
-          </select>
+            {form.visible ? '노출 O' : '노출 X'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm(prev => ({ ...prev, delivery_available: !prev.delivery_available }))}
+            className={`h-8 w-full rounded font-medium transition text-sm
+              ${form.delivery_available
+                ? 'bg-green-500 hover:bg-green-600 text-white'
+                : 'bg-rose-500 hover:bg-rose-600 text-white'}`}
+          >
+            {form.delivery_available ? '배달 가능' : '배달 불가'}
+          </button>
+          </div>
         </div>
 
         <div className="space-y-2">
