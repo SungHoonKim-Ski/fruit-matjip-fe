@@ -50,9 +50,15 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const formatKstDate = (ms: number) =>
     new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
+  // D-26020216-VWQPA → D-VWQPA (중간 날짜 영역 제거)
+  const shortCode = (code: string) => {
+    const parts = code.split('-');
+    return parts.length === 3 ? `${parts[0]}-${parts[2]}` : code;
+  };
+
   const parseAlertPayload = (data: any, type: 'paid' | 'upcoming'): DeliveryAlertPayload => ({
     orderId: Number(data.order_id ?? data.id ?? 0),
-    displayCode: String(data.display_code ?? data.displayCode ?? data.order_id ?? data.id ?? ''),
+    displayCode: shortCode(String(data.display_code ?? data.displayCode ?? data.order_id ?? data.id ?? '')),
     reservationIds: Array.isArray(data.reservation_ids) ? data.reservation_ids.map((id: any) => Number(id)) : [],
     reservationCount: Number(data.reservation_count || 0),
     buyerName: String(data.buyer_name || ''),
