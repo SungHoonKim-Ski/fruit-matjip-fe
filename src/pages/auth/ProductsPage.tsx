@@ -673,8 +673,7 @@ export default function ReservePage() {
         const reservationData = {
           product_id: product.id,
           quantity: product.quantity,
-          pickup_date: product.sellDate,
-          amount: product.price * product.quantity
+          pickup_date: product.sellDate
         };
 
         const res = await createReservation(reservationData);
