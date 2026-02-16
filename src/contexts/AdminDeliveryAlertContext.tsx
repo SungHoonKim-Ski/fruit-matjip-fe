@@ -84,9 +84,10 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   // SSE 이벤트 데이터를 프린터 브릿지가 요구하는 형식으로 변환
   const buildPrintData = (payload: DeliveryAlertPayload): PrintReceiptData => ({
     orderId: payload.orderId,
+    displayCode: payload.displayCode?.split('-').pop() || undefined,
     paidAt: payload.paidAt,
-    deliveryHour: payload.scheduledDeliveryHour ?? payload.deliveryHour,
-    deliveryMinute: payload.scheduledDeliveryMinute ?? payload.deliveryMinute,
+    deliveryHour: payload.deliveryHour,
+    deliveryMinute: payload.deliveryMinute,
     buyerName: payload.buyerName,
     phone: payload.phone,
     items: payload.reservationItems.map(item => ({
@@ -100,6 +101,8 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     distanceKm: payload.distanceKm,
     address1: payload.address1,
     address2: payload.address2 || undefined,
+    scheduledDeliveryHour: payload.scheduledDeliveryHour ?? undefined,
+    scheduledDeliveryMinute: payload.scheduledDeliveryMinute ?? undefined,
   });
 
   const pushAlert = (payload: DeliveryAlertPayload) => {
