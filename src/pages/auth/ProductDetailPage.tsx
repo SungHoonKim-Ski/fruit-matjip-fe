@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { theme } from '../../brand';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
@@ -20,52 +21,15 @@ type Product = {
 
 const KRW = (n: number) => n.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-// HTML 텍스트를 안전하게 렌더링하는 함수
 const renderSafeHTML = (html: string) => {
   if (!html) return '';
 
-  // 블록 태그가 하나도 없을 때만 \n -> <br> 치환
   const hasBlock = /<\/?(div|p|ul|ol|li|h[1-6])\b/i.test(html);
-  let processed = hasBlock ? html : html.replace(/\n/g, '<br>');
+  const processed = hasBlock ? html : html.replace(/\n/g, '<br>');
 
-  const allowedTags = ['b', 'strong', 'span', 'div', 'p', 'br'];
-
-  return processed.replace(/<(\/?)([\w-]+)([^>]*)>/g, (match, closing, tagName, attrs) => {
-    const t = tagName.toLowerCase();
-
-    // br은 그대로 통과
-    if (t === 'br') return '<br>';
-
-    // 허용된 태그만 살림
-    if (!allowedTags.includes(t)) return '';
-
-    // 닫는 태그는 그대로
-    if (closing === '/') return `</${t}>`;
-
-    // span/div는 style에서 font-size, text-align만 통과 + line-height 보정
-    if ((t === 'span' || t === 'div') && attrs) {
-      const styleMatch = attrs.match(/style="([^"]*)"/i);
-      const style = styleMatch?.[1] || '';
-      const fontSizeMatch = style.match(/font-size:\s*(14px|24px|40px)/i);
-      const alignMatch = style.match(/text-align:\s*(left|center|right)/i);
-
-      const fontSize = fontSizeMatch?.[1];
-      const lineHeight =
-        fontSize === '14px' ? '22px' :
-          fontSize === '24px' ? '34px' :
-            fontSize === '40px' ? '56px' : undefined;
-
-      const css = [
-        fontSize ? `font-size:${fontSize}` : '',
-        lineHeight ? `line-height:${lineHeight}` : '',
-        alignMatch ? `text-align:${alignMatch[1]}` : '',
-      ].filter(Boolean).join('; ');
-
-      return css ? `<${t} style="${css}">` : `<${t}>`;
-    }
-
-    // 기본 허용 태그(b,strong,p,div)
-    return `<${t}>`;
+  return DOMPurify.sanitize(processed, {
+    ALLOWED_TAGS: ['b', 'strong', 'span', 'div', 'p', 'br'],
+    ALLOWED_ATTR: ['style'],
   });
 };
 
