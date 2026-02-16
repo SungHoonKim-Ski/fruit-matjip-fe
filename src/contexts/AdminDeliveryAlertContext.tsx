@@ -203,12 +203,11 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
           const data = JSON.parse((event as MessageEvent).data);
           const payload = parseAlertPayload(data, 'paid');
           pushAlert(payload);
-          // [임시 비활성화] 결제 완료 시 자동 영수증 출력
-          // printReceipt(buildPrintData(payload)).then(ok => {
-          //   if (!ok) {
-          //     snackbar.show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
-          //   }
-          // });
+          printReceipt(buildPrintData(payload)).then(ok => {
+            if (!ok) {
+              snackbar.show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
+            }
+          });
         } catch (e) {
           safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
         }
