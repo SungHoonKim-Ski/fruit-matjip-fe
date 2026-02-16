@@ -1174,14 +1174,14 @@ export default function ReservePage() {
         </div>
 
         {/* 전체 비어있을 때 안내 */}
-        {allProductDates.length === 0 && (
+        {!restricted && allProductDates.length === 0 && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             현재 예약중인 상품이 없습니다.
           </div>
         )}
 
         {/* 필터링 결과 없음 (검색어 없는 경우 - 카테고리 등) */}
-        {allProductDates.length > 0 && availableDates.length === 0 && !search && (
+        {!restricted && allProductDates.length > 0 && availableDates.length === 0 && !search && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             조회된 상품이 없습니다.
             <div className="text-xs text-gray-400 mt-2">다른 카테고리를 선택해 보세요.</div>
@@ -1189,7 +1189,7 @@ export default function ReservePage() {
         )}
 
         {/* 검색 결과 없음 */}
-        {allProductDates.length > 0 && availableDates.length === 0 && search && (
+        {!restricted && allProductDates.length > 0 && availableDates.length === 0 && search && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500 mb-40">
             <div className="text-sm">
               <span
@@ -1261,11 +1261,8 @@ export default function ReservePage() {
                       >
                         상세보기 &gt;
                       </span>
-                      {item.stock > 0 && item.stock < 10 && (
-                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium">10개↓</span>
-                      )}
-                      {item.stock >= 10 && item.stock < 20 && (
-                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium">20개↓</span>
+                      {item.stock > 0 && item.stock <= 20 && (
+                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium">마감임박</span>
                       )}
                       {item.deliveryAvailable === false && (
                         <span className="text-[10px] bg-rose-100 text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded-full">배달 X</span>
@@ -1535,11 +1532,8 @@ export default function ReservePage() {
                           {product.price.toLocaleString()}원
                         </div>
                       </div>
-                      {product.stock > 0 && product.stock < 10 && (
-                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">10개↓</span>
-                      )}
-                      {product.stock >= 10 && product.stock < 20 && (
-                        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">20개↓</span>
+                      {product.stock > 0 && product.stock <= 20 && (
+                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">마감임박</span>
                       )}
                     </div>
                   ))}
