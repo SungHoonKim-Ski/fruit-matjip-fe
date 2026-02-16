@@ -35,9 +35,10 @@ export interface PrintReceiptData {
  * - CORS: 브릿지 서버가 Access-Control-Allow-Origin: * 헤더를 반환해야 함 (로컬이므로 보안 문제 없음)
  */
 export async function printReceipt(data: PrintReceiptData): Promise<boolean> {
-  // AbortController로 3초 timeout 구현
+  // AbortController로 10초 timeout 구현
+  // PowerShell 첫 실행 시 C# JIT 컴파일로 수 초 소요될 수 있음
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
     const response = await fetch(`${PRINTER_URL}/print`, {
@@ -65,7 +66,7 @@ export async function printReceipt(data: PrintReceiptData): Promise<boolean> {
     // AbortError는 timeout, 나머지는 네트워크/CORS 에러
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        console.warn('[printBridge] 프린터 출력 timeout (3초 초과)');
+        console.warn('[printBridge] 프린터 출력 timeout (10초 초과)');
       } else {
         console.warn('[printBridge] 프린터 출력 실패:', error.message);
       }
