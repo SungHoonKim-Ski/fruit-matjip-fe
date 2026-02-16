@@ -68,16 +68,6 @@ export default function AdminLoginPage() {
             />
           </div>
 
-          <div className="text-center mt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/admin/register')}
-              className="text-orange-500 hover:underline text-sm font-medium mt-1"
-            >
-              관리자 회원가입 (직원용)
-            </button>
-          </div>
-
           {error && <p className="text-sm text-red-500">{error}</p>}
             <button type="submit" className="btn btn-cta btn-primary w-full">
               로그인
