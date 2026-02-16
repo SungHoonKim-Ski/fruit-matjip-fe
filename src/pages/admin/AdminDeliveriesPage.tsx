@@ -310,6 +310,7 @@ export default function AdminDeliveriesPage() {
   const handlePrint = async (row: DeliveryRow) => {
     const data: PrintReceiptData = {
       orderId: row.id,
+      displayCode: stripDeliveryPrefix(row.displayCode),
       paidAt: row.paidAt,
       deliveryHour: row.deliveryHour,
       deliveryMinute: row.deliveryMinute,
@@ -326,6 +327,8 @@ export default function AdminDeliveriesPage() {
       distanceKm: row.distanceKm,
       address1: row.address1,
       address2: row.address2 || undefined,
+      scheduledDeliveryHour: row.scheduledDeliveryHour ?? undefined,
+      scheduledDeliveryMinute: row.scheduledDeliveryMinute ?? undefined,
     };
 
     const ok = await printReceipt(data);

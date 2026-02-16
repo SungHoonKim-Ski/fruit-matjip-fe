@@ -9,6 +9,7 @@ const PRINTER_URL = 'http://127.0.0.1:18181';
 // 영수증 출력 요청 데이터 타입
 export interface PrintReceiptData {
   orderId: number;
+  displayCode?: string;
   paidAt: string; // ISO datetime 문자열
   deliveryHour: number;
   deliveryMinute: number;
@@ -20,6 +21,8 @@ export interface PrintReceiptData {
   distanceKm: number;
   address1: string;
   address2?: string;
+  scheduledDeliveryHour?: number;
+  scheduledDeliveryMinute?: number;
 }
 
 /**
