@@ -787,7 +787,7 @@ export default function AdminDeliveriesPage() {
                           {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
                         </span>
                       )}
-                      <div className="font-medium text-gray-800">{stripDeliveryPrefix(r.displayCode)}</div>
+                      <div className="font-medium text-gray-800">{shortCode(r.displayCode)}</div>
                       {r.paidAt && (
                         <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                       )}
@@ -878,7 +878,7 @@ export default function AdminDeliveriesPage() {
                         {r.scheduledDeliveryHour}시{r.scheduledDeliveryMinute ? `${r.scheduledDeliveryMinute}분` : ''} 도착예정
                       </span>
                     )}
-                    <div className="font-semibold text-gray-800">{stripDeliveryPrefix(r.displayCode)}</div>
+                    <div className="font-semibold text-gray-800">{shortCode(r.displayCode)}</div>
                     {r.paidAt && (
                       <div className="text-xs text-gray-500">{new Date(r.paidAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 주문</div>
                     )}
