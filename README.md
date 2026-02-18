@@ -31,11 +31,11 @@
 
 ## ⚙️ 기술 스택
 
-- React 18 (TypeScript)
-- React Router
+- React 19 (TypeScript)
+- React Router DOM 7
 - TailwindCSS
-- Axios (API 호출)
-- React Query (데이터 캐싱)
+- Fetch API (`src/utils/api.ts` 공통 래퍼)
+- react-toastify (에러/알림 토스트)
 - ESLint + Prettier
 
 ---
