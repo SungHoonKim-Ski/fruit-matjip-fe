@@ -1,6 +1,7 @@
 // src/pages/admin/AdminEditProductPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import {
@@ -61,6 +62,13 @@ const toS3Key = (url: string) => {
     return url.replace(/^\//, '');
   }
 };
+
+// 에디터 전용 sanitize (관리자용이므로 허용 태그를 넓게)
+const sanitizeForEditor = (html: string) =>
+  DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'strong', 'i', 'em', 'u', 'span', 'div', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'a'],
+    ALLOWED_ATTR: ['style', 'href', 'src', 'alt', 'target', 'rel'],
+  });
 
 // 동시성 제한 유틸
 async function withLimit<T>(limit: number, tasks: Array<() => Promise<T>>) {
@@ -181,7 +189,7 @@ export default function AdminEditProductPage() {
     if (!el) return;
     isApplyingHistoryRef.current = true;
     withEditorFocus(() => {
-      el.innerHTML = html;
+      el.innerHTML = sanitizeForEditor(html);
       editorHtmlRef.current = html;
       const temp = document.createElement('div');
       temp.innerHTML = html;
@@ -377,7 +385,7 @@ export default function AdminEditProductPage() {
     const el = editorRef.current;
     let raf = 0;
     raf = window.requestAnimationFrame(() => {
-      el.innerHTML = html;
+      el.innerHTML = sanitizeForEditor(html);
       editorHtmlRef.current = html;
       const temp = document.createElement('div');
       temp.innerHTML = html;
@@ -401,7 +409,7 @@ export default function AdminEditProductPage() {
     if (!el) return;
     const html = form?.description || '';
     if (html && el.innerHTML.trim() === '') {
-      el.innerHTML = html;
+      el.innerHTML = sanitizeForEditor(html);
       editorHtmlRef.current = html;
       const temp = document.createElement('div');
       temp.innerHTML = html;
