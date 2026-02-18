@@ -138,7 +138,7 @@ export default function LoginPage() {
         setBusy(true);
 
         const expected = sessionStorage.getItem(OAUTH_STATE_KEY);
-        if (expected && stateFromUrl && expected !== stateFromUrl) {
+        if (!expected || !stateFromUrl || expected !== stateFromUrl) {
           throw new Error('잘못된 요청입니다. (state mismatch)');
         }
         if (AUTH_START_DELAY_MS > 0) {
