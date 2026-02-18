@@ -23,7 +23,7 @@ export default function Error401Page() {
     const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
     const redirectStored = localStorage.getItem('error-redirect');
     const fallback = type === 'admin' ? '/admin/login' : '/login';
-    const redirectUrl = redirectStored || fallback;
+    const redirectUrl = (redirectStored && redirectStored.startsWith('/') && !redirectStored.startsWith('//')) ? redirectStored : fallback;
 
     setCtx({ message, type, redirectUrl });
 

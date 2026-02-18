@@ -23,7 +23,7 @@ export default function Error403Page() {
     const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
     const redirectStored = localStorage.getItem('error-redirect');
     const fallback = type === 'admin' ? '/admin/login' : '/login';
-    const redirectUrl = redirectStored || fallback;
+    const redirectUrl = (redirectStored && redirectStored.startsWith('/') && !redirectStored.startsWith('//')) ? redirectStored : fallback;
 
     setCtx({ message, type, redirectUrl });
 
@@ -67,7 +67,8 @@ export default function Error403Page() {
           onClick={() => {
             const errorType = localStorage.getItem('error-type');
             const errorRedirect = localStorage.getItem('error-redirect');
-            const redirectUrl = errorRedirect || (errorType === 'admin' ? '/admin/login' : '/login');
+            const fallback = errorType === 'admin' ? '/admin/login' : '/login';
+            const redirectUrl = (errorRedirect && errorRedirect.startsWith('/') && !errorRedirect.startsWith('//')) ? errorRedirect : fallback;
             nav(redirectUrl, { replace: true });
           }}
         >

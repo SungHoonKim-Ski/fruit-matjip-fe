@@ -662,6 +662,19 @@ export default function DeliveryPage() {
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const mobileUrl = data.mobileRedirectUrl || data.mobile_redirect_url;
         const pcUrl = data.redirectUrl || data.redirect_url;
+
+        const isAllowedPaymentUrl = (url: string): boolean => {
+          try {
+            const { hostname } = new URL(url);
+            return hostname === 'online-pay.kakao.com' || hostname === 'mockup-pg-web.kakao.com';
+          } catch {
+            return false;
+          }
+        };
+
+        if (pcUrl && !isAllowedPaymentUrl(pcUrl)) throw new Error('허용되지 않은 결제 URL입니다.');
+        if (mobileUrl && !isAllowedPaymentUrl(mobileUrl)) throw new Error('허용되지 않은 결제 URL입니다.');
+
         if (!isMobile) {
           if (!pcUrl) throw new Error('결제 URL이 없습니다.');
           window.location.href = pcUrl;
