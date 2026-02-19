@@ -666,7 +666,7 @@ export default function DeliveryPage() {
         const isAllowedPaymentUrl = (url: string): boolean => {
           try {
             const { hostname } = new URL(url);
-            return hostname === 'online-pay.kakao.com' || hostname === 'mockup-pg-web.kakao.com';
+            return hostname === 'online-pay.kakao.com' || hostname === 'online-payment.kakaopay.com' || hostname === 'mockup-pg-web.kakao.com';
           } catch {
             return false;
           }
