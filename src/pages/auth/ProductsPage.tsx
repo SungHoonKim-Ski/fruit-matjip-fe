@@ -1033,15 +1033,15 @@ export default function ReservePage() {
           onClick={() => setInfoExpanded(prev => !prev)}
         >
           <div className="flex items-center justify-between px-3 py-2.5">
-            <div className="flex items-center gap-2 text-xs font-medium text-gray-700 overflow-x-auto whitespace-nowrap">
-              <span>🗓 {prettyKdate(activeDate)} 판매</span>
+            <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
+              <span>⏰ 19:30 마감</span>
               <span className="text-gray-300">·</span>
-              <span>⏰ {theme.config.reservationDeadline} 마감</span>
+              <span>🏪 ~20시까지 수령</span>
               <span className="text-gray-300">·</span>
-              <span>🏪 {theme.config.pickupDeadline.split(':')[0]}시 수령</span>
+              <span className="text-red-500">⚠ 노쇼시 이용제한</span>
             </div>
             <svg
-              className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-2 transition-transform ${infoExpanded ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${infoExpanded ? 'rotate-180' : ''}`}
               fill="none" stroke="currentColor" viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -1060,7 +1060,7 @@ export default function ReservePage() {
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-red-500 mt-0.5">•</span>
-                  <span className="text-red-600">노쇼 시 <strong>이용 제한</strong> 및 예약이 <strong>자동 취소</strong>됩니다</span>
+                  <span className="text-red-600">노쇼 시 <strong>이용제한</strong> 및 해당 기간 예약이 <strong>일괄 취소</strong>됩니다</span>
                 </li>
               </ul>
             </div>
