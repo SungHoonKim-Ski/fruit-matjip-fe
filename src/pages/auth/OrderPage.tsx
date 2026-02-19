@@ -38,7 +38,7 @@ export default function OrdersPage() {
   // 필터 - 기본값: 시작일(오늘)만 사용
   const [from, setFrom] = useState(localToday);
   const [fromTouched, setFromTouched] = useState(false);
-  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'canceled'>('all');
+  const [status, setStatus] = useState<'all' | 'pending' | 'picked' | 'canceled' | 'no_show'>('all');
 
   // 데이터
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -161,7 +161,7 @@ export default function OrdersPage() {
             const orderRows = reservationsArray.map((r: any) => {
               // ReservationStatus를 OrderRow status로 매핑
               // NO_SHOW는 CANCELED로 취급
-              let orderStatus: 'pending' | 'picked' | 'canceled';
+              let orderStatus: 'pending' | 'picked' | 'canceled' | 'no_show';
               const rawStatus = String(r.status ?? '').toUpperCase();
               switch (rawStatus) {
                 case 'PENDING':
@@ -176,18 +176,20 @@ export default function OrdersPage() {
                 case 'SELF_PICK_READY':
                   orderStatus = 'pending';
                   break;
+                case 'NO_SHOW':
+                  orderStatus = 'no_show';
+                  break;
                 case 'CANCELED':
                 case 'CANCELLED':
-                case 'NO_SHOW':
                   orderStatus = 'canceled';
                   break;
                 default:
-                  // 소문자로도 체크 (하위 호환성)
                   const lowerStatus = r.status?.toLowerCase();
                   if (lowerStatus === 'pending') orderStatus = 'pending';
                   else if (lowerStatus === 'picked' || lowerStatus === 'completed') orderStatus = 'picked';
                   else if (lowerStatus === 'self_pick' || lowerStatus === 'self_picked' || lowerStatus === 'self_pick_ready') orderStatus = 'pending';
-                  else if (lowerStatus === 'canceled' || lowerStatus === 'cancelled' || lowerStatus === 'no_show') orderStatus = 'canceled';
+                  else if (lowerStatus === 'no_show') orderStatus = 'no_show';
+                  else if (lowerStatus === 'canceled' || lowerStatus === 'cancelled') orderStatus = 'canceled';
                   else orderStatus = 'pending';
               }
 
@@ -263,6 +265,8 @@ export default function OrdersPage() {
     return () => { alive = false; };
   }, [fromTouched]);
 
+  const statusPriority: Record<string, number> = { pending: 0, picked: 1, canceled: 2, no_show: 3 };
+
   const filtered = useMemo(() => {
     const f = from ? new Date(from) : null;
     const searchQuery = search.trim().toLowerCase();
@@ -281,7 +285,7 @@ export default function OrdersPage() {
         o.items.some(item => item.name.toLowerCase().includes(searchQuery));
 
       return sameDay && s && matchesSearch;
-    });
+    }).sort((a, b) => (statusPriority[a.status] ?? 9) - (statusPriority[b.status] ?? 9));
   }, [orders, from, status, search]);
 
   const totalPrice = (o: OrderRow) =>
@@ -319,6 +323,9 @@ export default function OrdersPage() {
     }
     if (order.status === 'picked') {
       return <span className={`${base} bg-green-50 text-green-700 border border-green-200`}>{label}</span>;
+    }
+    if (order.status === 'no_show') {
+      return <span className={`${base} bg-red-50 text-red-700 border border-red-200`}>{label}</span>;
     }
     return <span className={`${base} bg-gray-100 text-gray-600 border border-gray-200`}>{label}</span>;
   };
@@ -597,6 +604,8 @@ export default function OrdersPage() {
         return '예약 완료';
       case 'picked':
         return '수령 완료';
+      case 'no_show':
+        return '노쇼';
       case 'canceled':
       default:
         return '예약 취소';
@@ -746,6 +755,7 @@ export default function OrdersPage() {
               <option value="pending">예약 완료</option>
               <option value="picked">수령 완료</option>
               <option value="canceled">예약 취소</option>
+              <option value="no_show">노쇼</option>
             </select>
           </div>
           <div className="flex items-end">

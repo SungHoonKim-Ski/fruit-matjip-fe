@@ -14,7 +14,7 @@ export type OrderRow = {
   id: number;
   displayCode: string;
   date: string;           // YYYY-MM-DD
-  status: 'pending' | 'picked' | 'canceled';
+  status: 'pending' | 'picked' | 'canceled' | 'no_show';
   items: OrderItem[];
   deliveryOrderCode?: string;
   delivery?: {
