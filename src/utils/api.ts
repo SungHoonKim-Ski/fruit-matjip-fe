@@ -191,11 +191,6 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
   throw new Error('예기치 못한 오류가 발생했습니다.');
 };
 
-const getCsrfToken = (): string | null => {
-  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-};
-
 // === Admin API 전용(fetch + 쿠키, Retry 포함) ===
 export const adminFetch = async (url: string, options: RequestInit = {}, autoRedirect = false): Promise<Response> => {
   const method = (options.method || 'GET').toString().toUpperCase();
@@ -204,12 +199,10 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
   let attempt = 0;
   while (attempt <= MAX_RETRY_PER_API) {
     try {
-      const csrfToken = getCsrfToken();
       const response = await fetch(`${API_BASE}${url}`, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          ...(csrfToken && method !== 'GET' ? { 'X-XSRF-TOKEN': csrfToken } : {}),
           ...(options.headers as Record<string, string> | undefined),
         },
         credentials: 'include',
