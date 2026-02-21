@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
+import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
 import {
   createAdminCourierProduct,
   getAdminCourierProductPresignedUrl,
-  getCourierCategories,
+  getAdminCourierCategories,
+  getAdminCourierShippingFeeTemplates,
+  ShippingFeeTemplateResponse,
 } from '../../../utils/api';
 import { compressImage } from '../../../utils/image-compress';
 
@@ -22,6 +25,17 @@ type ProductForm = {
 type CategoryItem = {
   id: number;
   name: string;
+};
+
+type OptionItemForm = {
+  name: string;
+  additionalPrice: string;
+};
+
+type OptionGroupForm = {
+  name: string;
+  required: boolean;
+  options: OptionItemForm[];
 };
 
 const PRICE_MAX = 1_000_000;
@@ -53,6 +67,13 @@ export default function AdminCourierCreateProductPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
 
+  // Shipping fee templates
+  const [shippingFeeTemplates, setShippingFeeTemplates] = useState<ShippingFeeTemplateResponse[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+
+  // Option groups
+  const [optionGroups, setOptionGroups] = useState<OptionGroupForm[]>([]);
+
   const DETAIL_IMAGES_MAX = 10;
 
   // Cleanup preview URLs (unmount only)
@@ -69,7 +90,7 @@ export default function AdminCourierCreateProductPage() {
     let alive = true;
     (async () => {
       try {
-        const res = await getCourierCategories();
+        const res = await getAdminCourierCategories();
         if (!res.ok) return;
         const data = await res.json();
         const list = Array.isArray(data?.response) ? data.response : (Array.isArray(data) ? data : []);
@@ -81,6 +102,20 @@ export default function AdminCourierCreateProductPage() {
         }
       } catch (err) {
         safeErrorLog(err, 'AdminCourierCreateProductPage - loadCategories');
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  // Load shipping fee templates
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await getAdminCourierShippingFeeTemplates();
+        if (alive) setShippingFeeTemplates(data.templates ?? []);
+      } catch (err) {
+        safeErrorLog(err, 'AdminCourierCreateProductPage - loadShippingFeeTemplates');
       }
     })();
     return () => { alive = false; };
@@ -166,6 +201,39 @@ export default function AdminCourierCreateProductPage() {
     return key;
   };
 
+  // Option group helpers
+  const addOptionGroup = () => {
+    setOptionGroups(prev => [...prev, { name: '', required: true, options: [{ name: '', additionalPrice: '0' }] }]);
+  };
+
+  const removeOptionGroup = (gi: number) => {
+    setOptionGroups(prev => prev.filter((_, i) => i !== gi));
+  };
+
+  const updateOptionGroup = (gi: number, field: keyof Pick<OptionGroupForm, 'name' | 'required'>, value: string | boolean) => {
+    setOptionGroups(prev => prev.map((g, i) => i === gi ? { ...g, [field]: value } : g));
+  };
+
+  const addOption = (gi: number) => {
+    setOptionGroups(prev => prev.map((g, i) =>
+      i === gi ? { ...g, options: [...g.options, { name: '', additionalPrice: '0' }] } : g
+    ));
+  };
+
+  const removeOption = (gi: number, oi: number) => {
+    setOptionGroups(prev => prev.map((g, i) =>
+      i === gi ? { ...g, options: g.options.filter((_, j) => j !== oi) } : g
+    ));
+  };
+
+  const updateOption = (gi: number, oi: number, field: keyof OptionItemForm, value: string) => {
+    setOptionGroups(prev => prev.map((g, i) =>
+      i === gi
+        ? { ...g, options: g.options.map((o, j) => j === oi ? { ...o, [field]: value } : o) }
+        : g
+    ));
+  };
+
   const handleSubmit = async () => {
     if (!form.name.trim()) {
       show('상품명을 입력해주세요.', { variant: 'error' });
@@ -197,19 +265,37 @@ export default function AdminCourierCreateProductPage() {
         detailKeys.push(key);
       }
 
-      // 3) Create product
+      // 3) Build option groups payload
+      const optionGroupsPayload = optionGroups
+        .filter(g => g.name.trim())
+        .map((g, gi) => ({
+          name: g.name.trim(),
+          required: g.required,
+          sort_order: gi,
+          options: g.options
+            .filter(o => o.name.trim())
+            .map((o, oi) => ({
+              name: o.name.trim(),
+              additional_price: Number(o.additionalPrice) || 0,
+              sort_order: oi,
+            })),
+        }));
+
+      // 4) Create product
       const payload: any = {
         name: form.name.trim(),
         price: form.price,
         stock: form.stock,
-        image_url: mainKey,
+        product_url: mainKey,
         visible: form.visible,
-        order_index: form.orderIndex,
+        sort_order: form.orderIndex,
       };
       if (form.weight.trim()) payload.weight = form.weight.trim();
       if (form.description.trim()) payload.description = form.description.trim();
-      if (detailKeys.length > 0) payload.detail_urls = detailKeys;
+      if (detailKeys.length > 0) payload.detail_image_urls = detailKeys;
       if (selectedCategoryIds.length > 0) payload.category_ids = selectedCategoryIds;
+      if (selectedTemplateId != null) payload.shipping_fee_template_id = selectedTemplateId;
+      if (optionGroupsPayload.length > 0) payload.option_groups = optionGroupsPayload;
 
       const res = await createAdminCourierProduct(payload);
       if (!res.ok) {
@@ -218,7 +304,7 @@ export default function AdminCourierCreateProductPage() {
       }
 
       show('상품이 등록되었습니다!', { variant: 'success' });
-      nav('/shop/admin/products', { replace: true });
+      nav('/admin/courier/products', { replace: true });
     } catch (err: any) {
       safeErrorLog(err, 'AdminCourierCreateProductPage - handleSubmit');
       show(getSafeErrorMessage(err, '상품 등록 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -229,17 +315,13 @@ export default function AdminCourierCreateProductPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 pt-6 pb-24">
-      <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
+      <div className="max-w-md mx-auto mb-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">택배 상품 등록</h1>
-          <button
-            type="button"
-            onClick={() => nav('/shop/admin/products')}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            목록으로
-          </button>
+          <AdminCourierHeader />
         </div>
+      </div>
+      <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
 
         {/* Name */}
         <div className="space-y-2">
@@ -311,7 +393,7 @@ export default function AdminCourierCreateProductPage() {
             value={form.description}
             onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
             className="w-full border px-3 py-2 rounded min-h-[100px] resize-y"
-            placeholder="상품 설명을 입력하세요"
+            placeholder="상품 설명 (HTML 태그 사용 가능: b, i, br, ul, li, p 등)"
             maxLength={500}
           />
           <p className="text-xs text-gray-500 text-right">{form.description.length} / 500</p>
@@ -328,6 +410,21 @@ export default function AdminCourierCreateProductPage() {
             min={0}
           />
           <p className="text-xs text-gray-500">숫자가 작을수록 먼저 표시됩니다</p>
+        </div>
+
+        {/* Shipping fee template */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">배송비 템플릿</label>
+          <select
+            value={selectedTemplateId ?? ''}
+            onChange={e => setSelectedTemplateId(e.target.value === '' ? null : Number(e.target.value))}
+            className="w-full border px-3 py-2 rounded bg-white"
+          >
+            <option value="">전역 정책 사용 (기본)</option>
+            {shippingFeeTemplates.filter(t => t.active).map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Categories */}
@@ -436,6 +533,95 @@ export default function AdminCourierCreateProductPage() {
               파일 선택
             </label>
           </div>
+        </div>
+
+        {/* Option groups */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium">옵션 그룹 (선택)</label>
+            <button
+              type="button"
+              onClick={addOptionGroup}
+              className="text-xs px-3 py-1.5 rounded border border-blue-500 text-blue-600 hover:bg-blue-50 transition"
+            >
+              + 옵션 그룹 추가
+            </button>
+          </div>
+          {optionGroups.length > 0 && (
+            <div className="space-y-3">
+              {optionGroups.map((group, gi) => (
+                <div key={gi} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                  {/* Group header */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={group.name}
+                      onChange={e => updateOptionGroup(gi, 'name', e.target.value)}
+                      className="flex-1 border px-2 py-1.5 rounded text-sm"
+                      placeholder="그룹명 (예: 사이즈, 색상)"
+                    />
+                    <label className="flex items-center gap-1 text-xs text-gray-600 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={group.required}
+                        onChange={e => updateOptionGroup(gi, 'required', e.target.checked)}
+                        className="accent-orange-500"
+                      />
+                      필수
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeOptionGroup(gi)}
+                      className="text-red-400 hover:text-red-600 text-xs px-1"
+                      aria-label="그룹 삭제"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  {/* Options */}
+                  <div className="space-y-1.5 pl-1">
+                    {group.options.map((opt, oi) => (
+                      <div key={oi} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={opt.name}
+                          onChange={e => updateOption(gi, oi, 'name', e.target.value)}
+                          className="flex-1 border px-2 py-1 rounded text-sm"
+                          placeholder="옵션명"
+                        />
+                        <input
+                          type="number"
+                          value={opt.additionalPrice}
+                          onChange={e => updateOption(gi, oi, 'additionalPrice', e.target.value)}
+                          className="w-24 border px-2 py-1 rounded text-sm"
+                          placeholder="추가금액"
+                          min={0}
+                        />
+                        <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
+                        {group.options.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeOption(gi, oi)}
+                            className="text-gray-400 hover:text-red-500 text-xs"
+                            aria-label="옵션 삭제"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addOption(gi)}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    + 옵션 추가
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Submit */}

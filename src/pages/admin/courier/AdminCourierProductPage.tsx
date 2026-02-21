@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
+import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
 import {
   getAdminCourierProducts,
   deleteAdminCourierProduct,
   toggleAdminCourierProductVisible,
+  toggleAdminCourierProductRecommend,
 } from '../../../utils/api';
 
 type Product = {
@@ -14,6 +16,7 @@ type Product = {
   price: number;
   stock: number;
   visible: boolean;
+  recommended: boolean;
   imageUrl: string;
   totalSold: number;
   orderIndex: number;
@@ -93,9 +96,10 @@ export default function AdminCourierProductPage() {
             price: Number(p.price ?? 0),
             stock: Number(p.stock ?? 0),
             visible: typeof p.visible === 'boolean' ? p.visible : (typeof p.is_visible === 'boolean' ? p.is_visible : true),
-            imageUrl: addImgPrefix(p.image_url ?? p.imageUrl ?? p.product_url ?? ''),
+            recommended: typeof p.recommended === 'boolean' ? p.recommended : false,
+            imageUrl: addImgPrefix(p.product_url ?? p.image_url ?? p.imageUrl ?? ''),
             totalSold: Number(p.total_sold ?? p.totalSold ?? 0),
-            orderIndex: Number(p.order_index ?? p.orderIndex ?? 0),
+            orderIndex: Number(p.sort_order ?? p.order_index ?? p.orderIndex ?? 0),
           })));
         }
       } catch (e: any) {
@@ -138,18 +142,25 @@ export default function AdminCourierProductPage() {
     }
   };
 
+  const handleToggleRecommend = async (productId: number) => {
+    try {
+      const res = await toggleAdminCourierProductRecommend(productId);
+      if (!res.ok) throw new Error('추천 상태 변경에 실패했습니다.');
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, recommended: !p.recommended } : p));
+      const target = products.find(p => p.id === productId);
+      show(`추천 상태가 ${target?.recommended ? '해제' : '설정'}되었습니다.`, { variant: 'success' });
+    } catch (e: any) {
+      safeErrorLog(e, 'AdminCourierProductPage - handleToggleRecommend');
+      show(getSafeErrorMessage(e, '추천 상태 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+    }
+  };
+
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">택배 상품 관리</h1>
-          <button
-            type="button"
-            onClick={() => navigate('/shop/admin/products/new')}
-            className="h-9 px-4 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition"
-          >
-            + 상품 등록
-          </button>
+          <AdminCourierHeader />
         </div>
 
         {/* Loading */}
@@ -208,15 +219,20 @@ export default function AdminCourierProductPage() {
                           품절
                         </span>
                       )}
+                      {product.recommended && (
+                        <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border bg-yellow-100 text-yellow-700 border-yellow-300">
+                          추천
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Action buttons */}
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-4 gap-2">
                   <button
                     type="button"
-                    onClick={() => navigate(`/shop/admin/products/${product.id}/edit`)}
+                    onClick={() => navigate(`/admin/courier/products/${product.id}/edit`)}
                     className="h-8 rounded border border-gray-300 hover:bg-gray-50 text-sm text-gray-700"
                   >
                     수정
@@ -239,6 +255,17 @@ export default function AdminCourierProductPage() {
                     }`}
                   >
                     {product.visible ? '노출 O' : '노출 X'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleRecommend(product.id)}
+                    className={`h-8 rounded font-medium text-sm text-white transition ${
+                      product.recommended
+                        ? 'bg-yellow-500 hover:bg-yellow-600'
+                        : 'bg-gray-400 hover:bg-gray-500'
+                    }`}
+                  >
+                    {product.recommended ? '추천 O' : '추천 X'}
                   </button>
                   <button
                     type="button"
