@@ -44,8 +44,11 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
   const gainNodeRef = useRef<GainNode | null>(null);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const pollTimerRef = useRef<number | null>(null);
+  const fallbackPollTimerRef = useRef<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const sseConnectedRef = useRef(false);
 
   const formatKstDate = (ms: number) =>
     new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
@@ -200,43 +203,12 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
     }
 
     const apiBase = process.env.REACT_APP_API_BASE || '';
-    const connect = () => {
-      if (sourceRef.current) {
-        sourceRef.current.close();
-      }
-      const source = new EventSource(`${apiBase}/api/admin/shop/deliveries/stream`, { withCredentials: true } as any);
-      sourceRef.current = source;
-
-      source.addEventListener('delivery_paid', event => {
-        try {
-          const data = JSON.parse((event as MessageEvent).data);
-          const payload = parseAlertPayload(data, 'paid');
-          pushAlert(payload);
-          printReceipt(buildPrintData(payload)).then(ok => {
-            if (!ok) {
-              snackbar.show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
-            }
-          });
-        } catch (e) {
-          safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
-        }
-      });
-
-      source.onerror = (e) => {
-        safeErrorLog(e, 'AdminDeliveryAlertProvider - SSE error');
-        source.close();
-        sourceRef.current = null;
-        if (!reconnectTimerRef.current) {
-          reconnectTimerRef.current = window.setTimeout(() => {
-            reconnectTimerRef.current = null;
-            connect();
-          }, 3000);
-        }
-      };
-    };
-    connect();
+    let disposed = false;
+    let checking = false;
 
     const checkDeliveries = async () => {
+      if (checking) return;
+      checking = true;
       try {
         const serverMs = await getServerTime();
         const today = formatKstDate(serverMs);
@@ -280,8 +252,75 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         });
       } catch (err) {
         safeErrorLog(err, 'AdminDeliveryAlertProvider - checkDeliveries');
+      } finally {
+        checking = false;
       }
     };
+
+    const startFallbackPolling = () => {
+      if (fallbackPollTimerRef.current) return;
+      checkDeliveries();
+      fallbackPollTimerRef.current = window.setInterval(checkDeliveries, 15000);
+    };
+
+    const stopFallbackPolling = () => {
+      if (!fallbackPollTimerRef.current) return;
+      clearInterval(fallbackPollTimerRef.current);
+      fallbackPollTimerRef.current = null;
+    };
+
+    const scheduleReconnect = (connectFn: () => void) => {
+      if (disposed || reconnectTimerRef.current) return;
+      const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttemptRef.current));
+      reconnectAttemptRef.current += 1;
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connectFn();
+      }, delay);
+    };
+
+    const connect = () => {
+      if (disposed) return;
+      if (sourceRef.current) {
+        sourceRef.current.close();
+        sourceRef.current = null;
+      }
+      const source = new EventSource(`${apiBase}/api/admin/shop/deliveries/stream`, { withCredentials: true } as any);
+      sourceRef.current = source;
+
+      source.onopen = () => {
+        sseConnectedRef.current = true;
+        reconnectAttemptRef.current = 0;
+        stopFallbackPolling();
+      };
+
+      source.addEventListener('delivery_paid', event => {
+        try {
+          const data = JSON.parse((event as MessageEvent).data);
+          const payload = parseAlertPayload(data, 'paid');
+          pushAlert(payload);
+          printReceipt(buildPrintData(payload)).then(ok => {
+            if (!ok) {
+              snackbar.show('영수증 출력에 실패했습니다. 프린터 연결을 확인해주세요.', { variant: 'error' });
+            }
+          });
+        } catch (e) {
+          safeErrorLog(e, 'AdminDeliveryAlertProvider - parse event');
+        }
+      });
+
+      source.onerror = (e) => {
+        safeErrorLog(e, 'AdminDeliveryAlertProvider - SSE error');
+        sseConnectedRef.current = false;
+        startFallbackPolling();
+        if (sourceRef.current === source) {
+          source.close();
+          sourceRef.current = null;
+        }
+        scheduleReconnect(connect);
+      };
+    };
+    connect();
 
     // 즉시 1회 체크 + 30분 정각 aligned 타이머
     checkDeliveries();
@@ -292,7 +331,39 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       pollTimerRef.current = window.setInterval(checkDeliveries, 1800000);
     }, msUntilNextHalf);
 
+    const watchdogTimer = window.setInterval(() => {
+      if (disposed) return;
+      const source = sourceRef.current;
+      if (!source || source.readyState === EventSource.CLOSED) {
+        sseConnectedRef.current = false;
+        startFallbackPolling();
+        scheduleReconnect(connect);
+      }
+    }, 10000);
+
+    const handleOnline = () => {
+      if (disposed) return;
+      sseConnectedRef.current = false;
+      startFallbackPolling();
+      scheduleReconnect(connect);
+    };
+
+    const handleVisibilityChange = () => {
+      if (disposed || document.visibilityState !== 'visible') return;
+      const source = sourceRef.current;
+      if (!source || source.readyState !== EventSource.OPEN) {
+        sseConnectedRef.current = false;
+        startFallbackPolling();
+        scheduleReconnect(connect);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      disposed = true;
+      sseConnectedRef.current = false;
       if (sourceRef.current) {
         sourceRef.current.close();
         sourceRef.current = null;
@@ -301,11 +372,15 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
+      stopFallbackPolling();
+      clearInterval(watchdogTimer);
       clearTimeout(alignTimer);
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
