@@ -1644,3 +1644,120 @@ export const updateCategoryProducts = async (categoryId: number, productIds: num
     throw e;
   }
 };
+
+// ===== Courier Product APIs =====
+
+// 사용자 — JWT 인증 (apiFetch 사용)
+export const getCourierProducts = async (categoryId?: number) => {
+  const key = 'getCourierProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    const res = await apiFetch(`/api/auth/courier/products${params}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getCourierProduct = async (id: number) => {
+  const key = 'getCourierProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/products/${id}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getCourierCategories = async () => {
+  const key = 'getCourierCategories';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch('/api/auth/courier/products/categories');
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 — 세션 인증 (adminFetch 사용)
+export const getAdminCourierProducts = async () => {
+  const key = 'getAdminCourierProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getAdminCourierProduct = async (id: number) => {
+  const key = 'getAdminCourierProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/products/${id}`, {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const createAdminCourierProduct = async (data: any) => {
+  const key = 'createAdminCourierProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierProduct = async (id: number, data: any) => {
+  const key = 'updateAdminCourierProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/products/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const deleteAdminCourierProduct = async (id: number) => {
+  const key = 'deleteAdminCourierProduct';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/products/${id}`, { method: 'DELETE' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const toggleAdminCourierProductVisible = async (id: number) => {
+  const key = 'toggleAdminCourierProductVisible';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/products/visible/${id}`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getAdminCourierProductPresignedUrl = async (fileName: string, contentType: string) => {
+  const key = 'getAdminCourierProductPresignedUrl';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products/presigned-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_name: fileName, content_type: contentType }),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};

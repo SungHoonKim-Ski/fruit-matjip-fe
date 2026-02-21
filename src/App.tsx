@@ -28,7 +28,19 @@ import { AdminSessionProvider } from './contexts/AdminSessionContext';
 import { AdminDeliveryAlertProvider } from './contexts/AdminDeliveryAlertContext';
 import AdminDeliveriesPage from './pages/admin/AdminDeliveriesPage';
 import MainPage from './pages/MainPage';
-import CourierShopPlaceholder from './pages/shop/CourierShopPlaceholder';
+import CourierShopPage from './pages/shop/CourierShopPage';
+import CourierProductDetailPage from './pages/shop/CourierProductDetailPage';
+import CourierCartPage from './pages/shop/CourierCartPage';
+import CourierCheckoutPage from './pages/shop/CourierCheckoutPage';
+import CourierOrdersPage from './pages/shop/CourierOrdersPage';
+import CourierOrderDetailPage from './pages/shop/CourierOrderDetailPage';
+import CourierClaimPage from './pages/shop/CourierClaimPage';
+import CourierApprovePage from './pages/shop/CourierApprovePage';
+import CourierCancelPage from './pages/shop/CourierCancelPage';
+import CourierFailPage from './pages/shop/CourierFailPage';
+import AdminCourierProductPage from './pages/admin/courier/AdminCourierProductPage';
+import AdminCourierCreateProductPage from './pages/admin/courier/AdminCourierCreateProductPage';
+import AdminCourierEditProductPage from './pages/admin/courier/AdminCourierEditProductPage';
 
 /** query params를 보존하면서 redirect (OAuth callback용) */
 function RedirectWithSearch({ to }: { to: string }) {
@@ -90,9 +102,30 @@ export default function App() {
       <Route path="/refund" element={<Navigate to="/store/refund" replace />} />
       <Route path="/admin/*" element={<Navigate to="/admin/shop/login" replace />} />
 
-      {/* ===== /shop — 택배 쇼핑몰 (신규, placeholder) ===== */}
-      <Route path="/shop" element={<CourierShopPlaceholder />} />
-      <Route path="/shop/*" element={<CourierShopPlaceholder />} />
+      {/* ===== /shop — 택배 쇼핑몰 ===== */}
+      <Route path="/shop" element={<CourierShopPage />} />
+      <Route path="/shop/cart" element={<CourierCartPage />} />
+      <Route path="/shop/checkout" element={<CourierCheckoutPage />} />
+      <Route path="/shop/orders" element={<CourierOrdersPage />} />
+      <Route path="/shop/orders/:code/claim" element={<CourierClaimPage />} />
+      <Route path="/shop/orders/:code" element={<CourierOrderDetailPage />} />
+      <Route path="/shop/approve" element={<CourierApprovePage />} />
+      <Route path="/shop/cancel" element={<CourierCancelPage />} />
+      <Route path="/shop/fail" element={<CourierFailPage />} />
+      <Route path="/shop/:id" element={<CourierProductDetailPage />} />
+
+      {/* ===== /shop/admin — 택배 관리자 ===== */}
+      <Route path="/admin/courier" element={<Navigate to="/admin/courier/login" replace />} />
+      <Route path="/admin/courier/login" element={<AdminLoginPage />} />
+      <Route element={
+        <AdminSessionProvider>
+          <RequireAdmin />
+        </AdminSessionProvider>
+      }>
+        <Route path="/shop/admin/products" element={<AdminCourierProductPage />} />
+        <Route path="/shop/admin/products/new" element={<AdminCourierCreateProductPage />} />
+        <Route path="/shop/admin/products/:id/edit" element={<AdminCourierEditProductPage />} />
+      </Route>
 
       {/* Error pages */}
       <Route path="/401" element={<Error401Page />} />
