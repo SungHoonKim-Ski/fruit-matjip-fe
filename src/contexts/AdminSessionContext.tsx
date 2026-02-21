@@ -14,11 +14,17 @@ const AdminSessionContext = createContext<AdminSessionContextType>({
 
 export const useAdminSession = () => useContext(AdminSessionContext);
 
+const getAdminLoginUrl = (pathname: string): string => {
+  if (pathname.startsWith('/admin/courier')) return '/admin/courier/login';
+  return '/admin/shop/login';
+};
+
 export const AdminSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isSessionValid, setIsSessionValid] = useState(true);
   const location = useLocation();
-  const isAdminPage = location.pathname.startsWith('/admin');
-  const isAdminAuthPage = location.pathname === '/admin/login' || location.pathname === '/admin/register';
+  const isAdminPage = location.pathname.startsWith('/admin/shop') || location.pathname.startsWith('/admin/courier');
+  const adminAuthPages = ['/admin/shop/login', '/admin/shop/register', '/admin/courier/login', '/admin/courier/register'];
+  const isAdminAuthPage = adminAuthPages.includes(location.pathname);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -38,7 +44,7 @@ export const AdminSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // 세션 만료 시 로그인 페이지로 리다이렉트
         safeErrorLog(e, 'AdminSessionContext - validateAdminSession');
         setIsSessionValid(false);
-        window.location.href = '/admin/login';
+        window.location.href = getAdminLoginUrl(location.pathname);
       }
     };
 
