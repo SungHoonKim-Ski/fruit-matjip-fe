@@ -12,7 +12,6 @@ import {
   getDeliveryFeeEstimate,
   saveDeliveryInfo,
   createDeliveryPaymentReady,
-  cancelDeliveryPayment,
   getServerTime,
   type DeliveryInfo,
   type DeliveryConfig,
@@ -444,14 +443,6 @@ export default function DeliveryPage() {
       },
     }).open();
   };
-
-  useEffect(() => {
-    const pendingOrderCode = localStorage.getItem('pendingDeliveryOrderCode');
-    if (pendingOrderCode) {
-      localStorage.removeItem('pendingDeliveryOrderCode');
-      cancelDeliveryPayment(pendingOrderCode).catch(() => { });
-    }
-  }, []);
 
   useEffect(() => {
     let alive = true;
