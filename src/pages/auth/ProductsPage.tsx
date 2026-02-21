@@ -27,6 +27,31 @@ type Product = {
   deliveryAvailable?: boolean; // 서버 delivery_available
 };
 
+const normalizeCategoryImageUrl = (raw?: string): string | undefined => {
+  if (!raw) return undefined;
+
+  const base = (theme.config.imgUrl || '').replace(/\/+$/, '');
+  const value = raw.trim();
+  if (!value) return undefined;
+
+  // 상대경로 key는 현재 IMG base를 붙여서 표시
+  if (!value.startsWith('http://') && !value.startsWith('https://')) {
+    const clean = value.startsWith('/') ? value.slice(1) : value;
+    return base ? `${base}/${clean}` : value;
+  }
+
+  // 절대 URL이더라도 도메인이 바뀐 경우 현재 IMG base로 보정
+  if (!base) return value;
+  try {
+    const from = new URL(value);
+    const to = new URL(base);
+    if (from.origin === to.origin) return value;
+    return `${base}${from.pathname}${from.search}`;
+  } catch {
+    return value;
+  }
+};
+
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
@@ -251,7 +276,9 @@ export default function ReservePage() {
             return {
               id: item.id || 0,
               keyword: item.name || item.keyword || '',
-              keywordUrl: item.image_url || item.imageUrl || item.keywordUrl || item.keyword_url || undefined,
+              keywordUrl: normalizeCategoryImageUrl(
+                item.image_url || item.imageUrl || item.keywordUrl || item.keyword_url || undefined
+              ),
             };
           });
           setRecommendedKeywords(list);
