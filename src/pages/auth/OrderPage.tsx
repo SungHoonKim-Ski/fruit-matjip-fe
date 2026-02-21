@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { listOrders, type OrderRow } from '../../mocks/orders';
-import { getReservations, cancelReservation, minusQuantity, getServerTime, getDeliveryConfig, cancelDeliveryPayment } from '../../utils/api';
+import { getReservations, cancelReservation, minusQuantity, getServerTime, getDeliveryConfig } from '../../utils/api';
 import BottomNav from '../../components/BottomNav';
 
 const KRW = (price: number) =>
@@ -79,14 +79,6 @@ export default function OrdersPage() {
 
   const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState(0);
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
-
-  useEffect(() => {
-    const pendingOrderCode = localStorage.getItem('pendingDeliveryOrderCode');
-    if (pendingOrderCode) {
-      localStorage.removeItem('pendingDeliveryOrderCode');
-      cancelDeliveryPayment(pendingOrderCode).catch(() => {});
-    }
-  }, []);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
