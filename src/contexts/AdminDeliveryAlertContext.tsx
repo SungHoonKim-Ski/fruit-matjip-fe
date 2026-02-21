@@ -204,7 +204,7 @@ export const AdminDeliveryAlertProvider: React.FC<{ children: React.ReactNode }>
       if (sourceRef.current) {
         sourceRef.current.close();
       }
-      const source = new EventSource(`${apiBase}/api/admin/deliveries/stream`, { withCredentials: true } as any);
+      const source = new EventSource(`${apiBase}/api/admin/shop/deliveries/stream`, { withCredentials: true } as any);
       sourceRef.current = source;
 
       source.addEventListener('delivery_paid', event => {

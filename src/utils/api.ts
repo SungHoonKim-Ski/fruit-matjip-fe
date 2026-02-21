@@ -84,10 +84,14 @@ export const showApiErrorMessage = (show: (message: string, options?: any) => vo
 
 // === 에러 페이지 연동 유틸 ===
 type ErrorScope = 'admin' | 'user';
-const setAuthErrorAndRedirect = (status: number, scope: ErrorScope, message: string) => {
+const getAdminRedirectUrl = (apiUrl: string): string => {
+  if (apiUrl.includes('/api/admin/courier')) return '/admin/courier/login';
+  return '/admin/shop/login';
+};
+const setAuthErrorAndRedirect = (status: number, scope: ErrorScope, message: string, redirectUrl?: string) => {
   localStorage.setItem('error-message', message);
   localStorage.setItem('error-type', scope);
-  localStorage.setItem('error-redirect', scope === 'admin' ? '/admin/login' : '/login');
+  localStorage.setItem('error-redirect', redirectUrl ?? (scope === 'admin' ? '/admin/shop/login' : '/'));
   window.location.href = status === 401 ? '/401' : '/403';
 };
 
@@ -153,11 +157,17 @@ export const apiFetch = async (url: string, options: RequestInit = {}, autoRedir
         }
       }
 
-      // === 403 처리(User) ===
+      // === 403 처리 ===
       if (autoRedirect && response.status === 403 && !url.includes('/login')) {
         const msg = '접근 권한이 없습니다.';
-        pushUiError(msg, 'user');
-        setAuthErrorAndRedirect(403, 'user', msg);
+        if (isAdminApi) {
+          pushUiError(msg, 'admin');
+          localStorage.removeItem('admin-auth');
+          setAuthErrorAndRedirect(403, 'admin', msg, getAdminRedirectUrl(url));
+        } else {
+          pushUiError(msg, 'user');
+          setAuthErrorAndRedirect(403, 'user', msg);
+        }
         return response;
       }
 
@@ -213,7 +223,7 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
         const msg = response.status === 401 ? '인증이 만료되었습니다. 다시 로그인해주세요.' : '접근 권한이 없습니다.';
         pushUiError(msg, 'admin');
         localStorage.removeItem('admin-auth');
-        setAuthErrorAndRedirect(response.status, 'admin', msg);
+        setAuthErrorAndRedirect(response.status, 'admin', msg, getAdminRedirectUrl(url));
         return response;
       }
 
@@ -358,7 +368,7 @@ export const refreshToken = async () => {
     localStorage.removeItem('access');
     localStorage.removeItem('refresh');
     localStorage.removeItem('nickname');
-    window.location.href = '/login';
+    window.location.href = '/';
   }
   throw new Error('Token refresh failed');
 };
@@ -376,7 +386,7 @@ export const getProducts = async (from?: string, to?: string, categoryId?: numbe
   const key = 'getProducts';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    let url = '/api/auth/products';
+    let url = '/api/store/auth/products';
     const params = [];
     if (from && to) {
       params.push(`from=${encodeURIComponent(from)}`);
@@ -398,7 +408,7 @@ export const getProduct = async (id: number) => {
   const key = 'getProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/products/${id}`);
+    const res = await userFetch(`/api/store/auth/products/${id}`);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -408,7 +418,7 @@ export const getProductCategories = async () => {
   const key = 'getCategories';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/products/categories');
+    const res = await userFetch('/api/store/auth/products/categories');
     if (res.ok) resetApiRetryCount(key);
     return res.json();
   } catch (e) {
@@ -424,7 +434,7 @@ export const createReservation = async (data: any) => {
   const key = 'createReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/reservations/', { method: 'POST', body: JSON.stringify(data) });
+    const res = await userFetch('/api/store/auth/reservations/', { method: 'POST', body: JSON.stringify(data) });
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -434,7 +444,7 @@ export const cancelReservation = async (code: string) => {
   const key = 'cancelReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/cancel/${code}`, { method: 'PATCH' });
+    const res = await userFetch(`/api/store/auth/reservations/cancel/${code}`, { method: 'PATCH' });
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -469,7 +479,7 @@ export const getDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   const key = 'getDeliveryConfig';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/deliveries/config');
+    const res = await userFetch('/api/store/auth/deliveries/config');
     if (!res.ok) {
       incrementApiRetryCount(key);
       return null;
@@ -506,7 +516,7 @@ export const getDeliveryFeeEstimate = async (latitude: number, longitude: number
   const key = 'getDeliveryFeeEstimate';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/deliveries/fee', {
+    const res = await userFetch('/api/store/auth/deliveries/fee', {
       method: 'POST',
       body: JSON.stringify({ latitude, longitude }),
     });
@@ -532,7 +542,7 @@ export const getDeliveryInfo = async (): Promise<DeliveryInfo | null> => {
   const key = 'getDeliveryInfo';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/deliveries/info');
+    const res = await userFetch('/api/store/auth/deliveries/info');
     if (res.status === 204) return null;
     const data = await res.json();
     if (res.ok) resetApiRetryCount(key);
@@ -552,7 +562,7 @@ export const saveDeliveryInfo = async (info: DeliveryInfo) => {
   const key = 'saveDeliveryInfo';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/deliveries/info', {
+    const res = await userFetch('/api/store/auth/deliveries/info', {
       method: 'PUT',
       body: JSON.stringify({
         phone: info.phone,
@@ -585,7 +595,7 @@ export const createDeliveryPaymentReady = async (data: {
   const key = 'createDeliveryPaymentReady';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch('/api/auth/deliveries/ready', {
+    const res = await userFetch('/api/store/auth/deliveries/ready', {
       method: 'POST',
       body: JSON.stringify({
         reservation_codes: data.reservationCodes,
@@ -611,7 +621,7 @@ export const approveDeliveryPayment = async (code: string, pgToken: string) => {
   const key = 'approveDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/approve?order_id=${code}&pg_token=${encodeURIComponent(pgToken)}`);
+    const res = await userFetch(`/api/store/auth/deliveries/approve?order_id=${code}&pg_token=${encodeURIComponent(pgToken)}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -621,7 +631,7 @@ export const cancelDeliveryPayment = async (code: string) => {
   const key = 'cancelDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/cancel?order_id=${code}`);
+    const res = await userFetch(`/api/store/auth/deliveries/cancel?order_id=${code}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -631,7 +641,7 @@ export const failDeliveryPayment = async (code: string) => {
   const key = 'failDeliveryPayment';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/deliveries/fail?order_id=${code}`);
+    const res = await userFetch(`/api/store/auth/deliveries/fail?order_id=${code}`);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -641,7 +651,7 @@ export const minusQuantity = async (code: string, quantity: number) => {
   const key = 'minusQuantity';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await userFetch(`/api/auth/reservations/${code}/quantity?minus=${quantity}`, { method: 'PATCH' });
+    const res = await userFetch(`/api/store/auth/reservations/${code}/quantity?minus=${quantity}`, { method: 'PATCH' });
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -682,7 +692,7 @@ export const getReservations = async (from?: string, to?: string) => {
   const key = 'getReservations';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    let url = '/api/auth/reservations/';
+    let url = '/api/store/auth/reservations/';
     if (from && to) url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     const res = await userFetch(url);
     if (res.ok) resetApiRetryCount(key);
@@ -735,7 +745,7 @@ export const getAdminProducts = async () => {
   const key = 'getAdminProducts';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products', {}, true);
+    const res = await adminFetch('/api/admin/shop/products', {}, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -745,7 +755,7 @@ export const getAdminReservations = async (today?: string) => {
   const key = 'getAdminReservations';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    let url = '/api/admin/reservations';
+    let url = '/api/admin/shop/reservations';
     if (today) url += `?date=${encodeURIComponent(today)}`;
     const res = await adminFetch(url, {}, true);
     if (res.ok) resetApiRetryCount(key);
@@ -757,7 +767,7 @@ export const getAdminProduct = async (id: number) => {
   const key = 'getAdminProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`, {}, true);
+    const res = await adminFetch(`/api/admin/shop/products/${id}`, {}, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -767,7 +777,7 @@ export const createAdminProduct = async (data: any) => {
   const key = 'createAdminProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products', { method: 'POST', body: JSON.stringify(data) }, true);
+    const res = await adminFetch('/api/admin/shop/products', { method: 'POST', body: JSON.stringify(data) }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -777,7 +787,7 @@ export const updateAdminProduct = async (id: number, data: any) => {
   const key = 'updateAdminProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true);
+    const res = await adminFetch(`/api/admin/shop/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -787,7 +797,7 @@ export const setSoldOut = async (id: number) => {
   const key = 'setSoldOut';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/sold-out/${id}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/products/sold-out/${id}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -797,7 +807,7 @@ export const toggleVisible = async (id: number) => {
   const key = 'toggleVisible';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/visible/${id}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/products/visible/${id}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -808,7 +818,7 @@ export const toggleDeliveryAvailable = async (id: number) => {
   const key = 'toggleDeliveryAvailable';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/delivery-available/${id}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/products/delivery-available/${id}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -818,7 +828,7 @@ export const deleteAdminProduct = async (id: number) => {
   const key = 'deleteAdminProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${id}`, { method: 'DELETE' }, true);
+    const res = await adminFetch(`/api/admin/shop/products/${id}`, { method: 'DELETE' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -828,7 +838,7 @@ export const getAdminDeliveries = async (date: string) => {
   const key = 'getAdminDeliveries';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const url = `/api/admin/deliveries?date=${encodeURIComponent(date)}`;
+    const url = `/api/admin/shop/deliveries?date=${encodeURIComponent(date)}`;
     const res = await adminFetch(url, {}, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -839,7 +849,7 @@ export const updateAdminDeliveryStatus = async (id: number, status: 'out_for_del
   const key = 'updateAdminDeliveryStatus';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/deliveries/${id}/status/${status.toUpperCase()}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/deliveries/${id}/status/${status.toUpperCase()}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -849,7 +859,7 @@ export const acceptAdminDelivery = async (id: number, estimatedMinutes: number) 
   const key = 'acceptAdminDelivery';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/deliveries/${id}/accept`, {
+    const res = await adminFetch(`/api/admin/shop/deliveries/${id}/accept`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estimated_minutes: estimatedMinutes }),
@@ -876,7 +886,7 @@ export const getAdminDeliveryConfig = async () => {
   const key = 'getAdminDeliveryConfig';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/deliveries/config', {}, true);
+    const res = await adminFetch('/api/admin/shop/deliveries/config', {}, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -886,7 +896,7 @@ export const updateAdminDeliveryConfig = async (payload: AdminDeliveryConfigPayl
   const key = 'updateAdminDeliveryConfig';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/deliveries/config', {
+    const res = await adminFetch('/api/admin/shop/deliveries/config', {
       method: 'PUT',
       body: JSON.stringify({
         enabled: payload.enabled,
@@ -911,7 +921,7 @@ export const updateReservationStatus = async (id: number, status: 'pending' | 'p
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const statusUpper = status.toUpperCase();
-    const res = await adminFetch(`/api/admin/reservations/${id}/${statusUpper}`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/reservations/${id}/${statusUpper}`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -921,7 +931,7 @@ export const warnReservation = async (id: number) => {
   const key = 'warnReservation';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/reservations/${id}/no-show`, { method: 'PATCH' }, true);
+    const res = await adminFetch(`/api/admin/shop/reservations/${id}/no-show`, { method: 'PATCH' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -932,7 +942,7 @@ export const getSalesSummary = async (from?: string, to?: string) => {
   const key = 'getSalesSummary';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    let url = `/api/admin/agg/summary`;
+    let url = `/api/admin/shop/agg/summary`;
     if (from && to) {
       url += `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
     }
@@ -948,7 +958,7 @@ export const getSalesDetails = async (date: string) => {
   const key = 'getSalesDetails';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const url = `/api/admin/agg/sales?date=${encodeURIComponent(date)}`;
+    const url = `/api/admin/shop/agg/sales?date=${encodeURIComponent(date)}`;
     const res = await adminFetch(url, { cache: 'no-store' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -960,7 +970,7 @@ export const getTodaySales = async (date: string) => {
   const key = 'getTodaySales';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const url = `/api/admin/reservations/sales/today`;
+    const url = `/api/admin/shop/reservations/sales/today`;
     const res = await adminFetch(url, { cache: 'no-store' }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
@@ -977,7 +987,7 @@ export const getUploadUrl = async (filename: string, contentType: string): Promi
 
     const body = { file_name: filename, content_type: cleanContentType };
     // 공통 presigned-url (메인 상품 이미지 업로드에 사용)
-    const res = await adminFetch('/api/admin/products/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+    const res = await adminFetch('/api/admin/shop/products/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
 
     if (res.status === 403) {
       try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
@@ -992,7 +1002,7 @@ export const getUpdateUrl = async (id: number, filename: string, contentType: st
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const body = { file_name: filename, content_type: contentType };
-    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
+    const res = await adminFetch(`/api/admin/shop/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -1003,7 +1013,7 @@ export const getDetailUpdateUrl = async (id: number, filenames: string[], conten
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const body = { product_id: id, file_names: filenames, content_type: contentType };
-    const res = await adminFetch(`/api/admin/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
+    const res = await adminFetch(`/api/admin/shop/products/${id}/presigned-url`, { method: 'PATCH', body: JSON.stringify(body) }, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -1028,7 +1038,7 @@ export const getDetailPresignedUrlsBatch = async (
   try {
     // 서버 스펙: snake_case (file_names, content_type)
     const body = { file_names: fileNames, content_type: contentType } as any;
-    const res = await adminFetch(`/api/admin/products/${productId}/presigned-url`, {
+    const res = await adminFetch(`/api/admin/shop/products/${productId}/presigned-url`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }, true);
@@ -1102,7 +1112,7 @@ const mapAdminListItem = (p: any): AdminProductListItem => {
 
 export const getAdminProductsMapped = async (forceTs?: number): Promise<AdminProductListItem[]> => {
   const ts = forceTs ? `?ts=${forceTs}` : '';
-  const res = await adminFetch(`/api/admin/products${ts}`, {
+  const res = await adminFetch(`/api/admin/shop/products${ts}`, {
     cache: 'no-store',
     headers: {
       'Cache-Control': 'no-cache',
@@ -1131,7 +1141,7 @@ export type AdminProductDetail = {
 };
 
 export const getAdminProductDetailMapped = async (id: number): Promise<AdminProductDetail> => {
-  const res = await adminFetch(`/api/admin/products/${id}`, {}, true);
+  const res = await adminFetch(`/api/admin/shop/products/${id}`, {}, true);
   if (!res.ok) {
     if (res.status === 401 || res.status === 403) throw new Error('권한이 없습니다.');
     throw new Error('상품 정보를 불러오지 못했습니다.');
@@ -1164,7 +1174,7 @@ export type AdminProductUpdatePayload = {
 };
 
 export const updateAdminProductWithPayload = async (id: number, payload: AdminProductUpdatePayload) => {
-  return adminFetch(`/api/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, true);
+  return adminFetch(`/api/admin/shop/products/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }, true);
 };
 
 export const getHealth = async () => {
@@ -1186,7 +1196,7 @@ export const updateReservationsStatusBulk = async (reservationIds: number[], sta
       reservation_ids: reservationIds,
       status: status.toUpperCase(),
     };
-    const res = await adminFetch('/api/admin/reservations/status', {
+    const res = await adminFetch('/api/admin/shop/reservations/status', {
       method: 'PATCH',
       body: JSON.stringify(body),
     }, true);
@@ -1215,7 +1225,7 @@ export const bulkUpdateSellDate = async (productIds: number[], sellDate: string)
       product_ids: productIds,
       sell_date: sellDate,
     };
-    const res = await adminFetch('/api/admin/products/bulk-sell-date', {
+    const res = await adminFetch('/api/admin/shop/products/bulk-sell-date', {
       method: 'PATCH',
       body: JSON.stringify(body),
     }, true);
@@ -1230,7 +1240,7 @@ export const getBulkSellDates = async (productIds: number[]) => {
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const queryParams = productIds.map(id => `ids=${id}`).join('&');
-    const res = await adminFetch(`/api/admin/products/bulk-sell-date?${queryParams}`, {}, true);
+    const res = await adminFetch(`/api/admin/shop/products/bulk-sell-date?${queryParams}`, {}, true);
     if (res.ok) resetApiRetryCount(key);
     return validateJsonResponse(res);
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -1241,7 +1251,7 @@ export const updateProductOrder = async (product_ids: number[]) => {
   const key = 'updateProductOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products/order', {
+    const res = await adminFetch('/api/admin/shop/products/order', {
       method: 'PATCH',
       body: JSON.stringify({ product_ids }),
     }, true);
@@ -1307,7 +1317,7 @@ export const getCustomers = async (
   const key = 'getCustomers';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const url = `/api/admin/customers?name=${encodeURIComponent(name || '')}&sortKey=${sortKey}&sortOrder=${sortOrder}&cursor=${encodeURIComponent(cursor)}&limit=${limit}`;
+    const url = `/api/admin/shop/customers?name=${encodeURIComponent(name || '')}&sortKey=${sortKey}&sortOrder=${sortOrder}&cursor=${encodeURIComponent(cursor)}&limit=${limit}`;
     const res = await adminFetch(url, {}, true);
     if (res.ok) resetApiRetryCount(key);
     const data = await res.json();
@@ -1335,7 +1345,7 @@ export const addCustomerWarn = async (userId: string): Promise<void> => {
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await adminFetch(
-      `/api/admin/customer/warn/${userId}`,
+      `/api/admin/shop/customer/warn/${userId}`,
       {
         method: 'POST',
       },
@@ -1357,7 +1367,7 @@ export const resetCustomerWarn = async (userId: string): Promise<void> => {
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await adminFetch(
-      `/api/admin/customer/warn/reset/${userId}`,
+      `/api/admin/shop/customer/warn/reset/${userId}`,
       {
         method: 'PATCH',
       },
@@ -1378,7 +1388,7 @@ export const liftRestriction = async (userId: string): Promise<void> => {
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await adminFetch(
-      `/api/admin/users/${userId}/lift-restriction`,
+      `/api/admin/shop/users/${userId}/lift-restriction`,
       {
         method: 'PATCH',
       },
@@ -1406,7 +1416,7 @@ export const getCustomerWarns = async (userId: string): Promise<CustomerWarnItem
   const key = 'getCustomerWarns';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/customers/warn/${userId}`, {}, true);
+    const res = await adminFetch(`/api/admin/shop/customers/warn/${userId}`, {}, true);
     if (!res.ok) {
       throw new Error(`경고 목록 조회에 실패했습니다. (${res.status})`);
     }
@@ -1431,7 +1441,7 @@ export const getAdminProductCategories = async () => {
   const key = 'getAdminCategories';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch('/api/admin/products/categories', {}, true);
+    const res = await adminFetch('/api/admin/shop/products/categories', {}, true);
     if (res.ok) resetApiRetryCount(key);
     return res.json(); // ProductCategoryResponse 반환
   } catch (e) {
@@ -1450,7 +1460,7 @@ export const addAdminProductCategory = async (name: string, imageUrl?: string) =
     const body: { name: string; image_url?: string } = { name };
     if (imageUrl) body.image_url = imageUrl;
 
-    const res = await adminFetch('/api/admin/products/category', {
+    const res = await adminFetch('/api/admin/shop/products/category', {
       method: 'POST',
       body: JSON.stringify(body),
     }, true);
@@ -1472,7 +1482,7 @@ export const updateAdminProductCategory = async (id: number, name?: string, imag
     if (name) body.name = name;
     if (imageUrl) body.image_url = imageUrl;
 
-    const res = await adminFetch(`/api/admin/products/category/${id}`, {
+    const res = await adminFetch(`/api/admin/shop/products/category/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }, true);
@@ -1494,7 +1504,7 @@ export const deleteAdminProductCategory = async (name: string) => {
   const key = 'deleteAdminProductCategory';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/category?keyword=${encodeURIComponent(name)}`, {
+    const res = await adminFetch(`/api/admin/shop/products/category?keyword=${encodeURIComponent(name)}`, {
       method: 'DELETE',
     }, true);
 
@@ -1518,7 +1528,7 @@ export const updateAdminProductCategoryOrder = async (categories: { id: number; 
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     // 서버는 PATCH /api/admin/products/categories/order, Body: { categories: [{id, name, imageUrl}] }
-    const res = await adminFetch('/api/admin/products/categories/order', {
+    const res = await adminFetch('/api/admin/shop/products/categories/order', {
       method: 'PATCH',
       body: JSON.stringify({
         categories: categories.map(c => ({
@@ -1553,7 +1563,7 @@ export const getCategoryPresignedUrl = async (filename: string, contentType: str
 
     const body = { file_name: filename, content_type: cleanContentType };
     // 카테고리 전용 presigned-url 엔드포인트 (기존 keyword와 동일할 수 있으나 명칭 정리)
-    const res = await adminFetch('/api/admin/keyword/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
+    const res = await adminFetch('/api/admin/shop/keyword/presigned-url', { method: 'POST', body: JSON.stringify(body) }, true);
 
     if (res.status === 403) {
       try { const err = await res.clone().json(); safeErrorLog(err); } catch { /* ignore */ }
@@ -1572,7 +1582,7 @@ export const getProductCategoriesForProduct = async (productId: number) => {
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     // 카테고리 목록 조회 + 상품 정보에서 카테고리 연결 확인
-    const res = await adminFetch('/api/admin/products/categories', {}, true);
+    const res = await adminFetch('/api/admin/shop/products/categories', {}, true);
     if (res.ok) resetApiRetryCount(key);
     return res.json();
   } catch (e) {
@@ -1586,7 +1596,7 @@ export const addCategoryToProduct = async (productId: number, categoryId: number
   const key = 'addCategoryToProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${productId}/categories/${categoryId}`, {
+    const res = await adminFetch(`/api/admin/shop/products/${productId}/categories/${categoryId}`, {
       method: 'POST',
     }, true);
 
@@ -1603,7 +1613,7 @@ export const removeCategoryFromProduct = async (productId: number, categoryId: n
   const key = 'removeCategoryFromProduct';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/${productId}/categories/${categoryId}`, {
+    const res = await adminFetch(`/api/admin/shop/products/${productId}/categories/${categoryId}`, {
       method: 'DELETE',
     }, true);
 
@@ -1621,7 +1631,7 @@ export const updateCategoryProducts = async (categoryId: number, productIds: num
   const key = 'updateCategoryProducts';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await adminFetch(`/api/admin/products/categories/${categoryId}/products`, {
+    const res = await adminFetch(`/api/admin/shop/products/categories/${categoryId}/products`, {
       method: 'PUT',
       body: JSON.stringify({ product_ids: productIds }),
     }, true);

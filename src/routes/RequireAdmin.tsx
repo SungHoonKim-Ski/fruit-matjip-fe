@@ -1,9 +1,11 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { adminFetch } from '../utils/api';
 
 export default function RequireAdmin() {
   const [state, setState] = React.useState<'checking' | 'ok' | 'deny'>('checking');
+  const location = useLocation();
+  const loginUrl = location.pathname.startsWith('/admin/courier') ? '/admin/courier/login' : '/admin/shop/login';
 
   React.useEffect(() => {
     let alive = true;
@@ -31,7 +33,7 @@ export default function RequireAdmin() {
 
   // autoRedirect=true 인 경우 401/403이면 이미 /403(→/admin/login)으로 유도됨.
   // 혹시 서버가 리다이렉트 안 했을 때 폴백:
-  if (state === 'deny') return <Navigate to="/admin/login" replace />;
+  if (state === 'deny') return <Navigate to={loginUrl} replace />;
 
   // 통과 시 중첩 라우트 렌더
   return <Outlet />;
