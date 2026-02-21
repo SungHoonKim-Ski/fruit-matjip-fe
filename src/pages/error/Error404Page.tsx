@@ -14,7 +14,7 @@ export default function Error404Page() {
   const [countdown, setCountdown] = useState(2);
   const [ctx, setCtx] = useState<ErrCtx>({
     type: 'user',
-    redirectUrl: '/login',
+    redirectUrl: '/',
   });
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function Error404Page() {
     const message = localStorage.getItem('error-message');
     const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
     const redirectStored = localStorage.getItem('error-redirect');
-    const fallback = type === 'admin' ? '/admin/login' : '/login';
+    const fallback = type === 'admin' ? '/admin/shop/login' : '/';
     const redirectUrl = redirectStored || fallback;
 
     setCtx({ message, type, redirectUrl });
@@ -49,10 +49,7 @@ export default function Error404Page() {
   }, [nav, show]);
 
   const getCountdownText = () => {
-    const errorType = localStorage.getItem('error-type');
-    const isAdmin = errorType === 'admin';
-    const pageName = isAdmin ? '관리자 로그인' : '로그인';
-    
+    const pageName = ctx.type === 'admin' ? '관리자 로그인' : '로그인';
     if (countdown === 0) return `${pageName} 페이지로 이동합니다.`;
     return `${countdown}초 후 ${pageName} 페이지로 이동합니다.`;
   };
@@ -64,7 +61,7 @@ export default function Error404Page() {
         <p className="mt-2 text-sm text-gray-500">{getCountdownText()}</p>
         <button
           className="mt-6 h-10 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white"
-          onClick={() => nav('/login', { replace: true })}
+          onClick={() => nav(ctx.redirectUrl, { replace: true })}
         >
           바로 이동
         </button>

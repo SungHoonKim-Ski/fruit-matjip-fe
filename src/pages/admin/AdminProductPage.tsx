@@ -580,7 +580,7 @@ export default function AdminProductPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
-                            onClick={() => navigate(`/admin/products/${product.id}/edit`)}
+                            onClick={() => navigate(`/admin/shop/products/${product.id}/edit`)}
                             className="h-8 w-full rounded border border-gray-300 hover:bg-gray-50 text-sm"
                           >
                             상세 정보 수정

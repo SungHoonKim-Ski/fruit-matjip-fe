@@ -1,6 +1,5 @@
 // src/App.tsx
-import { Route, Routes, Navigate } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
+import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import ProductsPage from './pages/auth/ProductsPage';
 import OrderPage from './pages/auth/OrderPage';
 import DeliveryPage from './pages/auth/DeliveryPage';
@@ -21,31 +20,43 @@ import AdminBulkSellDatePage from './pages/admin/AdminBulkSellDatePage';
 import AdminProductOrderPage from './pages/admin/AdminProductOrderPage';
 import AdminCustomerPage from './pages/admin/AdminCustomerPage';
 import AdminCategoryPage from './pages/admin/AdminCategoryPage';
+import Error401Page from './pages/error/Error401Page';
 import Error404Page from './pages/error/Error404Page';
 import Error403Page from './pages/error/Error403Page';
 import RequireAdmin from './routes/RequireAdmin';
 import { AdminSessionProvider } from './contexts/AdminSessionContext';
 import { AdminDeliveryAlertProvider } from './contexts/AdminDeliveryAlertContext';
 import AdminDeliveriesPage from './pages/admin/AdminDeliveriesPage';
+import MainPage from './pages/MainPage';
+import CourierShopPlaceholder from './pages/shop/CourierShopPlaceholder';
+
+/** query params를 보존하면서 redirect (OAuth callback용) */
+function RedirectWithSearch({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/products" element={<ProductsPage />} />
-      <Route path="/me/orders" element={<OrderPage />} />
-      <Route path="/me/delivery" element={<DeliveryPage />} />
-      <Route path="/deliveries/approve" element={<DeliveryApprovePage />} />
-      <Route path="/deliveries/cancel" element={<DeliveryCancelPage />} />
-      <Route path="/deliveries/fail" element={<DeliveryFailPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/refund" element={<RefundPolicyPage />} />
+      {/* Main Landing */}
+      <Route path="/" element={<MainPage />} />
 
-      <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin/register" element={<AdminRegisterPage />} />
+      {/* ===== /store — 현장예약/배달 (기존, /store 접두사 추가) ===== */}
+      <Route path="/store/login" element={<RedirectWithSearch to="/" />} />
+      <Route path="/store/products" element={<ProductsPage />} />
+      <Route path="/store/me/orders" element={<OrderPage />} />
+      <Route path="/store/me/delivery" element={<DeliveryPage />} />
+      <Route path="/store/deliveries/approve" element={<DeliveryApprovePage />} />
+      <Route path="/store/deliveries/cancel" element={<DeliveryCancelPage />} />
+      <Route path="/store/deliveries/fail" element={<DeliveryFailPage />} />
+      <Route path="/store/terms" element={<TermsPage />} />
+      <Route path="/store/privacy" element={<PrivacyPage />} />
+      <Route path="/store/refund" element={<RefundPolicyPage />} />
+
+      <Route path="/admin/shop" element={<Navigate to="/admin/shop/login" replace />} />
+      <Route path="/admin/shop/login" element={<AdminLoginPage />} />
+      <Route path="/admin/shop/register" element={<AdminRegisterPage />} />
       <Route element={
         <AdminSessionProvider>
           <AdminDeliveryAlertProvider>
@@ -53,18 +64,38 @@ export default function App() {
           </AdminDeliveryAlertProvider>
         </AdminSessionProvider>
       }>
-        <Route path="/admin/products" element={<AdminProductPage />} />
-        <Route path="/admin/products/new" element={<AdminCreateProductPage />} />
-        <Route path="/admin/products/bulk-sell-date" element={<AdminBulkSellDatePage />} />
-        <Route path="/admin/products/order" element={<AdminProductOrderPage />} />
-        <Route path="/admin/sales" element={<AdminSalesPage />} />
-        <Route path="/admin/reservations" element={<AdminReservationsPage />} />
-        <Route path="/admin/deliveries" element={<AdminDeliveriesPage />} />
-        <Route path="/admin/customers" element={<AdminCustomerPage />} />
-        <Route path="/admin/keywords" element={<AdminCategoryPage />} />
-        <Route path="/admin/categories" element={<AdminCategoryPage />} />
-        <Route path="/admin/products/:id/edit" element={<AdminEditProductPage />} />
+        <Route path="/admin/shop/products" element={<AdminProductPage />} />
+        <Route path="/admin/shop/products/new" element={<AdminCreateProductPage />} />
+        <Route path="/admin/shop/products/bulk-sell-date" element={<AdminBulkSellDatePage />} />
+        <Route path="/admin/shop/products/order" element={<AdminProductOrderPage />} />
+        <Route path="/admin/shop/sales" element={<AdminSalesPage />} />
+        <Route path="/admin/shop/reservations" element={<AdminReservationsPage />} />
+        <Route path="/admin/shop/deliveries" element={<AdminDeliveriesPage />} />
+        <Route path="/admin/shop/customers" element={<AdminCustomerPage />} />
+        <Route path="/admin/shop/keywords" element={<AdminCategoryPage />} />
+        <Route path="/admin/shop/categories" element={<AdminCategoryPage />} />
+        <Route path="/admin/shop/products/:id/edit" element={<AdminEditProductPage />} />
       </Route>
+
+      {/* 하위호환 redirects (기존 URL → /store/*) */}
+      <Route path="/login" element={<RedirectWithSearch to="/" />} />
+      <Route path="/products" element={<Navigate to="/store/products" replace />} />
+      <Route path="/me/orders" element={<Navigate to="/store/me/orders" replace />} />
+      <Route path="/me/delivery" element={<Navigate to="/store/me/delivery" replace />} />
+      <Route path="/deliveries/approve" element={<Navigate to="/store/deliveries/approve" replace />} />
+      <Route path="/deliveries/cancel" element={<Navigate to="/store/deliveries/cancel" replace />} />
+      <Route path="/deliveries/fail" element={<Navigate to="/store/deliveries/fail" replace />} />
+      <Route path="/terms" element={<Navigate to="/store/terms" replace />} />
+      <Route path="/privacy" element={<Navigate to="/store/privacy" replace />} />
+      <Route path="/refund" element={<Navigate to="/store/refund" replace />} />
+      <Route path="/admin/*" element={<Navigate to="/admin/shop/login" replace />} />
+
+      {/* ===== /shop — 택배 쇼핑몰 (신규, placeholder) ===== */}
+      <Route path="/shop" element={<CourierShopPlaceholder />} />
+      <Route path="/shop/*" element={<CourierShopPlaceholder />} />
+
+      {/* Error pages */}
+      <Route path="/401" element={<Error401Page />} />
       <Route path="/403" element={<Error403Page />} />
       <Route path="/404" element={<Error404Page />} />
       <Route path="*" element={<Navigate to="/404" replace />} />

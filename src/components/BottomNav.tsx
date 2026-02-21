@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const items = [
-  { label: '홈', path: '/products', icon: '🏠' },
-  { label: '주문내역', path: '/me/orders', icon: '📋' },
-  { label: '맛집퀵(배달하기)', path: '/me/delivery', icon: '🚚' },
+  { label: '홈', path: '/store/products', icon: '🏠' },
+  { label: '주문내역', path: '/store/me/orders', icon: '📋' },
+  { label: '맛집퀵(배달하기)', path: '/store/me/delivery', icon: '🚚' },
 ];
 
 export default function BottomNav() {

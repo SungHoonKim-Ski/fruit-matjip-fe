@@ -177,7 +177,7 @@ export default function ProductCreatePage() {
         show('상품이 등록되었습니다!', { variant: 'success' });
         setForm({ name: '', price: 1000, stock: 10, image_url: null, sell_date: today, visible: true, delivery_available: true });
         if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
-        nav('/admin/products', { replace: true });
+        nav('/admin/shop/products', { replace: true });
         return;
       }
 
@@ -264,7 +264,7 @@ export default function ProductCreatePage() {
       if (previewUrl) { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }
       setIsCompressed(false);
       setSelectedCategoryIds([]);
-      nav('/admin/products', { replace: true });
+      nav('/admin/shop/products', { replace: true });
     } catch (err: any) {
       safeErrorLog(err, 'ProductCreatePage - handleSubmit');
       show(getSafeErrorMessage(err, '상품 등록 중 오류가 발생했습니다.'), { variant: 'error' });

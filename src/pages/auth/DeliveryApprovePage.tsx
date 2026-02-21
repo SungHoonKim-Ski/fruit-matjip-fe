@@ -34,7 +34,7 @@ export default function DeliveryApprovePage() {
           throw new Error('approve failed');
         }
         setStatus('success');
-        setTimeout(() => nav('/me/orders?tab=delivery', { replace: true }), 1500);
+        setTimeout(() => nav('/store/me/orders?tab=delivery', { replace: true }), 1500);
       } catch (e) {
         safeErrorLog(e, 'DeliveryApprovePage - approve');
         setStatus('error');
@@ -75,7 +75,7 @@ export default function DeliveryApprovePage() {
             <button
               type="button"
               className="mt-4 w-full h-10 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-              onClick={() => nav('/me/orders')}
+              onClick={() => nav('/store/me/orders')}
             >
               주문 내역으로 이동
             </button>
