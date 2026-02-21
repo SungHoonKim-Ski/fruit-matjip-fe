@@ -620,7 +620,7 @@ const AdminProductOrderPage = () => {
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">📋 노출순서 변경</h1>
+          <h1 className="text-2xl font-bold text-gray-800">📋 매장 노출순서 변경</h1>
           <div className="flex justify-end">
             <AdminHeader />
           </div>

@@ -754,7 +754,7 @@ export default function AdminEditProductPage() {
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b">
         <div className="mx-auto max-w-2xl h-14 flex items-center justify-between px-4">
           <button onClick={() => nav(-1)} className="text-sm text-gray-600">← 뒤로</button>
-          <div className="font-bold text-gray-800">상품 수정</div>
+          <div className="font-bold text-gray-800">매장 상품 수정</div>
           
           {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
           <div className="relative">

@@ -65,7 +65,7 @@ export default function AdminHeader() {
     // 상품 관리 버튼
     const productsBtn = document.createElement('button');
     productsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    productsBtn.innerHTML = '📦 상품 관리';
+    productsBtn.innerHTML = '📦 매장 상품 관리';
     productsBtn.onclick = () => {
       goProducts();
       menu.remove();
@@ -74,7 +74,7 @@ export default function AdminHeader() {
     // 상품 등록 버튼
     const newProductBtn = document.createElement('button');
     newProductBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    newProductBtn.innerHTML = '➕ 상품 등록';
+    newProductBtn.innerHTML = '➕ 매장 상품 등록';
     newProductBtn.onclick = () => {
       goNewProduct();
       menu.remove();
@@ -92,7 +92,7 @@ export default function AdminHeader() {
     // 노출순서 변경 버튼
     const productOrderBtn = document.createElement('button');
     productOrderBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    productOrderBtn.innerHTML = '📋 노출순서 변경';
+    productOrderBtn.innerHTML = '📋 매장 노출순서 변경';
     productOrderBtn.onclick = () => {
       goProductOrder();
       menu.remove();
@@ -166,23 +166,37 @@ export default function AdminHeader() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-gray-800">메뉴</span>
-        {/* 햄버거 버튼 */}
+    <div className="flex items-center gap-2">
+      {/* 매장/택배 토글 */}
+      <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
         <button
           type="button"
-          className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-gray-50 border border-gray-200 shadow-sm hover:bg-gray-100 hover:shadow-md active:scale-[0.98] transition-all duration-200"
-          aria-haspopup="menu"
-          aria-expanded={false}
-          aria-label="관리 메뉴"
-          onClick={openAdminMenu}
+          className="px-2.5 py-1.5 bg-orange-500 text-white cursor-default"
         >
-          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
+          매장
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/admin/courier/products')}
+          className="px-2.5 py-1.5 bg-white text-gray-500 hover:bg-gray-50 transition"
+        >
+          택배
         </button>
       </div>
+
+      {/* 햄버거 */}
+      <button
+        type="button"
+        className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-gray-50 border border-gray-200 shadow-sm hover:bg-gray-100 hover:shadow-md active:scale-[0.98] transition-all duration-200"
+        aria-haspopup="menu"
+        aria-expanded={false}
+        aria-label="관리 메뉴"
+        onClick={openAdminMenu}
+      >
+        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
     </div>
   );
 }

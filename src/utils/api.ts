@@ -1679,6 +1679,16 @@ export const getCourierCategories = async () => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const getAdminCourierCategories = async () => {
+  const key = 'getAdminCourierCategories';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products/categories', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 // 관리자 — 세션 인증 (adminFetch 사용)
 export const getAdminCourierProducts = async () => {
   const key = 'getAdminCourierProducts';
@@ -1748,6 +1758,34 @@ export const toggleAdminCourierProductVisible = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const updateAdminCourierProductOrder = async (productIds: number[]) => {
+  const key = 'updateAdminCourierProductOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products/order', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productIds),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierCategoryProductOrder = async (categoryId: number, productIds: number[]) => {
+  const key = 'updateAdminCourierCategoryProductOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products/category-order', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId, productIds }),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 export const getAdminCourierProductPresignedUrl = async (fileName: string, contentType: string) => {
   const key = 'getAdminCourierProductPresignedUrl';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -1759,5 +1797,1063 @@ export const getAdminCourierProductPresignedUrl = async (fileName: string, conte
     }, true);
     if (res.ok) resetApiRetryCount(key);
     return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getRecommendedCourierProducts = async (limit?: number) => {
+  const key = 'getRecommendedCourierProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = limit !== undefined ? `?limit=${limit}` : '';
+    const res = await apiFetch(`/api/auth/courier/products/recommended${params}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const searchCourierProducts = async (q: string) => {
+  const key = 'searchCourierProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/products/search?q=${encodeURIComponent(q)}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getCourierProductsByCategory = async (limit?: number) => {
+  const key = 'getCourierProductsByCategory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = limit !== undefined ? `?limit=${limit}` : '';
+    const res = await apiFetch(`/api/auth/courier/products/by-category${params}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const toggleAdminCourierProductRecommend = async (id: number) => {
+  const key = 'toggleAdminCourierProductRecommend';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/products/${id}/recommend`, { method: 'PATCH' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierRecommendOrder = async (productIds: number[]) => {
+  const key = 'updateAdminCourierRecommendOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/products/recommend-order', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productIds }),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Courier Category APIs =====
+
+export const getAdminCourierCategoriesList = async () => {
+  const key = 'getAdminCourierCategoriesList';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/categories', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const createAdminCourierCategory = async (data: { name: string; imageUrl?: string; sortOrder?: number }) => {
+  const key = 'createAdminCourierCategory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierCategory = async (id: number, data: { name?: string; imageUrl?: string; sortOrder?: number }) => {
+  const key = 'updateAdminCourierCategory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const deleteAdminCourierCategory = async (id: number) => {
+  const key = 'deleteAdminCourierCategory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/categories/${id}`, { method: 'DELETE' }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierCategoryOrder = async (categoryIds: number[]) => {
+  const key = 'updateAdminCourierCategoryOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/categories/order', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(categoryIds),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Courier Order APIs =====
+
+export type CourierOrderStatus =
+  | 'PENDING_PAYMENT'
+  | 'PAID'
+  | 'PREPARING'
+  | 'SHIPPED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CANCELED'
+  | 'FAILED';
+
+export type ShippingFeeResponse = {
+  baseFee: number;
+  extraFee: number;
+  totalFee: number;
+  isRemoteArea: boolean;
+};
+
+export type CourierConfigResponse = {
+  minOrderAmount: number;
+  freeShippingThreshold: number | null;
+  shippingBaseFee: number;
+  remoteAreaExtraFee: number;
+};
+
+export type CourierOrderReadyRequest = {
+  items: { courierProductId: number; quantity: number; selectedOptionIds?: number[] }[];
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  address1: string;
+  address2: string;
+  deliveryMemo: string;
+  idempotencyKey: string;
+};
+
+export type CourierOrderReadyResponse = {
+  orderCode: string;
+  redirectUrl: string;
+  mobileRedirectUrl: string;
+};
+
+export type CourierOrderItemSummary = {
+  courierProductId: number;
+  productName: string;
+  imageUrl: string;
+  unitPrice: number;
+  quantity: number;
+  subtotal: number;
+};
+
+export type CourierOrderSummary = {
+  displayCode: string;
+  status: CourierOrderStatus;
+  itemSummary: string;
+  itemCount: number;
+  totalAmount: number;
+  createdAt: string;
+  items: CourierOrderItemSummary[];
+};
+
+export type CourierOrderListResponse = {
+  orders: CourierOrderSummary[];
+  nextCursor: number | null;
+  hasNext: boolean;
+};
+
+export type CourierOrderDetailResponse = {
+  displayCode: string;
+  status: CourierOrderStatus;
+  items: CourierOrderItemSummary[];
+  productTotal: number;
+  shippingFee: number;
+  remoteAreaFee: number;
+  totalAmount: number;
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  address1: string;
+  address2: string;
+  deliveryMemo: string;
+  courierCompany: string | null;
+  trackingNumber: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+};
+
+// 택배 배송비 조회
+export const getCourierShippingFee = async (quantity: number, postalCode?: string): Promise<ShippingFeeResponse> => {
+  const key = 'getCourierShippingFee';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = [`quantity=${quantity}`];
+    if (postalCode) params.push(`postalCode=${encodeURIComponent(postalCode)}`);
+    const res = await apiFetch(`/api/auth/courier/orders/shipping-fee?${params.join('&')}`);
+    if (!res.ok) throw new Error('배송비 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      baseFee: Number(data.base_fee ?? data.baseFee ?? 0),
+      extraFee: Number(data.extra_fee ?? data.extraFee ?? 0),
+      totalFee: Number(data.total_fee ?? data.totalFee ?? 0),
+      isRemoteArea: Boolean(data.is_remote_area ?? data.isRemoteArea ?? false),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 설정 조회
+export const getCourierConfig = async (): Promise<CourierConfigResponse> => {
+  const key = 'getCourierConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch('/api/auth/courier/orders/config');
+    if (!res.ok) throw new Error('택배 설정 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      minOrderAmount: Number(data.min_order_amount ?? data.minOrderAmount ?? 0),
+      freeShippingThreshold: data.free_shipping_threshold ?? data.freeShippingThreshold ?? null,
+      shippingBaseFee: Number(data.shipping_base_fee ?? data.shippingBaseFee ?? 3000),
+      remoteAreaExtraFee: Number(data.remote_area_extra_fee ?? data.remoteAreaExtraFee ?? 3000),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 주문 생성 (결제 준비)
+export const createCourierOrder = async (request: CourierOrderReadyRequest): Promise<CourierOrderReadyResponse> => {
+  const key = 'createCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch('/api/auth/courier/orders/ready', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: request.items.map(i => ({
+          courier_product_id: i.courierProductId,
+          quantity: i.quantity,
+          selected_option_ids: i.selectedOptionIds,
+        })),
+        recipient_name: request.recipientName,
+        recipient_phone: request.recipientPhone,
+        postal_code: request.postalCode,
+        address1: request.address1,
+        address2: request.address2,
+        delivery_memo: request.deliveryMemo,
+        idempotency_key: request.idempotencyKey,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || '주문 생성에 실패했습니다.');
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      orderCode: String(data.order_code ?? data.orderCode ?? ''),
+      redirectUrl: String(data.redirect_url ?? data.redirectUrl ?? ''),
+      mobileRedirectUrl: String(data.mobile_redirect_url ?? data.mobileRedirectUrl ?? ''),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 결제 승인
+export const approveCourierPayment = async (orderCode: string, pgToken: string) => {
+  const key = 'approveCourierPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/approve?order_id=${encodeURIComponent(orderCode)}&pg_token=${encodeURIComponent(pgToken)}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 결제 취소
+export const cancelCourierPayment = async (orderCode: string) => {
+  const key = 'cancelCourierPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/cancel?order_id=${encodeURIComponent(orderCode)}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 결제 실패
+export const failCourierPayment = async (orderCode: string) => {
+  const key = 'failCourierPayment';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/fail?order_id=${encodeURIComponent(orderCode)}`);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 주문 목록
+export const getCourierOrders = async (cursor?: number, size: number = 10): Promise<CourierOrderListResponse> => {
+  const key = 'getCourierOrders';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = [`size=${size}`];
+    if (cursor != null) params.push(`cursor=${cursor}`);
+    const res = await apiFetch(`/api/auth/courier/orders?${params.join('&')}`);
+    if (!res.ok) throw new Error('주문 목록 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    const orders: CourierOrderSummary[] = (Array.isArray(data.orders ?? data.response) ? (data.orders ?? data.response) : []).map((o: any) => ({
+      displayCode: String(o.display_code ?? o.displayCode ?? ''),
+      status: String(o.status ?? 'PENDING_PAYMENT') as CourierOrderStatus,
+      itemSummary: String(o.item_summary ?? o.itemSummary ?? ''),
+      itemCount: Number(o.item_count ?? o.itemCount ?? 0),
+      totalAmount: Number(o.total_amount ?? o.totalAmount ?? 0),
+      createdAt: String(o.created_at ?? o.createdAt ?? ''),
+      items: Array.isArray(o.items) ? o.items.map((i: any) => ({
+        courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
+        productName: String(i.product_name ?? i.productName ?? ''),
+        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        unitPrice: Number(i.unit_price ?? i.unitPrice ?? 0),
+        quantity: Number(i.quantity ?? 0),
+        subtotal: Number(i.subtotal ?? 0),
+      })) : [],
+    }));
+    return {
+      orders,
+      nextCursor: data.next_cursor ?? data.nextCursor ?? null,
+      hasNext: Boolean(data.has_next ?? data.hasNext ?? false),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 택배 주문 상세
+export const getCourierOrder = async (displayCode: string): Promise<CourierOrderDetailResponse> => {
+  const key = 'getCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/${encodeURIComponent(displayCode)}`);
+    if (!res.ok) throw new Error('주문 상세 조회에 실패했습니다.');
+    const d = await res.json();
+    resetApiRetryCount(key);
+    return {
+      displayCode: String(d.display_code ?? d.displayCode ?? ''),
+      status: String(d.status ?? 'PENDING_PAYMENT') as CourierOrderStatus,
+      items: Array.isArray(d.items) ? d.items.map((i: any) => ({
+        courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
+        productName: String(i.product_name ?? i.productName ?? ''),
+        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        unitPrice: Number(i.unit_price ?? i.unitPrice ?? 0),
+        quantity: Number(i.quantity ?? 0),
+        subtotal: Number(i.subtotal ?? 0),
+      })) : [],
+      productTotal: Number(d.product_total ?? d.productTotal ?? 0),
+      shippingFee: Number(d.shipping_fee ?? d.shippingFee ?? 0),
+      remoteAreaFee: Number(d.remote_area_fee ?? d.remoteAreaFee ?? 0),
+      totalAmount: Number(d.total_amount ?? d.totalAmount ?? 0),
+      recipientName: String(d.recipient_name ?? d.recipientName ?? ''),
+      recipientPhone: String(d.recipient_phone ?? d.recipientPhone ?? ''),
+      postalCode: String(d.postal_code ?? d.postalCode ?? ''),
+      address1: String(d.address1 ?? ''),
+      address2: String(d.address2 ?? ''),
+      deliveryMemo: String(d.delivery_memo ?? d.deliveryMemo ?? ''),
+      courierCompany: d.courier_company ?? d.courierCompany ?? null,
+      trackingNumber: d.tracking_number ?? d.trackingNumber ?? null,
+      shippedAt: d.shipped_at ?? d.shippedAt ?? null,
+      deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
+      createdAt: String(d.created_at ?? d.createdAt ?? ''),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Courier Admin Order APIs =====
+
+export type AdminCourierOrderItemSummary = {
+  courierProductId: number;
+  productName: string;
+  imageUrl: string;
+  unitPrice: number;
+  quantity: number;
+  subtotal: number;
+};
+
+export type AdminCourierOrderSummary = {
+  id: number;
+  displayCode: string;
+  status: CourierOrderStatus;
+  recipientName: string;
+  itemSummary: string;
+  itemCount: number;
+  totalAmount: number;
+  trackingNumber: string | null;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+export type AdminCourierOrderListResponse = {
+  orders: AdminCourierOrderSummary[];
+  totalPages: number;
+  totalElements: number;
+  currentPage: number;
+};
+
+export type AdminCourierOrderDetailResponse = {
+  id: number;
+  displayCode: string;
+  status: CourierOrderStatus;
+  items: AdminCourierOrderItemSummary[];
+  productTotal: number;
+  shippingFee: number;
+  remoteAreaFee: number;
+  totalAmount: number;
+  recipientName: string;
+  recipientPhone: string;
+  postalCode: string;
+  address1: string;
+  address2: string;
+  deliveryMemo: string;
+  isRemoteArea: boolean;
+  courierCompany: string | null;
+  trackingNumber: string | null;
+  paidAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+};
+
+// 관리자 택배 주문 목록
+export const getAdminCourierOrders = async (
+  status?: string,
+  page = 0,
+  size = 50,
+): Promise<AdminCourierOrderListResponse> => {
+  const key = 'getAdminCourierOrders';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    params.append('page', String(page));
+    params.append('size', String(size));
+    const res = await adminFetch(`/api/admin/courier/orders?${params.toString()}`, {}, true);
+    if (!res.ok) throw new Error('주문 목록 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    const raw = Array.isArray(data.orders ?? data.response ?? data.content)
+      ? (data.orders ?? data.response ?? data.content)
+      : [];
+    return {
+      orders: raw.map((o: any) => ({
+        id: Number(o.id ?? 0),
+        displayCode: String(o.display_code ?? o.displayCode ?? ''),
+        status: String(o.status ?? 'PAID') as CourierOrderStatus,
+        recipientName: String(o.recipient_name ?? o.recipientName ?? ''),
+        itemSummary: String(o.item_summary ?? o.itemSummary ?? ''),
+        itemCount: Number(o.item_count ?? o.itemCount ?? 0),
+        totalAmount: Number(o.total_amount ?? o.totalAmount ?? 0),
+        trackingNumber: o.tracking_number ?? o.trackingNumber ?? null,
+        paidAt: o.paid_at ?? o.paidAt ?? null,
+        createdAt: String(o.created_at ?? o.createdAt ?? ''),
+      })),
+      totalPages: Number(data.total_pages ?? data.totalPages ?? 1),
+      totalElements: Number(data.total_elements ?? data.totalElements ?? 0),
+      currentPage: Number(data.current_page ?? data.currentPage ?? data.number ?? page),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 택배 주문 상세
+export const getAdminCourierOrder = async (id: number): Promise<AdminCourierOrderDetailResponse> => {
+  const key = 'getAdminCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/orders/${id}`, {}, true);
+    if (!res.ok) throw new Error('주문 상세 조회에 실패했습니다.');
+    const d = await res.json();
+    resetApiRetryCount(key);
+    return {
+      id: Number(d.id ?? 0),
+      displayCode: String(d.display_code ?? d.displayCode ?? ''),
+      status: String(d.status ?? 'PAID') as CourierOrderStatus,
+      items: Array.isArray(d.items) ? d.items.map((i: any) => ({
+        courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
+        productName: String(i.product_name ?? i.productName ?? ''),
+        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        unitPrice: Number(i.unit_price ?? i.unitPrice ?? 0),
+        quantity: Number(i.quantity ?? 0),
+        subtotal: Number(i.subtotal ?? 0),
+      })) : [],
+      productTotal: Number(d.product_total ?? d.productTotal ?? 0),
+      shippingFee: Number(d.shipping_fee ?? d.shippingFee ?? 0),
+      remoteAreaFee: Number(d.remote_area_fee ?? d.remoteAreaFee ?? 0),
+      totalAmount: Number(d.total_amount ?? d.totalAmount ?? 0),
+      recipientName: String(d.recipient_name ?? d.recipientName ?? ''),
+      recipientPhone: String(d.recipient_phone ?? d.recipientPhone ?? ''),
+      postalCode: String(d.postal_code ?? d.postalCode ?? ''),
+      address1: String(d.address1 ?? ''),
+      address2: String(d.address2 ?? ''),
+      deliveryMemo: String(d.delivery_memo ?? d.deliveryMemo ?? ''),
+      isRemoteArea: Boolean(d.is_remote_area ?? d.isRemoteArea ?? false),
+      courierCompany: d.courier_company ?? d.courierCompany ?? null,
+      trackingNumber: d.tracking_number ?? d.trackingNumber ?? null,
+      paidAt: d.paid_at ?? d.paidAt ?? null,
+      shippedAt: d.shipped_at ?? d.shippedAt ?? null,
+      deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
+      createdAt: String(d.created_at ?? d.createdAt ?? ''),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 택배 주문 상태 변경
+export const updateAdminCourierOrderStatus = async (id: number, status: string) => {
+  const key = 'updateAdminCourierOrderStatus';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/orders/${id}/status/${status}`, { method: 'PATCH' }, true);
+    if (!res.ok) throw new Error('주문 상태 변경에 실패했습니다.');
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 택배 주문 발송처리 (운송장 입력)
+export const shipAdminCourierOrder = async (id: number, waybillNumber: string) => {
+  const key = 'shipAdminCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/orders/${id}/ship`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waybillNumber }),
+    }, true);
+    if (!res.ok) throw new Error('발송 처리에 실패했습니다.');
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 택배 주문 취소
+export const cancelAdminCourierOrder = async (id: number) => {
+  const key = 'cancelAdminCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/orders/${id}/cancel`, { method: 'PATCH' }, true);
+    if (!res.ok) throw new Error('주문 취소에 실패했습니다.');
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 택배 운송장 Excel 다운로드 (단건)
+export const downloadAdminCourierWaybillExcel = async (id: number): Promise<Blob> => {
+  const res = await fetch(`${API_BASE}/api/admin/courier/orders/${id}/waybill/excel`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
+  return res.blob();
+};
+
+// 관리자 택배 운송장 Excel 다운로드 (다건)
+export const downloadAdminCourierWaybillExcelBulk = async (orderIds: number[]): Promise<Blob> => {
+  const res = await fetch(`${API_BASE}/api/admin/courier/orders/waybill/excel/bulk`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds }),
+  });
+  if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
+  return res.blob();
+};
+
+// ===== Courier Claim APIs =====
+
+export type CourierClaimType = 'QUALITY_ISSUE' | 'CHANGE_OF_MIND';
+export type CourierClaimStatus = 'REQUESTED' | 'IN_REVIEW' | 'APPROVED' | 'REJECTED' | 'RESOLVED';
+
+export type CourierClaimSummary = {
+  id: number;
+  claimType: CourierClaimType;
+  status: CourierClaimStatus;
+  reason: string;
+  adminNote: string | null;
+  action: string | null;
+  refundAmount: number | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  courierOrderItemId: number | null;
+  productName: string | null;
+};
+
+export type CourierClaimListResponse = {
+  claims: CourierClaimSummary[];
+};
+
+// 사용자 클레임 접수
+export const createCourierClaim = async (displayCode: string, data: {
+  claimType: CourierClaimType;
+  courierOrderItemId?: number;
+  reason: string;
+}) => {
+  const key = 'createCourierClaim';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/${encodeURIComponent(displayCode)}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({
+        claim_type: data.claimType,
+        courier_order_item_id: data.courierOrderItemId ?? null,
+        reason: data.reason,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '클레임 접수에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 사용자 주문별 클레임 목록 조회
+export const getCourierClaims = async (displayCode: string): Promise<CourierClaimListResponse> => {
+  const key = 'getCourierClaims';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/${encodeURIComponent(displayCode)}/claims`);
+    if (!res.ok) throw new Error('클레임 목록 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    const raw = Array.isArray(data.claims ?? data.response ?? data) ? (data.claims ?? data.response ?? data) : [];
+    return {
+      claims: raw.map((c: any) => ({
+        id: Number(c.id ?? 0),
+        claimType: String(c.claim_type ?? c.claimType ?? 'QUALITY_ISSUE') as CourierClaimType,
+        status: String(c.status ?? 'REQUESTED') as CourierClaimStatus,
+        reason: String(c.reason ?? ''),
+        adminNote: c.admin_note ?? c.adminNote ?? null,
+        action: c.action ?? null,
+        refundAmount: c.refund_amount ?? c.refundAmount ?? null,
+        createdAt: String(c.created_at ?? c.createdAt ?? ''),
+        resolvedAt: c.resolved_at ?? c.resolvedAt ?? null,
+        courierOrderItemId: c.courier_order_item_id ?? c.courierOrderItemId ?? null,
+        productName: c.product_name ?? c.productName ?? null,
+      })),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Admin Courier Claim APIs =====
+
+export type AdminCourierClaimSummary = {
+  id: number;
+  displayCode: string;
+  productName: string;
+  claimType: CourierClaimType;
+  status: CourierClaimStatus;
+  reason: string;
+  adminNote: string | null;
+  action: string | null;
+  refundAmount: number | null;
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+export type AdminCourierClaimListResponse = {
+  claims: AdminCourierClaimSummary[];
+  totalPages: number;
+  totalElements: number;
+  currentPage: number;
+};
+
+export type AdminCourierClaimDetailResponse = {
+  id: number;
+  displayCode: string;
+  claimType: CourierClaimType;
+  status: CourierClaimStatus;
+  reason: string;
+  adminNote: string | null;
+  action: string | null;
+  refundAmount: number | null;
+  courierOrderItemId: number | null;
+  productName: string | null;
+  customerName: string;
+  totalAmount: number;
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
+// 관리자 클레임 목록
+export const getAdminCourierClaims = async (
+  status?: string,
+  page = 0,
+  size = 50,
+): Promise<AdminCourierClaimListResponse> => {
+  const key = 'getAdminCourierClaims';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    params.append('page', String(page));
+    params.append('size', String(size));
+    const res = await adminFetch(`/api/admin/courier/claims?${params.toString()}`, {}, true);
+    if (!res.ok) throw new Error('클레임 목록 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    const raw = Array.isArray(data.claims ?? data.response ?? data.content)
+      ? (data.claims ?? data.response ?? data.content)
+      : [];
+    return {
+      claims: raw.map((c: any) => ({
+        id: Number(c.id ?? 0),
+        displayCode: String(c.display_code ?? c.displayCode ?? ''),
+        productName: String(c.product_name ?? c.productName ?? ''),
+        claimType: String(c.claim_type ?? c.claimType ?? 'QUALITY_ISSUE') as CourierClaimType,
+        status: String(c.status ?? 'REQUESTED') as CourierClaimStatus,
+        reason: String(c.reason ?? ''),
+        adminNote: c.admin_note ?? c.adminNote ?? null,
+        action: c.action ?? null,
+        refundAmount: c.refund_amount ?? c.refundAmount ?? null,
+        createdAt: String(c.created_at ?? c.createdAt ?? ''),
+        resolvedAt: c.resolved_at ?? c.resolvedAt ?? null,
+      })),
+      totalPages: Number(data.total_pages ?? data.totalPages ?? 1),
+      totalElements: Number(data.total_elements ?? data.totalElements ?? 0),
+      currentPage: Number(data.current_page ?? data.currentPage ?? data.number ?? page),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 클레임 상세
+export const getAdminCourierClaim = async (id: number): Promise<AdminCourierClaimDetailResponse> => {
+  const key = 'getAdminCourierClaim';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/claims/${id}`, {}, true);
+    if (!res.ok) throw new Error('클레임 상세 조회에 실패했습니다.');
+    const c = await res.json();
+    resetApiRetryCount(key);
+    return {
+      id: Number(c.id ?? 0),
+      displayCode: String(c.display_code ?? c.displayCode ?? ''),
+      claimType: String(c.claim_type ?? c.claimType ?? 'QUALITY_ISSUE') as CourierClaimType,
+      status: String(c.status ?? 'REQUESTED') as CourierClaimStatus,
+      reason: String(c.reason ?? ''),
+      adminNote: c.admin_note ?? c.adminNote ?? null,
+      action: c.action ?? null,
+      refundAmount: c.refund_amount ?? c.refundAmount ?? null,
+      courierOrderItemId: c.courier_order_item_id ?? c.courierOrderItemId ?? null,
+      productName: c.product_name ?? c.productName ?? null,
+      customerName: String(c.customer_name ?? c.customerName ?? ''),
+      totalAmount: Number(c.total_amount ?? c.totalAmount ?? 0),
+      createdAt: String(c.created_at ?? c.createdAt ?? ''),
+      resolvedAt: c.resolved_at ?? c.resolvedAt ?? null,
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 클레임 승인
+export const approveAdminCourierClaim = async (id: number, data: {
+  action: 'REFUND' | 'RESHIP';
+  adminNote: string;
+  refundAmount?: number;
+}) => {
+  const key = 'approveAdminCourierClaim';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/claims/${id}/approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: data.action,
+        admin_note: data.adminNote,
+        refund_amount: data.refundAmount ?? null,
+      }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '클레임 승인에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 클레임 거부
+export const rejectAdminCourierClaim = async (id: number, adminNote: string) => {
+  const key = 'rejectAdminCourierClaim';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/claims/${id}/reject`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_note: adminNote }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '클레임 거부에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Admin Courier Config APIs =====
+
+export type AdminCourierConfigResponse = {
+  id: number;
+  enabled: boolean;
+  islandSurcharge: number;
+  noticeText: string | null;
+  senderName: string | null;
+  senderPhone: string | null;
+  senderPhone2: string | null;
+  senderAddress: string | null;
+  senderDetailAddress: string | null;
+};
+
+export type ShippingFeePolicyResponse = {
+  id: number | null;
+  minQuantity: number;
+  maxQuantity: number;
+  fee: number;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type ShippingFeePolicyListResponse = {
+  policies: ShippingFeePolicyResponse[];
+};
+
+const parseAdminCourierConfig = (d: any): AdminCourierConfigResponse => ({
+  id: Number(d.id),
+  enabled: Boolean(d.enabled),
+  islandSurcharge: Number(d.island_surcharge ?? d.islandSurcharge ?? 0),
+  noticeText: d.notice_text ?? d.noticeText ?? null,
+  senderName: d.sender_name ?? d.senderName ?? null,
+  senderPhone: d.sender_phone ?? d.senderPhone ?? null,
+  senderPhone2: d.sender_phone2 ?? d.senderPhone2 ?? null,
+  senderAddress: d.sender_address ?? d.senderAddress ?? null,
+  senderDetailAddress: d.sender_detail_address ?? d.senderDetailAddress ?? null,
+});
+
+const toSnakeCourierConfig = (data: Partial<AdminCourierConfigResponse>) => ({
+  id: data.id,
+  enabled: data.enabled,
+  island_surcharge: data.islandSurcharge,
+  notice_text: data.noticeText,
+  sender_name: data.senderName,
+  sender_phone: data.senderPhone,
+  sender_phone2: data.senderPhone2,
+  sender_address: data.senderAddress,
+  sender_detail_address: data.senderDetailAddress,
+});
+
+export const getAdminCourierConfig = async (): Promise<AdminCourierConfigResponse> => {
+  const key = 'getAdminCourierConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/config', {}, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '택배 설정 조회에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    return parseAdminCourierConfig(d);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierConfig = async (data: Partial<AdminCourierConfigResponse>): Promise<AdminCourierConfigResponse> => {
+  const key = 'updateAdminCourierConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toSnakeCourierConfig(data)),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '택배 설정 저장에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    return parseAdminCourierConfig(d);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+const parseShippingFeePolicy = (d: any): ShippingFeePolicyResponse => ({
+  id: d.id ?? null,
+  minQuantity: Number(d.min_quantity ?? d.minQuantity ?? 0),
+  maxQuantity: Number(d.max_quantity ?? d.maxQuantity ?? 0),
+  fee: Number(d.fee ?? 0),
+  sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
+  active: typeof d.active === 'boolean' ? d.active : true,
+});
+
+const toSnakePolicy = (p: ShippingFeePolicyResponse) => ({
+  id: p.id,
+  min_quantity: p.minQuantity,
+  max_quantity: p.maxQuantity,
+  fee: p.fee,
+  sort_order: p.sortOrder,
+  active: p.active,
+});
+
+export const getAdminCourierShippingFeePolicies = async (): Promise<ShippingFeePolicyListResponse> => {
+  const key = 'getAdminCourierShippingFeePolicies';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/shipping-fee-policies', {}, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '배송비 정책 조회에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    const list = Array.isArray(d?.policies) ? d.policies : (Array.isArray(d) ? d : []);
+    return { policies: list.map(parseShippingFeePolicy) };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierShippingFeePolicies = async (policies: ShippingFeePolicyResponse[]): Promise<ShippingFeePolicyListResponse> => {
+  const key = 'updateAdminCourierShippingFeePolicies';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/shipping-fee-policies', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(policies.map(toSnakePolicy)),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '배송비 정책 저장에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    const list = Array.isArray(d?.policies) ? d.policies : (Array.isArray(d) ? d : []);
+    return { policies: list.map(parseShippingFeePolicy) };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Shipping Fee Template APIs =====
+
+export type ShippingFeeTemplateResponse = {
+  id: number;
+  name: string;
+  baseFee: number;
+  perQuantityFee: number | null;
+  freeShippingMinAmount: number | null;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type ShippingFeeTemplateListResponse = {
+  templates: ShippingFeeTemplateResponse[];
+};
+
+const parseShippingFeeTemplate = (d: any): ShippingFeeTemplateResponse => ({
+  id: Number(d.id),
+  name: String(d.name ?? ''),
+  baseFee: Number(d.base_fee ?? d.baseFee ?? 0),
+  perQuantityFee: d.per_quantity_fee ?? d.perQuantityFee ?? null,
+  freeShippingMinAmount: d.free_shipping_min_amount ?? d.freeShippingMinAmount ?? null,
+  active: typeof d.active === 'boolean' ? d.active : true,
+  sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
+});
+
+const toSnakeTemplate = (data: Omit<ShippingFeeTemplateResponse, 'id'>) => ({
+  name: data.name,
+  base_fee: data.baseFee,
+  per_quantity_fee: data.perQuantityFee,
+  free_shipping_min_amount: data.freeShippingMinAmount,
+  active: data.active,
+  sort_order: data.sortOrder,
+});
+
+export const getAdminCourierShippingFeeTemplates = async (): Promise<ShippingFeeTemplateListResponse> => {
+  const key = 'getAdminCourierShippingFeeTemplates';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/shipping-fee-templates', {}, true);
+    if (!res.ok) throw new Error('배송비 템플릿 조회에 실패했습니다.');
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    const list = Array.isArray(d?.templates) ? d.templates : (Array.isArray(d) ? d : []);
+    return { templates: list.map(parseShippingFeeTemplate) };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const createAdminCourierShippingFeeTemplate = async (data: Omit<ShippingFeeTemplateResponse, 'id'>): Promise<ShippingFeeTemplateResponse> => {
+  const key = 'createAdminCourierShippingFeeTemplate';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/courier/shipping-fee-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toSnakeTemplate(data)),
+    }, true);
+    if (!res.ok) throw new Error('배송비 템플릿 생성에 실패했습니다.');
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    return parseShippingFeeTemplate(d);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierShippingFeeTemplate = async (id: number, data: Omit<ShippingFeeTemplateResponse, 'id'>): Promise<ShippingFeeTemplateResponse> => {
+  const key = 'updateAdminCourierShippingFeeTemplate';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/shipping-fee-templates/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(toSnakeTemplate(data)),
+    }, true);
+    if (!res.ok) throw new Error('배송비 템플릿 수정에 실패했습니다.');
+    resetApiRetryCount(key);
+    const raw = await res.json();
+    const d = raw?.response ?? raw;
+    return parseShippingFeeTemplate(d);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const deleteAdminCourierShippingFeeTemplate = async (id: number): Promise<void> => {
+  const key = 'deleteAdminCourierShippingFeeTemplate';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/shipping-fee-templates/${id}`, {
+      method: 'DELETE',
+    }, true);
+    if (!res.ok) throw new Error('배송비 템플릿 삭제에 실패했습니다.');
+    resetApiRetryCount(key);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };

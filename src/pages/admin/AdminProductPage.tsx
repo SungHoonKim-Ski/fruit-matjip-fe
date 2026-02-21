@@ -475,7 +475,7 @@ export default function AdminProductPage() {
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">📦 상품 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-800">📦 매장 상품 관리</h1>
           <div className="flex justify-end">
             <AdminHeader />
           </div>

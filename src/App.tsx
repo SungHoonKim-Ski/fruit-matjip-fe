@@ -41,6 +41,12 @@ import CourierFailPage from './pages/shop/CourierFailPage';
 import AdminCourierProductPage from './pages/admin/courier/AdminCourierProductPage';
 import AdminCourierCreateProductPage from './pages/admin/courier/AdminCourierCreateProductPage';
 import AdminCourierEditProductPage from './pages/admin/courier/AdminCourierEditProductPage';
+import AdminCourierOrdersPage from './pages/admin/courier/AdminCourierOrdersPage';
+import AdminCourierOrderDetailPage from './pages/admin/courier/AdminCourierOrderDetailPage';
+import AdminCourierClaimsPage from './pages/admin/courier/AdminCourierClaimsPage';
+import AdminCourierConfigPage from './pages/admin/courier/AdminCourierConfigPage';
+import AdminCourierProductOrderPage from './pages/admin/courier/AdminCourierProductOrderPage';
+import AdminCourierCategoryPage from './pages/admin/courier/AdminCourierCategoryPage';
 
 /** query params를 보존하면서 redirect (OAuth callback용) */
 function RedirectWithSearch({ to }: { to: string }) {
@@ -100,8 +106,6 @@ export default function App() {
       <Route path="/terms" element={<Navigate to="/store/terms" replace />} />
       <Route path="/privacy" element={<Navigate to="/store/privacy" replace />} />
       <Route path="/refund" element={<Navigate to="/store/refund" replace />} />
-      <Route path="/admin/*" element={<Navigate to="/admin/shop/login" replace />} />
-
       {/* ===== /shop — 택배 쇼핑몰 ===== */}
       <Route path="/shop" element={<CourierShopPage />} />
       <Route path="/shop/cart" element={<CourierCartPage />} />
@@ -114,7 +118,7 @@ export default function App() {
       <Route path="/shop/fail" element={<CourierFailPage />} />
       <Route path="/shop/:id" element={<CourierProductDetailPage />} />
 
-      {/* ===== /shop/admin — 택배 관리자 ===== */}
+      {/* ===== /admin/courier — 택배 관리자 (catch-all보다 먼저 선언) ===== */}
       <Route path="/admin/courier" element={<Navigate to="/admin/courier/login" replace />} />
       <Route path="/admin/courier/login" element={<AdminLoginPage />} />
       <Route element={
@@ -122,10 +126,19 @@ export default function App() {
           <RequireAdmin />
         </AdminSessionProvider>
       }>
-        <Route path="/shop/admin/products" element={<AdminCourierProductPage />} />
-        <Route path="/shop/admin/products/new" element={<AdminCourierCreateProductPage />} />
-        <Route path="/shop/admin/products/:id/edit" element={<AdminCourierEditProductPage />} />
+        <Route path="/admin/courier/products" element={<AdminCourierProductPage />} />
+        <Route path="/admin/courier/products/order" element={<AdminCourierProductOrderPage />} />
+        <Route path="/admin/courier/products/new" element={<AdminCourierCreateProductPage />} />
+        <Route path="/admin/courier/products/:id/edit" element={<AdminCourierEditProductPage />} />
+        <Route path="/admin/courier/orders" element={<AdminCourierOrdersPage />} />
+        <Route path="/admin/courier/orders/:id" element={<AdminCourierOrderDetailPage />} />
+        <Route path="/admin/courier/claims" element={<AdminCourierClaimsPage />} />
+        <Route path="/admin/courier/config" element={<AdminCourierConfigPage />} />
+        <Route path="/admin/courier/categories" element={<AdminCourierCategoryPage />} />
       </Route>
+
+      {/* 하위호환: /admin/courier 이외의 /admin/* → /admin/shop/login */}
+      <Route path="/admin/*" element={<Navigate to="/admin/shop/login" replace />} />
 
       {/* Error pages */}
       <Route path="/401" element={<Error401Page />} />

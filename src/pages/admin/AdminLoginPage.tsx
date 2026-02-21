@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getCurrentEnvironment } from '../../utils/environment';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { adminLogin } from '../../utils/api';
 
@@ -10,6 +10,9 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState(isDev ? 'pass1234' : '');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const savedMode = localStorage.getItem('admin-mode');
+  const isCourierAdmin = location.pathname.includes('/courier') || savedMode === 'courier';
   const { show } = useSnackbar();
   
   // 페이지 로드 시 저장된 에러 메시지가 있으면 표시
@@ -31,7 +34,7 @@ export default function AdminLoginPage() {
         show('로그인 성공');
         localStorage.setItem('admin-auth', 'true');
         
-        navigate('/admin/shop/products');
+        navigate(isCourierAdmin ? '/admin/courier/products' : '/admin/shop/products');
       } else {
         show('아이디 또는 비밀번호가 잘못되었습니다.', { variant: 'error' });
       }

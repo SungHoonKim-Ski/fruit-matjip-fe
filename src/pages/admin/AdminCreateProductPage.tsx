@@ -277,7 +277,7 @@ export default function ProductCreatePage() {
     <main className="min-h-screen bg-gray-50 px-4 pt-16 pb-24">
       <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">📦 상품 등록</h1>
+          <h1 className="text-xl font-bold">📦 매장 상품 등록</h1>
           
           {/* 데스크탑: AdminHeader / 모바일: 햄버거 */}
           <div className="relative">
