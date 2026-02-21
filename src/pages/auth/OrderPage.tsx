@@ -723,7 +723,7 @@ export default function OrdersPage() {
       {/* 상단 바 */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200">
         <div className="mx-auto w-full max-w-4xl h-14 flex items-center justify-between px-4">
-          <button onClick={() => nav('/products')} className="text-sm text-gray-600 hover:text-gray-800">← 뒤로</button>
+          <button onClick={() => nav('/store/products')} className="text-sm text-gray-600 hover:text-gray-800">← 뒤로</button>
           <div className="font-bold text-gray-800">주문 내역</div>
           <div className="w-8" />
         </div>

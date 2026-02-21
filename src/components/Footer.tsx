@@ -14,9 +14,9 @@ export default function Footer() {
           <div>전화번호: {theme.contact.phone}</div>
         </div>
         <div className="flex flex-wrap gap-3 pt-2 text-gray-500">
-          <Link to="/terms" className="hover:underline">이용약관</Link>
-          <Link to="/privacy" className="hover:underline">개인정보처리방침</Link>
-          <Link to="/refund" className="hover:underline">교환/환불 정책</Link>
+          <Link to="/store/terms" className="hover:underline">이용약관</Link>
+          <Link to="/store/privacy" className="hover:underline">개인정보처리방침</Link>
+          <Link to="/store/refund" className="hover:underline">교환/환불 정책</Link>
         </div>
         <div className="text-gray-400">{theme.copyright}</div>
       </div>

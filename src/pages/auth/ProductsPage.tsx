@@ -916,7 +916,7 @@ export default function ReservePage() {
           <div className="flex-1 flex flex-col items-center leading-tight">
             <button
               type="button"
-              onClick={() => nav('/products')}
+              onClick={() => nav('/store/products')}
               className="hover:opacity-80"
               aria-label="메인으로 이동"
             >
@@ -1357,7 +1357,7 @@ export default function ReservePage() {
                 type="button"
                 onClick={() => {
                   setDeliveryDialogOpen(false);
-                  nav('/me/orders');
+                  nav('/store/me/orders');
                 }}
                 className="w-full h-12 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
               >
@@ -1369,7 +1369,7 @@ export default function ReservePage() {
                     type="button"
                     onClick={() => {
                       setDeliveryDialogOpen(false);
-                      nav('/me/delivery');
+                      nav('/store/me/delivery');
                     }}
                     className="w-full h-12 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 flex items-center justify-center gap-2"
                   >

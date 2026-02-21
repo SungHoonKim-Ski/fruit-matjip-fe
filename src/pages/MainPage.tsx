@@ -1,9 +1,7 @@
-// src/pages/auth/LoginPage.tsx
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { getCurrentEnvironment } from '../utils/environment';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../components/snackbar';
-import { safeErrorLog, getSafeErrorMessage } from '../utils/environment';
+import { getCurrentEnvironment, safeErrorLog, getSafeErrorMessage } from '../utils/environment';
 import { logo, theme } from '../brand';
 
 declare global { interface Window { Kakao: any } }
@@ -49,26 +47,29 @@ async function ensureKakaoSDK(jsKey: string) {
   if (!window.Kakao.isInitialized()) window.Kakao.init(jsKey);
 }
 
-export default function LoginPage() {
+type AuthState = 'checking' | 'authenticated' | 'unauthenticated';
+
+export default function MainPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
-  const showRef = React.useRef(show);
+  const showRef = useRef(show);
   useEffect(() => { showRef.current = show; }, [show]);
 
   const location = useLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
+  const [authState, setAuthState] = useState<AuthState>('checking');
   const [busy, setBusy] = useState(false);
+  const [forceNicknameChange, setForceNicknameChange] = useState(false);
 
-  // SDK preload (PROD에서만 로드)
+  // SDK preload (PROD only)
   useEffect(() => {
-    const env = getCurrentEnvironment();
-    if (env !== 'production') return; // dev/local에서는 로드하지 않음
+    if (getCurrentEnvironment() !== 'production') return;
     if (!JS_KAKAO_KEY) return;
     ensureKakaoSDK(JS_KAKAO_KEY).catch(() => {});
   }, []);
 
-  // 에러 메시지 표시(있으면)
+  // Error message display
   useEffect(() => {
     const errorMessage = localStorage.getItem('user-error-message');
     if (errorMessage) {
@@ -77,53 +78,61 @@ export default function LoginPage() {
     }
   }, [show]);
 
-  /**
-   * ① 페이지 진입 시 조용한 재발급 시도
-   * - /login?code=... 콜백 중이 아닐 때만
-   * - REFRESH_TOKEN은 httpOnly 쿠키라 JS에서 확인 불가 → 그냥 /api/refresh 호출
-   * - Authorization 헤더는 기존 access가 있으면 포함
-   * - 성공 시 access 갱신 후 /products 이동
-   */
+  // Silent refresh on mount (no code param)
   useEffect(() => {
     const code = params.get('code');
-    if (code) return; // 콜백 처리 루틴이 담당
+    if (code) return; // callback handles auth
 
-    // StrictMode 재실행/중복 방지 락
-    if (sessionStorage.getItem(SILENT_REFRESH_LOCK_KEY) === '1') return;
+    // 락이 이미 설정된 경우 (StrictMode 재실행 등) 로컬 토큰으로 판단
+    if (sessionStorage.getItem(SILENT_REFRESH_LOCK_KEY) === '1') {
+      const access = localStorage.getItem('access');
+      if (access) {
+        try {
+          const payload = JSON.parse(atob(access.split('.')[1] || ''));
+          if ((payload?.exp ?? 0) * 1000 - Date.now() > 30_000) {
+            setAuthState('authenticated');
+            return;
+          }
+        } catch { /* ignore */ }
+      }
+      setAuthState('unauthenticated');
+      return;
+    }
     sessionStorage.setItem(SILENT_REFRESH_LOCK_KEY, '1');
 
     (async () => {
       try {
         setBusy(true);
         const access = localStorage.getItem('access') || '';
-        const headers: Record<string,string> = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (access) headers.Authorization = `Bearer ${access}`;
 
         const res = await fetch(`${API_BASE}/api/refresh`, {
           method: 'POST',
           headers,
-          credentials: 'include', // REFRESH_TOKEN 쿠키 전송
+          credentials: 'include',
         });
 
         if (res.ok) {
           const newAccess = await res.text();
           localStorage.setItem('access', newAccess);
-          nav('/store/products', { replace: true });
+          setAuthState('authenticated');
           return;
         }
-        // 실패하면 조용히 넘어가서 카카오 로그인 진행 가능
-      } catch (e) {
-        // 조용히 무시(로그인 버튼으로 진행)
-        safeErrorLog(e, 'LoginPage - silent refresh');
+        setAuthState('unauthenticated');
+      } catch {
+        setAuthState('unauthenticated');
       } finally {
         setBusy(false);
       }
     })();
-  }, [params, nav]);
 
-  /**
-   * ② 카카오 콜백 처리 (?code=...)
-   */
+    return () => {
+      sessionStorage.removeItem(SILENT_REFRESH_LOCK_KEY);
+    };
+  }, [params]);
+
+  // Kakao callback (?code=...)
   useEffect(() => {
     const code = params.get('code');
     const stateFromUrl = params.get('state');
@@ -149,7 +158,7 @@ export default function LoginPage() {
         const res = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include', // 서버에서 refresh 쿠키 심을 수 있음
+          credentials: 'include',
           body: JSON.stringify({ code, redirect_uri: REDIRECT_URI, state: stateFromUrl }),
         });
 
@@ -157,62 +166,57 @@ export default function LoginPage() {
         if (!res.ok) {
           safeErrorLog(
             { message: 'login failed', status: res.status, statusText: res.statusText, body: text, url: loginUrl },
-            'LoginPage - login response'
+            'MainPage - login response'
           );
           throw new Error('로그인 처리에 실패했습니다.');
         }
 
         const data: LoginSuccess = JSON.parse(text);
-        const forceNicknameChange = data && data.change_name === false;
-        if (forceNicknameChange) {
+        const needsNicknameChange = data && data.change_name === false;
+        if (needsNicknameChange) {
           showRef.current('닉네임 변경이 필요합니다.');
           localStorage.setItem('nickname', '신규 고객');
+          setForceNicknameChange(true);
         } else {
           showRef.current(`${data.name}님 환영합니다!`);
           localStorage.setItem('nickname', data.name);
         }
         localStorage.setItem('access', data.access);
 
-        // 주소줄 정리 후 이동
-        window.history.replaceState({}, '', '/store/login');
-        nav('/store/products', { replace: true, state: forceNicknameChange ? { forceNicknameChange: true } : {} });
+        window.history.replaceState({}, '', '/');
+        setAuthState('authenticated');
       } catch (e: any) {
-        safeErrorLog(e, 'LoginPage - login');
+        safeErrorLog(e, 'MainPage - login');
         showRef.current(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
-        window.history.replaceState({}, '', '/store/login');
+        window.history.replaceState({}, '', '/');
+        setAuthState('unauthenticated');
       } finally {
         setBusy(false);
         sessionStorage.removeItem(OAUTH_STATE_KEY);
         sessionStorage.removeItem(AUTH_LOCK_KEY);
       }
     })();
-  }, [params, nav]);
+  }, [params]);
 
-  /**
-   * ③ 카카오 로그인 버튼
-   * - (선택) access 토큰이 로컬 exp 기준으로 충분히 남아 있으면 바로 /products
-   * - 아니면 카카오 OAuth 시작
-   */
+  // Kakao login button handler
   const startKakao = useCallback(async () => {
     try {
       setBusy(true);
 
-      // (선택) 보호 API 호출 없이, 로컬 exp만 빠르게 확인
+      // Check existing token exp
       const access = localStorage.getItem('access');
       if (access) {
         try {
           const payload = JSON.parse(atob(access.split('.')[1] || ''));
           const expMs = (payload?.exp ?? 0) * 1000;
           if (expMs - Date.now() > 30_000) {
-            nav('/store/products', { replace: true });
+            setAuthState('authenticated');
             return;
           }
-        } catch {
-          // 파싱 실패 시 그냥 카카오 진행
-        }
+        } catch { /* ignore */ }
       }
 
-      // 비-PROD 환경: 서버 /api/login 바로 호출 (SDK 미사용)
+      // Dev mode: direct login
       if (getCurrentEnvironment() !== 'production') {
         try {
           const loginUrl = `${API_BASE}/api/login`;
@@ -230,27 +234,30 @@ export default function LoginPage() {
           if (!res.ok) {
             safeErrorLog(
               { message: 'dev login failed', status: res.status, statusText: res.statusText, body: text, url: loginUrl },
-              'LoginPage - dev login response'
+              'MainPage - dev login response'
             );
             throw new Error('로그인 처리에 실패했습니다.');
           }
           const data: LoginSuccess = JSON.parse(text || '{}');
           if (!data?.access) throw new Error('토큰이 없습니다.');
-          const forceNicknameChange = data && data.change_name === false;
-          if (forceNicknameChange) {
+          const needsNicknameChange = data && data.change_name === false;
+          if (needsNicknameChange) {
             showRef.current('닉네임 변경이 필요합니다.');
             localStorage.setItem('nickname', '신규 고객');
+            setForceNicknameChange(true);
           } else {
             showRef.current(`${data.name || '사용자'}님 환영합니다!`);
             if (data.name) localStorage.setItem('nickname', data.name);
           }
           localStorage.setItem('access', data.access);
-          nav('/store/products', { replace: true, state: forceNicknameChange ? { forceNicknameChange: true } : {} });
+          setAuthState('authenticated');
           return;
         } finally {
           setBusy(false);
         }
       }
+
+      // Prod: Kakao SDK
       if (!JS_KAKAO_KEY) {
         show('카카오 JS 키가 설정되지 않았습니다. (REACT_APP_JS_KAKAO_KEY)', { variant: 'error' });
         return;
@@ -265,13 +272,56 @@ export default function LoginPage() {
         scope: 'profile_nickname',
       });
     } catch (e: any) {
-      safeErrorLog(e, 'LoginPage - startKakao');
+      safeErrorLog(e, 'MainPage - startKakao');
       show(getSafeErrorMessage(e, '로그인 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setBusy(false);
     }
-  }, [show, nav]);
+  }, [show]);
 
+  // === Checking state ===
+  if (authState === 'checking') {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+        <div className="w-full max-w-md text-center">
+          <img src={logo} alt={`${theme.displayName} 로고`} className="mx-auto w-20 h-20 mb-4" />
+          {busy && <p className="text-gray-500">로그인 확인 중...</p>}
+        </div>
+      </main>
+    );
+  }
+
+  // === Authenticated — show selection ===
+  if (authState === 'authenticated') {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+        <div className="w-full max-w-md text-center">
+          <img src={logo} alt={`${theme.displayName} 로고`} className="mx-auto w-20 h-20 mb-4" />
+          <h1 className="text-2xl font-bold mb-8" style={{ color: 'var(--color-primary-500)' }}>
+            {theme.displayName}
+          </h1>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => nav('/store/products', { state: forceNicknameChange ? { forceNicknameChange: true } : {} })}
+              className="w-full py-4 rounded-xl text-lg font-semibold text-white shadow-md hover:shadow-lg transition"
+              style={{ backgroundColor: 'var(--color-primary-500)' }}
+            >
+              매장 예약
+            </button>
+            <button
+              onClick={() => nav('/shop')}
+              className="w-full py-4 rounded-xl text-lg font-semibold border-2 shadow-md hover:shadow-lg transition"
+              style={{ borderColor: 'var(--color-primary-500)', color: 'var(--color-primary-500)' }}
+            >
+              택배 주문
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // === Unauthenticated — show login ===
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">

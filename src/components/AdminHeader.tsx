@@ -6,43 +6,43 @@ export default function AdminHeader() {
   const location = window.location.pathname;
 
   const goProducts = () => {
-    if (location !== '/admin/products') {
-      navigate('/admin/products');
+    if (location !== '/admin/shop/products') {
+      navigate('/admin/shop/products');
     }
   };
   const goNewProduct = () => {
-    if (location !== '/admin/products/new') {
-      navigate('/admin/products/new');
+    if (location !== '/admin/shop/products/new') {
+      navigate('/admin/shop/products/new');
     }
   };
   const goReservations = () => {
-    if (location !== '/admin/reservations') {
-      navigate('/admin/reservations');
+    if (location !== '/admin/shop/reservations') {
+      navigate('/admin/shop/reservations');
     }
   };
   const goDeliveries = () => {
-    if (location !== '/admin/deliveries') {
-      navigate('/admin/deliveries');
+    if (location !== '/admin/shop/deliveries') {
+      navigate('/admin/shop/deliveries');
     }
   };
   const goSales = () => {
-    if (location !== '/admin/sales') {
-      navigate('/admin/sales');
+    if (location !== '/admin/shop/sales') {
+      navigate('/admin/shop/sales');
     }
   };
   const goBulkSellDate = () => {
-    if (location !== '/admin/products/bulk-sell-date') {
-      navigate('/admin/products/bulk-sell-date');
+    if (location !== '/admin/shop/products/bulk-sell-date') {
+      navigate('/admin/shop/products/bulk-sell-date');
     }
   };
   const goProductOrder = () => {
-    if (location !== '/admin/products/order') {
-      navigate('/admin/products/order');
+    if (location !== '/admin/shop/products/order') {
+      navigate('/admin/shop/products/order');
     }
   };
   const goCustomers = () => {
-    if (location !== '/admin/customers') {
-      navigate('/admin/customers');
+    if (location !== '/admin/shop/customers') {
+      navigate('/admin/shop/customers');
     }
   };
 
@@ -139,7 +139,7 @@ export default function AdminHeader() {
     keywordBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
     keywordBtn.innerHTML = '🔎 카테고리 관리';
     keywordBtn.onclick = () => {
-      navigate('/admin/keywords');
+      navigate('/admin/shop/keywords');
       menu.remove();
     };
 

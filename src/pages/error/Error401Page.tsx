@@ -14,7 +14,7 @@ export default function Error401Page() {
   const [countdown, setCountdown] = useState(2);
   const [ctx, setCtx] = useState<ErrCtx>({
     type: 'user',
-    redirectUrl: '/login',
+    redirectUrl: '/',
   });
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function Error401Page() {
     const message = localStorage.getItem('error-message');
     const type = (localStorage.getItem('error-type') === 'admin') ? 'admin' : 'user';
     const redirectStored = localStorage.getItem('error-redirect');
-    const fallback = type === 'admin' ? '/admin/login' : '/login';
+    const fallback = type === 'admin' ? '/admin/shop/login' : '/';
     const redirectUrl = (redirectStored && redirectStored.startsWith('/') && !redirectStored.startsWith('//')) ? redirectStored : fallback;
 
     setCtx({ message, type, redirectUrl });
@@ -49,10 +49,7 @@ export default function Error401Page() {
   }, [nav, show]);
 
   const getCountdownText = () => {
-    const errorType = localStorage.getItem('error-type');
-    const isAdmin = errorType === 'admin';
-    const pageName = isAdmin ? '관리자 로그인' : '로그인';
-    
+    const pageName = ctx.type === 'admin' ? '관리자 로그인' : '로그인';
     if (countdown === 0) return `${pageName} 페이지로 이동합니다.`;
     return `${countdown}초 후 ${pageName} 페이지로 이동합니다.`;
   };

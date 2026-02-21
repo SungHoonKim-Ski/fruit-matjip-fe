@@ -167,8 +167,8 @@ export default function ProductDetailPage({ isOpen, onClose, productId }: Produc
                     <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
                   </ul>
                   <div className="flex flex-wrap gap-3 text-blue-600">
-                    <Link to="/refund" target="_blank" rel="noopener noreferrer" className="hover:underline">교환/환불 정책</Link>
-                    <Link to="/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">이용약관</Link>
+                    <Link to="/store/refund" target="_blank" rel="noopener noreferrer" className="hover:underline">교환/환불 정책</Link>
+                    <Link to="/store/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">이용약관</Link>
                   </div>
                 </div>
 

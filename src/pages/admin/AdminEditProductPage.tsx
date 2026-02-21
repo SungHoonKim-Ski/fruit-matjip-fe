@@ -666,7 +666,7 @@ export default function AdminEditProductPage() {
         show('변경 사항이 없습니다.', { variant: 'info' });
         setSaving(false);
         try { sessionStorage.removeItem(initialStorageKey); } catch {}
-        nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
+        nav('/admin/shop/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
         return;
       }
 
@@ -697,7 +697,7 @@ export default function AdminEditProductPage() {
       setPendingDetailFiles([]);
       setPendingDetailPreviews([]);
       setSelectedAdditionalNames([]);
-      nav('/admin/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
+      nav('/admin/shop/products', { replace: true, state: { bustTs: Date.now(), bustProductId: form.id } });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - save');
       show(getSafeErrorMessage(e, e?.message || '저장 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -721,7 +721,7 @@ export default function AdminEditProductPage() {
         }
       }
       show('삭제되었습니다.');
-      nav('/admin/products', { replace: true });
+      nav('/admin/shop/products', { replace: true });
     } catch (e: any) {
       safeErrorLog(e, 'AdminEditProductPage - delete');
       show(getSafeErrorMessage(e, '삭제 중 오류가 발생했습니다.'), { variant: 'error' });

@@ -49,7 +49,7 @@ export default function AdminRegisterPage() {
       const res = await adminSignup({ name, email, password });
       if (res.ok) {
         show('회원가입이 완료되었습니다.');
-        navigate('/admin/login');
+        navigate('/admin/shop/login');
       } else {
         show('회원가입에 실패했습니다.', { variant: 'error' });
       }
