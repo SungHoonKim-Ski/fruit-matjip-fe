@@ -274,6 +274,7 @@ export default function DeliveryPage() {
     && !isAfterDeadline
     && !isBeforeStart
     && (deliveryType === 'normal' || scheduledSlot !== null);
+  const isDeliveryTimeAvailable = deliveryEnabled && !isBeforeStart && !isAfterDeadline;
   const submitBlockers = useMemo(() => {
     const reasons: string[] = [];
     if (!deliveryEnabled) reasons.push('현재 배달 주문이 중단되어 있습니다.');
@@ -718,11 +719,9 @@ export default function DeliveryPage() {
         <div className="flex flex-col gap-1 text-sm text-emerald-900">
           <span>오늘({today || '오늘'}) 수령 상품만 배달 가능합니다.</span>
         </div>
-        {(isAfterDeadline || isBeforeStart) && (
-          <div className="mt-2 text-xs text-red-600">
-            배달 주문 가능 시간은 {config.startMinute ? `${config.startHour}시 ${config.startMinute}분` : `${config.startHour}시`} ~ {config.endMinute ? `${config.endHour}시 ${config.endMinute}분` : `${config.endHour}시`}입니다.
-          </div>
-        )}
+        <div className={`mt-2 text-xs ${isDeliveryTimeAvailable ? 'text-emerald-700' : 'text-red-600'}`}>
+          배달 주문 가능 시간은 {config.startMinute ? `${config.startHour}시 ${config.startMinute}분` : `${config.startHour}시`} ~ {config.endMinute ? `${config.endHour}시 ${config.endMinute}분` : `${config.endHour}시`}입니다.
+        </div>
       </section>
 
       <section className="max-w-4xl mx-auto mt-4 bg-white rounded-lg shadow p-4">
