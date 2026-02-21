@@ -1,11 +1,72 @@
-const CourierFailPage = () => {
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { failCourierPayment } from '../../utils/api';
+import { safeErrorLog } from '../../utils/environment';
+
+export default function CourierFailPage() {
+  const [params] = useSearchParams();
+  const nav = useNavigate();
+  const [status, setStatus] = useState<'pending' | 'success' | 'error'>('pending');
+
+  useEffect(() => {
+    const orderCode = params.get('order_id');
+    if (!orderCode) {
+      setStatus('error');
+      return;
+    }
+
+    localStorage.removeItem('pendingCourierOrderCode');
+
+    const fail = async () => {
+      try {
+        const res = await failCourierPayment(orderCode);
+        if (!res.ok) throw new Error('fail failed');
+        setStatus('success');
+      } catch (e) {
+        safeErrorLog(e, 'CourierFailPage - fail');
+        setStatus('error');
+      }
+    };
+
+    fail();
+  }, [params]);
+
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">결제 실패</h1>
-        <p className="text-gray-500">서비스 준비 중입니다.</p>
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="bg-white border rounded-lg shadow-sm p-6 w-full max-w-sm text-center">
+        {status === 'pending' && (
+          <>
+            <h1 className="text-lg font-semibold text-gray-800">결제 실패 처리 중...</h1>
+            <p className="mt-2 text-sm text-gray-600">잠시만 기다려 주세요.</p>
+          </>
+        )}
+        {status === 'success' && (
+          <>
+            <h1 className="text-lg font-semibold text-gray-800">결제에 실패했습니다</h1>
+            <p className="mt-2 text-sm text-gray-600">다시 시도해주세요.</p>
+            <button
+              type="button"
+              className="mt-4 w-full h-10 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+              onClick={() => nav('/shop/cart')}
+            >
+              장바구니로 이동
+            </button>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <h1 className="text-lg font-semibold text-gray-800">실패 처리 오류</h1>
+            <p className="mt-2 text-sm text-gray-600">다시 시도해주세요.</p>
+            <button
+              type="button"
+              className="mt-4 w-full h-10 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+              onClick={() => nav('/shop/cart')}
+            >
+              장바구니로 이동
+            </button>
+          </>
+        )}
       </div>
-    </div>
+    </main>
   );
-};
-export default CourierFailPage;
+}

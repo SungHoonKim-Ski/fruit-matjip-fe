@@ -1,62 +1,104 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCart, updateQuantity, removeFromCart, CartItem } from '../../utils/courierCart';
-import CourierNav from '../../components/shop/CourierNav';
+import { getCart, updateQuantity, removeFromCart, CartItem, SelectedOption } from '../../utils/courierCart';
+import { getCourierShippingFee, type ShippingFeeResponse } from '../../utils/api';
+import { safeErrorLog } from '../../utils/environment';
+import CourierBottomNav from '../../components/shop/CourierBottomNav';
 
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
+const getItemUnitPrice = (item: CartItem): number => {
+  const optionExtra = (item.selectedOptions || []).reduce((s, o) => s + o.additionalPrice, 0);
+  return item.price + optionExtra;
+};
+
 export default function CourierCartPage() {
   const nav = useNavigate();
   const [items, setItems] = useState<CartItem[]>(() => getCart());
-  const [deleteDialog, setDeleteDialog] = useState<{ isOpen: boolean; productId: number; productName: string }>({
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    productId: number;
+    productName: string;
+    selectedOptions?: SelectedOption[];
+  }>({
     isOpen: false, productId: 0, productName: '',
   });
+  const [shippingFee, setShippingFee] = useState<ShippingFeeResponse | null>(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
 
   const refresh = useCallback(() => {
     setItems(getCart());
   }, []);
 
-  const handleQuantityChange = (productId: number, diff: number) => {
-    const item = items.find(c => c.courierProductId === productId);
-    if (!item) return;
+  const handleQuantityChange = (item: CartItem, diff: number) => {
     const next = item.quantity + diff;
     if (next < 1) return;
     if (next > item.stock) return;
-    updateQuantity(productId, next);
+    updateQuantity(item.courierProductId, next, item.selectedOptions);
     refresh();
   };
 
-  const handleDirectInput = (productId: number, val: string) => {
-    const item = items.find(c => c.courierProductId === productId);
-    if (!item) return;
+  const handleDirectInput = (item: CartItem, val: string) => {
     const num = parseInt(val, 10);
     if (isNaN(num) || num < 1) {
-      updateQuantity(productId, 1);
+      updateQuantity(item.courierProductId, 1, item.selectedOptions);
       refresh();
       return;
     }
     const clamped = Math.min(num, item.stock);
-    updateQuantity(productId, clamped);
+    updateQuantity(item.courierProductId, clamped, item.selectedOptions);
     refresh();
   };
 
-  const openDeleteDialog = (productId: number, productName: string) => {
-    setDeleteDialog({ isOpen: true, productId, productName });
+  const openDeleteDialog = (item: CartItem) => {
+    setDeleteDialog({ isOpen: true, productId: item.courierProductId, productName: item.name, selectedOptions: item.selectedOptions });
   };
 
   const confirmDelete = () => {
-    removeFromCart(deleteDialog.productId);
+    removeFromCart(deleteDialog.productId, deleteDialog.selectedOptions);
     setDeleteDialog({ isOpen: false, productId: 0, productName: '' });
     refresh();
   };
 
-  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalPrice = items.reduce((sum, item) => sum + getItemUnitPrice(item) * item.quantity, 0);
+  const totalQuantity = items.reduce((s, i) => s + i.quantity, 0);
+
+  // Fetch base shipping fee (no postal code)
+  useEffect(() => {
+    if (totalQuantity <= 0) {
+      setShippingFee(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        setShippingLoading(true);
+        const fee = await getCourierShippingFee(totalQuantity);
+        if (alive) setShippingFee(fee);
+      } catch (e) {
+        safeErrorLog(e, 'CourierCartPage - getCourierShippingFee');
+        if (alive) setShippingFee(null);
+      } finally {
+        if (alive) setShippingLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [totalQuantity]);
+
+  const handleCheckout = () => {
+    const token = localStorage.getItem('access');
+    if (!token) {
+      localStorage.setItem('redirect-after-login', '/shop/checkout');
+      nav('/login');
+      return;
+    }
+    nav('/shop/checkout');
+  };
 
   if (items.length === 0) {
     return (
-      <main className="bg-[#f6f6f6] min-h-screen pt-14">
-        <CourierNav title="장바구니" backTo="/shop" showCart={false} />
+      <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-24">
         <div className="max-w-md mx-auto px-4 mt-20 text-center">
           <svg className="mx-auto mb-4 w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
@@ -71,18 +113,18 @@ export default function CourierCartPage() {
             쇼핑하기
           </button>
         </div>
+        <CourierBottomNav />
       </main>
     );
   }
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-14 pb-40">
-      <CourierNav title="장바구니" backTo="/shop" showCart={false} />
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-40">
 
       <section className="max-w-md mx-auto px-4 mt-3">
         <div className="space-y-2">
-          {items.map(item => (
-            <div key={item.courierProductId} className="bg-white rounded-lg shadow p-3">
+          {items.map((item, idx) => (
+            <div key={`${item.courierProductId}:${(item.selectedOptions || []).map(o => o.optionId).sort().join(',')}-${idx}`} className="bg-white rounded-lg shadow p-3">
               <div className="flex gap-3">
                 {/* Thumbnail */}
                 <img
@@ -102,7 +144,7 @@ export default function CourierCartPage() {
                     </h3>
                     <button
                       type="button"
-                      onClick={() => openDeleteDialog(item.courierProductId, item.name)}
+                      onClick={() => openDeleteDialog(item)}
                       className="ml-2 flex-shrink-0 text-gray-400 hover:text-red-500 transition"
                       aria-label={`${item.name} 삭제`}
                     >
@@ -112,11 +154,22 @@ export default function CourierCartPage() {
                       </svg>
                     </button>
                   </div>
+                  {/* Selected options */}
+                  {item.selectedOptions && item.selectedOptions.length > 0 && (
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      {item.selectedOptions.map(o => o.optionName).join(', ')}
+                      {item.selectedOptions.some(o => o.additionalPrice > 0) && (
+                        <span className="ml-1">
+                          (+{item.selectedOptions.reduce((s, o) => s + o.additionalPrice, 0).toLocaleString()}원)
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1 text-sm font-bold text-orange-500">
-                    {formatPrice(item.price * item.quantity)}
+                    {formatPrice(getItemUnitPrice(item) * item.quantity)}
                     {item.quantity > 1 && (
                       <span className="text-[10px] text-gray-400 font-normal ml-1">
-                        ({formatPrice(item.price)} x {item.quantity})
+                        ({formatPrice(getItemUnitPrice(item))} x {item.quantity})
                       </span>
                     )}
                   </div>
@@ -125,7 +178,7 @@ export default function CourierCartPage() {
                     <div className="flex items-center border rounded-lg overflow-hidden h-8">
                       <button
                         type="button"
-                        onClick={() => handleQuantityChange(item.courierProductId, -1)}
+                        onClick={() => handleQuantityChange(item, -1)}
                         disabled={item.quantity <= 1}
                         className="w-8 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm disabled:opacity-30"
                         aria-label="수량 감소"
@@ -135,14 +188,14 @@ export default function CourierCartPage() {
                       <input
                         type="number"
                         value={item.quantity}
-                        onChange={e => handleDirectInput(item.courierProductId, e.target.value)}
+                        onChange={e => handleDirectInput(item, e.target.value)}
                         className="w-10 h-full text-center text-xs border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         min={1}
                         max={item.stock}
                       />
                       <button
                         type="button"
-                        onClick={() => handleQuantityChange(item.courierProductId, 1)}
+                        onClick={() => handleQuantityChange(item, 1)}
                         disabled={item.quantity >= item.stock}
                         className="w-8 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm disabled:opacity-30"
                         aria-label="수량 증가"
@@ -159,17 +212,31 @@ export default function CourierCartPage() {
       </section>
 
       {/* Bottom: Summary + Order button */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-16 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-gray-600">
-              총 {items.length}종 {items.reduce((s, i) => s + i.quantity, 0)}개
-            </span>
-            <span className="text-lg font-bold text-gray-900">{formatPrice(totalPrice)}</span>
+          <div className="space-y-1 mb-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                총 {items.length}종 {totalQuantity}개
+              </span>
+              <span className="text-sm text-gray-700">{formatPrice(totalPrice)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>배송비 (예상)</span>
+              <span>
+                {shippingLoading ? '계산 중...' : shippingFee ? formatPrice(shippingFee.totalFee) : '-'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-1">
+              <span className="text-sm font-semibold text-gray-800">결제 예상액</span>
+              <span className="text-lg font-bold text-orange-500">
+                {formatPrice(totalPrice + (shippingFee?.totalFee ?? 0))}
+              </span>
+            </div>
           </div>
           <button
             type="button"
-            onClick={() => nav('/shop/checkout')}
+            onClick={handleCheckout}
             className="w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition"
           >
             주문하기
@@ -205,6 +272,7 @@ export default function CourierCartPage() {
           </div>
         </div>
       )}
+      <CourierBottomNav />
     </main>
   );
 }

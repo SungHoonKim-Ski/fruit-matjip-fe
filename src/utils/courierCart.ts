@@ -1,10 +1,18 @@
+export type SelectedOption = {
+  groupName: string;
+  optionId: number;
+  optionName: string;
+  additionalPrice: number;
+};
+
 export type CartItem = {
   courierProductId: number;
   name: string;
-  price: number;
+  price: number; // base price (without options)
   quantity: number;
   imageUrl: string;
   stock: number;
+  selectedOptions?: SelectedOption[];
 };
 
 const CART_KEY = 'courier-cart';
@@ -22,27 +30,38 @@ const saveCart = (items: CartItem[]) => {
   localStorage.setItem(CART_KEY, JSON.stringify(items));
 };
 
+const getCartKey = (item: Pick<CartItem, 'courierProductId' | 'selectedOptions'>): string => {
+  const optionIds = (item.selectedOptions || [])
+    .map(o => o.optionId)
+    .sort((a, b) => a - b)
+    .join(',');
+  return `${item.courierProductId}:${optionIds}`;
+};
+
 export const addToCart = (item: CartItem) => {
   const cart = getCart();
-  const existing = cart.find(c => c.courierProductId === item.courierProductId);
+  const key = getCartKey(item);
+  const existing = cart.find(c => getCartKey(c) === key);
   if (existing) {
     existing.quantity = Math.min(existing.quantity + item.quantity, item.stock);
     existing.price = item.price;
     existing.name = item.name;
     existing.imageUrl = item.imageUrl;
     existing.stock = item.stock;
+    existing.selectedOptions = item.selectedOptions;
   } else {
     cart.push({ ...item });
   }
   saveCart(cart);
 };
 
-export const updateQuantity = (courierProductId: number, quantity: number) => {
+export const updateQuantity = (courierProductId: number, quantity: number, selectedOptions?: SelectedOption[]) => {
   const cart = getCart();
-  const item = cart.find(c => c.courierProductId === courierProductId);
+  const key = getCartKey({ courierProductId, selectedOptions });
+  const item = cart.find(c => getCartKey(c) === key);
   if (item) {
     if (quantity <= 0) {
-      saveCart(cart.filter(c => c.courierProductId !== courierProductId));
+      saveCart(cart.filter(c => getCartKey(c) !== key));
     } else {
       item.quantity = Math.min(quantity, item.stock);
       saveCart(cart);
@@ -50,8 +69,9 @@ export const updateQuantity = (courierProductId: number, quantity: number) => {
   }
 };
 
-export const removeFromCart = (courierProductId: number) => {
-  const cart = getCart().filter(c => c.courierProductId !== courierProductId);
+export const removeFromCart = (courierProductId: number, selectedOptions?: SelectedOption[]) => {
+  const key = getCartKey({ courierProductId, selectedOptions });
+  const cart = getCart().filter(c => getCartKey(c) !== key);
   saveCart(cart);
 };
 
@@ -64,5 +84,8 @@ export const getCartTotalQuantity = (): number => {
 };
 
 export const getCartTotalPrice = (): number => {
-  return getCart().reduce((sum, item) => sum + item.price * item.quantity, 0);
+  return getCart().reduce((sum, item) => {
+    const optionExtra = (item.selectedOptions || []).reduce((s, o) => s + o.additionalPrice, 0);
+    return sum + (item.price + optionExtra) * item.quantity;
+  }, 0);
 };

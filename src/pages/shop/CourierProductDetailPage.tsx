@@ -1,10 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getCourierProduct } from '../../utils/api';
-import { addToCart } from '../../utils/courierCart';
-import CourierNav from '../../components/shop/CourierNav';
+import { addToCart, SelectedOption } from '../../utils/courierCart';
+import CourierBottomNav from '../../components/shop/CourierBottomNav';
+
+type OptionItem = {
+  id: number;
+  name: string;
+  additionalPrice: number;
+};
+
+type OptionGroup = {
+  id: number;
+  name: string;
+  required: boolean;
+  options: OptionItem[];
+};
 
 type ProductDetail = {
   id: number;
@@ -15,6 +28,7 @@ type ProductDetail = {
   weight?: string;
   description?: string;
   detailImages?: string[];
+  optionGroups: OptionGroup[];
 };
 
 const IMG_BASE = process.env.REACT_APP_IMG_URL || '';
@@ -36,7 +50,7 @@ export default function CourierProductDetailPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map()); // groupId -> optionId
 
   useEffect(() => {
     let alive = true;
@@ -51,18 +65,32 @@ export default function CourierProductDetailPage() {
         const raw = await res.json();
         const data = raw?.response ?? raw;
         if (alive) {
-          const detailUrls: string[] = Array.isArray(data.detail_urls ?? data.detailUrls)
-            ? (data.detail_urls ?? data.detailUrls).map((u: string) => addImgPrefix(u))
+          const detailUrls: string[] = Array.isArray(data.detail_image_urls ?? data.detail_urls ?? data.detailUrls)
+            ? (data.detail_image_urls ?? data.detail_urls ?? data.detailUrls).map((u: string) => addImgPrefix(u))
+            : [];
+          const rawGroups = data.option_groups ?? data.optionGroups;
+          const optionGroups: OptionGroup[] = Array.isArray(rawGroups)
+            ? rawGroups.map((g: any) => ({
+                id: Number(g.id),
+                name: String(g.name ?? ''),
+                required: Boolean(g.required ?? true),
+                options: Array.isArray(g.options) ? g.options.map((o: any) => ({
+                  id: Number(o.id),
+                  name: String(o.name ?? ''),
+                  additionalPrice: Number(o.additional_price ?? o.additionalPrice ?? 0),
+                })) : [],
+              }))
             : [];
           setProduct({
             id: Number(data.id),
             name: String(data.name ?? ''),
             price: Number(data.price ?? 0),
             stock: Number(data.stock ?? 0),
-            imageUrl: addImgPrefix(data.image_url ?? data.imageUrl ?? data.product_url ?? ''),
+            imageUrl: addImgPrefix(data.product_url ?? data.image_url ?? data.imageUrl ?? ''),
             weight: data.weight ?? undefined,
             description: data.description ?? undefined,
             detailImages: detailUrls,
+            optionGroups,
           });
         }
       } catch (e: any) {
@@ -75,9 +103,59 @@ export default function CourierProductDetailPage() {
     return () => { alive = false; };
   }, [id, show]);
 
-  const allImages = product
-    ? [product.imageUrl, ...(product.detailImages || [])].filter(Boolean)
-    : [];
+  const handleOptionSelect = (groupId: number, optionId: number) => {
+    setSelectedOptions(prev => {
+      const next = new Map(prev);
+      if (next.get(groupId) === optionId) {
+        next.delete(groupId); // deselect
+      } else {
+        next.set(groupId, optionId);
+      }
+      return next;
+    });
+  };
+
+  const optionAdditionalPrice = useMemo(() => {
+    if (!product?.optionGroups) return 0;
+    let total = 0;
+    for (const group of product.optionGroups) {
+      const selectedId = selectedOptions.get(group.id);
+      if (selectedId) {
+        const option = group.options.find(o => o.id === selectedId);
+        if (option) total += option.additionalPrice;
+      }
+    }
+    return total;
+  }, [product, selectedOptions]);
+
+  const unitPrice = (product?.price ?? 0) + optionAdditionalPrice;
+
+  const canAddToCart = useMemo(() => {
+    if (!product?.optionGroups) return true;
+    return product.optionGroups
+      .filter(g => g.required)
+      .every(g => selectedOptions.has(g.id));
+  }, [product, selectedOptions]);
+
+  const buildSelectedOptions = (): SelectedOption[] => {
+    if (!product?.optionGroups) return [];
+    const result: SelectedOption[] = [];
+    for (const group of product.optionGroups) {
+      const selectedId = selectedOptions.get(group.id);
+      if (selectedId) {
+        const option = group.options.find(o => o.id === selectedId);
+        if (option) {
+          result.push({
+            groupName: group.name,
+            optionId: option.id,
+            optionName: option.name,
+            additionalPrice: option.additionalPrice,
+          });
+        }
+      }
+    }
+    return result;
+  };
 
   const handleQuantityChange = (diff: number) => {
     setQuantity(prev => {
@@ -103,6 +181,10 @@ export default function CourierProductDetailPage() {
 
   const handleAddToCart = () => {
     if (!product) return;
+    if (!canAddToCart) {
+      show('필수 옵션을 선택해주세요.', { variant: 'error' });
+      return;
+    }
     addToCart({
       courierProductId: product.id,
       name: product.name,
@@ -110,12 +192,17 @@ export default function CourierProductDetailPage() {
       quantity,
       imageUrl: product.imageUrl,
       stock: product.stock,
+      selectedOptions: buildSelectedOptions(),
     });
     show('장바구니에 담겼습니다.', { variant: 'info' });
   };
 
   const handleBuyNow = () => {
     if (!product) return;
+    if (!canAddToCart) {
+      show('필수 옵션을 선택해주세요.', { variant: 'error' });
+      return;
+    }
     addToCart({
       courierProductId: product.id,
       name: product.name,
@@ -123,14 +210,20 @@ export default function CourierProductDetailPage() {
       quantity,
       imageUrl: product.imageUrl,
       stock: product.stock,
+      selectedOptions: buildSelectedOptions(),
     });
     nav('/shop/checkout');
   };
 
   if (loading) {
     return (
-      <main className="bg-[#f6f6f6] min-h-screen pt-14">
-        <CourierNav title="상품 상세" backTo="/shop" />
+      <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
+        <div className="max-w-md mx-auto px-4 mb-2">
+          <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            뒤로
+          </button>
+        </div>
         <div className="max-w-md mx-auto">
           <div className="w-full aspect-square bg-gray-200 animate-pulse" />
           <div className="p-4 space-y-3">
@@ -139,57 +232,62 @@ export default function CourierProductDetailPage() {
             <div className="h-20 bg-gray-200 animate-pulse rounded" />
           </div>
         </div>
+        <CourierBottomNav />
       </main>
     );
   }
 
   if (!product) {
     return (
-      <main className="bg-[#f6f6f6] min-h-screen pt-14">
-        <CourierNav title="상품 상세" backTo="/shop" />
+      <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
+        <div className="max-w-md mx-auto px-4 mb-2">
+          <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            뒤로
+          </button>
+        </div>
         <div className="max-w-md mx-auto p-10 text-center text-gray-500">
           상품을 찾을 수 없습니다.
         </div>
+        <CourierBottomNav />
       </main>
     );
   }
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-14 pb-32">
-      <CourierNav title="상품 상세" backTo="/shop" />
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
+      <div className="max-w-md mx-auto px-4 mb-2">
+        <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          뒤로
+        </button>
+      </div>
 
       <div className="max-w-md mx-auto">
-        {/* Main image area */}
-        <div className="relative w-full aspect-square bg-gray-100">
-          <img
-            src={allImages[activeImageIndex] || product.imageUrl}
-            alt={product.name}
-            className="w-full h-full object-cover"
-          />
-          {product.stock === 0 && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
-            </div>
-          )}
-        </div>
-
-        {/* Image thumbnails */}
-        {allImages.length > 1 && (
-          <div className="flex gap-2 px-4 py-3 overflow-x-auto bg-white">
-            {allImages.map((src, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setActiveImageIndex(i)}
-                className={`w-14 h-14 rounded border-2 overflow-hidden flex-shrink-0 transition ${
-                  activeImageIndex === i ? 'border-orange-500' : 'border-gray-200'
-                }`}
-              >
-                <img src={src} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
-              </button>
-            ))}
+        {/* All images vertically stacked */}
+        <div className="bg-white">
+          <div className="relative w-full">
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-full block"
+            />
+            {product.stock === 0 && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
+              </div>
+            )}
           </div>
-        )}
+          {product.detailImages && product.detailImages.map((src, i) => (
+            <img
+              key={i}
+              src={src}
+              alt={`${product.name} 상세 ${i + 1}`}
+              className="w-full block"
+              loading="lazy"
+            />
+          ))}
+        </div>
 
         {/* Product info */}
         <div className="bg-white px-4 py-4 mt-1">
@@ -203,6 +301,44 @@ export default function CourierProductDetailPage() {
           </div>
         </div>
 
+        {/* Option groups */}
+        {product.optionGroups && product.optionGroups.length > 0 && (
+          <div className="bg-white px-4 py-4 mt-1">
+            {product.optionGroups.map(group => (
+              <div key={group.id} className="mb-3 last:mb-0">
+                <div className="text-sm font-semibold text-gray-700 mb-2">
+                  {group.name}
+                  {group.required && <span className="text-red-500 ml-1">*</span>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {group.options.map(option => {
+                    const isSelected = selectedOptions.get(group.id) === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => handleOptionSelect(group.id, option.id)}
+                        className={`px-3 py-2 rounded-lg border text-sm transition ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        {option.name}
+                        {option.additionalPrice > 0 && (
+                          <span className="text-xs ml-1 text-gray-500">
+                            (+{option.additionalPrice.toLocaleString()}원)
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Description */}
         {product.description && (
           <div className="bg-white px-4 py-4 mt-1">
@@ -214,23 +350,6 @@ export default function CourierProductDetailPage() {
           </div>
         )}
 
-        {/* Detail images (full-width below description) */}
-        {product.detailImages && product.detailImages.length > 0 && (
-          <div className="bg-white px-4 py-4 mt-1">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">상세 이미지</h2>
-            <div className="space-y-2">
-              {product.detailImages.map((src, i) => (
-                <img
-                  key={i}
-                  src={src}
-                  alt={`${product.name} 상세 ${i + 1}`}
-                  className="w-full rounded-lg"
-                  loading="lazy"
-                />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Bottom bar: quantity + buttons */}
@@ -270,7 +389,7 @@ export default function CourierProductDetailPage() {
                   </button>
                 </div>
                 <span className="text-sm font-bold text-gray-800">
-                  {formatPrice(product.price * quantity)}
+                  {formatPrice(unitPrice * quantity)}
                 </span>
               </div>
 
@@ -279,14 +398,16 @@ export default function CourierProductDetailPage() {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition"
+                  disabled={!canAddToCart}
+                  className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   장바구니 담기
                 </button>
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition"
+                  disabled={!canAddToCart}
+                  className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   바로 주문
                 </button>
