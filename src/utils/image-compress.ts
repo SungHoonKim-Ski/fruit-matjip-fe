@@ -17,6 +17,15 @@ const DEFAULT_OPTS: CompressOpts = {
   minQuality: 0.5,
 };
 
+/** 상세 이미지용 프리셋: 세로로 긴 이미지 보존, 모바일 레티나 대응 */
+export const DETAIL_IMAGE_OPTS: Partial<CompressOpts> = {
+  maxWidth: 1200,
+  maxHeight: 20000,
+  maxBytes: 3 * 1024 * 1024, // 3MB
+  quality: 0.88,
+  minQuality: 0.65,
+};
+
 const changeExt = (name: string, newExt: string) =>
   name.replace(/\.[^/.]+$/, '') + '.' + newExt;
 

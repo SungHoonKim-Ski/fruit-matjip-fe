@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import {
-  getCourierProducts,
   getRecommendedCourierProducts,
   searchCourierProducts,
   getCourierProductsByCategory,
@@ -27,7 +26,7 @@ type CategoryGroup = {
   products: CourierProduct[];
 };
 
-type ViewMode = 'main' | 'search' | 'category';
+type ViewMode = 'main' | 'search';
 
 const IMG_BASE = process.env.REACT_APP_IMG_URL || '';
 
@@ -110,19 +109,25 @@ function GridSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
-// ── Horizontal skeleton ───────────────────────────────────────────────────────
-function HorizontalSkeleton({ count = 4 }: { count?: number }) {
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyState() {
   return (
-    <div className="flex gap-3 overflow-x-hidden">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex-none w-40 bg-white rounded-lg shadow animate-pulse">
-          <div className="w-full aspect-square bg-gray-200 rounded-t-lg" />
-          <div className="p-2 space-y-2">
-            <div className="h-3 bg-gray-200 rounded w-3/4" />
-            <div className="h-3 bg-gray-200 rounded w-1/2" />
-          </div>
-        </div>
-      ))}
+    <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500 mt-4">
+      <svg
+        className="mx-auto mb-3 w-12 h-12 text-gray-300"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.5"
+          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+        />
+      </svg>
+      <p className="text-sm font-medium">등록된 상품이 없습니다</p>
+      <p className="text-xs text-gray-400 mt-1">곧 새로운 상품이 등록될 예정입니다.</p>
     </div>
   );
 }
@@ -137,9 +142,7 @@ export default function CourierShopPage() {
   const [searchResults, setSearchResults] = useState<CourierProduct[]>([]);
   const [recommendedProducts, setRecommendedProducts] = useState<CourierProduct[]>([]);
   const [categoryProducts, setCategoryProducts] = useState<CategoryGroup[]>([]);
-  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
-  const [activeCategoryName, setActiveCategoryName] = useState('');
-  const [filteredProducts, setFilteredProducts] = useState<CourierProduct[]>([]);
+  const [selectedChip, setSelectedChip] = useState<'recommended' | number>('recommended');
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
 
@@ -154,7 +157,7 @@ export default function CourierShopPage() {
         setLoading(true);
         const [recRes, catRes] = await Promise.all([
           getRecommendedCourierProducts(8),
-          getCourierProductsByCategory(4),
+          getCourierProductsByCategory(),
         ]);
 
         if (!alive) return;
@@ -199,35 +202,6 @@ export default function CourierShopPage() {
     return () => { alive = false; };
   }, [show]);
 
-  // ── Category filtered view load ───────────────────────────────────────────
-  useEffect(() => {
-    if (viewMode !== 'category' || activeCategoryId === null) return;
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        const res = await getCourierProducts(activeCategoryId);
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) return;
-          throw new Error('상품 목록을 불러오지 못했습니다.');
-        }
-        const data = await res.json();
-        const arr = Array.isArray(data?.response)
-          ? data.response
-          : Array.isArray(data)
-          ? data
-          : [];
-        if (alive) setFilteredProducts(arr.map(mapProduct));
-      } catch (e: any) {
-        safeErrorLog(e, 'CourierShopPage - categoryLoad');
-        if (alive) show(getSafeErrorMessage(e, '상품 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [viewMode, activeCategoryId, show]);
-
   // ── Search debounce ───────────────────────────────────────────────────────
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const q = e.target.value;
@@ -269,20 +243,6 @@ export default function CourierShopPage() {
     setViewMode('main');
     if (debounceRef.current) clearTimeout(debounceRef.current);
     searchInputRef.current?.focus();
-  };
-
-  const goToCategory = (categoryId: number, categoryName: string) => {
-    setActiveCategoryId(categoryId);
-    setActiveCategoryName(categoryName);
-    setFilteredProducts([]);
-    setViewMode('category');
-  };
-
-  const goToMain = () => {
-    setViewMode('main');
-    setActiveCategoryId(null);
-    setActiveCategoryName('');
-    setFilteredProducts([]);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -377,166 +337,61 @@ export default function CourierShopPage() {
         )}
 
         {/* ════════════════════════════════════════════════════════════════
-            VIEW: CATEGORY FILTERED
-        ════════════════════════════════════════════════════════════════ */}
-        {viewMode === 'category' && (
-          <>
-            {/* Back header */}
-            <div className="flex items-center gap-2 mb-4">
-              <button
-                type="button"
-                onClick={goToMain}
-                className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                </svg>
-                전체보기
-              </button>
-              <span className="text-gray-300">|</span>
-              <span className="text-sm font-semibold text-gray-800">{activeCategoryName}</span>
-            </div>
-
-            {loading && <GridSkeleton count={4} />}
-
-            {!loading && filteredProducts.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {filteredProducts.map(product => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onClick={() => nav(`/shop/${product.id}`)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {!loading && filteredProducts.length === 0 && (
-              <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500">
-                <svg
-                  className="mx-auto mb-3 w-12 h-12 text-gray-300"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                  />
-                </svg>
-                <p className="text-sm font-medium">등록된 상품이 없습니다</p>
-                <p className="text-xs text-gray-400 mt-1">곧 새로운 상품이 등록될 예정입니다.</p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ════════════════════════════════════════════════════════════════
             VIEW: MAIN
         ════════════════════════════════════════════════════════════════ */}
         {viewMode === 'main' && (
           <>
             {loading && (
               <>
-                {/* Recommended skeleton */}
-                <div className="mb-6">
-                  <div className="h-5 bg-gray-200 rounded w-24 mb-3 animate-pulse" />
-                  <HorizontalSkeleton count={4} />
+                {/* Chip placeholders */}
+                <div className="flex gap-2 mb-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-7 w-14 bg-gray-200 rounded-full animate-pulse flex-none" />
+                  ))}
                 </div>
-                {/* Category skeletons */}
-                {[1, 2].map(i => (
-                  <div key={i} className="mb-6">
-                    <div className="h-5 bg-gray-200 rounded w-20 mb-3 animate-pulse" />
-                    <GridSkeleton count={4} />
-                  </div>
-                ))}
+                <GridSkeleton count={4} />
               </>
             )}
 
             {!loading && (
               <>
-                {/* ── Recommended products ── */}
-                {recommendedProducts.length > 0 && (
-                  <section className="mb-6">
-                    <div className="flex items-center gap-1.5 mb-3">
-                      <svg
-                        className="w-4 h-4 text-orange-400"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                        aria-hidden="true"
-                      >
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      <h2 className="text-sm font-bold text-gray-800">추천 상품</h2>
-                    </div>
-
-                    <div
-                      className="flex gap-3 overflow-x-auto snap-x snap-mandatory [&::-webkit-scrollbar]:hidden"
-                      style={{ scrollbarWidth: 'none' }}
+                {/* ── Chip row ── */}
+                <div
+                  className="flex gap-2 overflow-x-auto pb-2 mb-4 [&::-webkit-scrollbar]:hidden"
+                  style={{ scrollbarWidth: 'none' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChip('recommended')}
+                    className={`flex-none px-3 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
+                      selectedChip === 'recommended'
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    추천
+                  </button>
+                  {categoryProducts.map(group => (
+                    <button
+                      key={group.categoryId}
+                      type="button"
+                      onClick={() => setSelectedChip(group.categoryId)}
+                      className={`flex-none px-3 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
+                        selectedChip === group.categoryId
+                          ? 'bg-orange-500 border-orange-500 text-white'
+                          : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
                     >
-                      {recommendedProducts.map(product => (
-                        <div
-                          key={product.id}
-                          className="flex-none w-40 snap-start bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98]"
-                          onClick={() => nav(`/shop/${product.id}`)}
-                          role="button"
-                          aria-label={`${product.name} 상세 보기`}
-                        >
-                          <div className="relative w-full aspect-square bg-gray-100">
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                            {product.stock === 0 && (
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                <span className="text-white font-bold text-xs bg-black/60 px-2 py-0.5 rounded-full">
-                                  품절
-                                </span>
-                              </div>
-                            )}
-                            {product.stock > 0 && product.stock <= 10 && (
-                              <span className="absolute top-1.5 right-1.5 text-[9px] bg-red-500 text-white px-1 py-0.5 rounded-full font-medium">
-                                마감임박
-                              </span>
-                            )}
-                          </div>
-                          <div className="p-2">
-                            <p className="text-xs font-medium text-gray-800 leading-tight line-clamp-2 min-h-[2rem]">
-                              {product.name}
-                            </p>
-                            <p className="mt-1 text-xs font-bold text-orange-500">
-                              {formatPrice(product.price)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
+                      {group.categoryName}
+                    </button>
+                  ))}
+                </div>
 
-                {/* ── Category sections ── */}
-                {categoryProducts.map(group => (
-                  <section key={group.categoryId} className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-sm font-bold text-gray-800">{group.categoryName}</h2>
-                      <button
-                        type="button"
-                        onClick={() => goToCategory(group.categoryId, group.categoryName)}
-                        className="text-xs text-orange-500 font-medium flex items-center gap-0.5 hover:text-orange-600"
-                      >
-                        더보기
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
-
+                {/* ── Selected chip content ── */}
+                {selectedChip === 'recommended' ? (
+                  recommendedProducts.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3">
-                      {group.products.slice(0, 4).map(product => (
+                      {recommendedProducts.map(product => (
                         <ProductCard
                           key={product.id}
                           product={product}
@@ -544,28 +399,27 @@ export default function CourierShopPage() {
                         />
                       ))}
                     </div>
-                  </section>
-                ))}
-
-                {/* Empty state (no recommended, no categories) */}
-                {recommendedProducts.length === 0 && categoryProducts.length === 0 && (
-                  <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500 mt-4">
-                    <svg
-                      className="mx-auto mb-3 w-12 h-12 text-gray-300"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="1.5"
-                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                      />
-                    </svg>
-                    <p className="text-sm font-medium">등록된 상품이 없습니다</p>
-                    <p className="text-xs text-gray-400 mt-1">곧 새로운 상품이 등록될 예정입니다.</p>
-                  </div>
+                  ) : (
+                    <EmptyState />
+                  )
+                ) : (
+                  (() => {
+                    const group = categoryProducts.find(g => g.categoryId === selectedChip);
+                    const products = group?.products ?? [];
+                    return products.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {products.map(product => (
+                          <ProductCard
+                            key={product.id}
+                            product={product}
+                            onClick={() => nav(`/shop/${product.id}`)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState />
+                    );
+                  })()
                 )}
               </>
             )}

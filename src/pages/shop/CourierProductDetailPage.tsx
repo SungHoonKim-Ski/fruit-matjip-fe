@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -10,6 +11,7 @@ type OptionItem = {
   id: number;
   name: string;
   additionalPrice: number;
+  stock: number | null; // null = unlimited
 };
 
 type OptionGroup = {
@@ -51,6 +53,24 @@ export default function CourierProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map()); // groupId -> optionId
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef(0);
+  const isDragging = useRef(false);
+
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    dragStartY.current = e.touches[0].clientY;
+    isDragging.current = true;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const diff = e.changedTouches[0].clientY - dragStartY.current;
+    if (diff > 80) closeSheet();
+  }, [closeSheet]);
 
   useEffect(() => {
     let alive = true;
@@ -78,6 +98,7 @@ export default function CourierProductDetailPage() {
                   id: Number(o.id),
                   name: String(o.name ?? ''),
                   additionalPrice: Number(o.additional_price ?? o.additionalPrice ?? 0),
+                  stock: o.stock != null ? Number(o.stock) : null,
                 })) : [],
               }))
             : [];
@@ -264,7 +285,7 @@ export default function CourierProductDetailPage() {
       </div>
 
       <div className="max-w-md mx-auto">
-        {/* All images vertically stacked */}
+        {/* Main image */}
         <div className="bg-white">
           <div className="relative w-full">
             <img
@@ -278,15 +299,6 @@ export default function CourierProductDetailPage() {
               </div>
             )}
           </div>
-          {product.detailImages && product.detailImages.map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              alt={`${product.name} 상세 ${i + 1}`}
-              className="w-full block"
-              loading="lazy"
-            />
-          ))}
         </div>
 
         {/* Product info */}
@@ -294,47 +306,21 @@ export default function CourierProductDetailPage() {
           <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
           <div className="mt-2 text-xl font-bold text-orange-500">{formatPrice(product.price)}</div>
           <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
-            {product.weight && (
-              <span>중량: {product.weight}</span>
-            )}
             <span>재고: {product.stock > 0 ? `${product.stock}개` : '품절'}</span>
           </div>
         </div>
 
-        {/* Option groups */}
-        {product.optionGroups && product.optionGroups.length > 0 && (
-          <div className="bg-white px-4 py-4 mt-1">
-            {product.optionGroups.map(group => (
-              <div key={group.id} className="mb-3 last:mb-0">
-                <div className="text-sm font-semibold text-gray-700 mb-2">
-                  {group.name}
-                  {group.required && <span className="text-red-500 ml-1">*</span>}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {group.options.map(option => {
-                    const isSelected = selectedOptions.get(group.id) === option.id;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => handleOptionSelect(group.id, option.id)}
-                        className={`px-3 py-2 rounded-lg border text-sm transition ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        {option.name}
-                        {option.additionalPrice > 0 && (
-                          <span className="text-xs ml-1 text-gray-500">
-                            (+{option.additionalPrice.toLocaleString()}원)
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+        {/* Detail images */}
+        {product.detailImages && product.detailImages.length > 0 && (
+          <div className="bg-white mt-1">
+            {product.detailImages.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt={`${product.name} 상세 ${i + 1}`}
+                className="w-full block"
+                loading="lazy"
+              />
             ))}
           </div>
         )}
@@ -345,74 +331,27 @@ export default function CourierProductDetailPage() {
             <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
             <div
               className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: product.description }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
+                ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
+                ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']
+              }) }}
             />
           </div>
         )}
 
       </div>
 
-      {/* Bottom bar: quantity + buttons */}
+      {/* Bottom trigger bar */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="max-w-md mx-auto px-4 py-3">
           {product.stock > 0 ? (
-            <>
-              {/* Quantity selector */}
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">수량</span>
-                <div className="flex items-center border rounded-lg overflow-hidden h-9">
-                  <button
-                    type="button"
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={quantity <= 1}
-                    className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
-                    aria-label="수량 감소"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    value={quantity}
-                    onChange={e => handleDirectInput(e.target.value)}
-                    className="w-12 h-full text-center text-sm border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    min={1}
-                    max={product.stock}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleQuantityChange(1)}
-                    disabled={quantity >= product.stock}
-                    className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
-                    aria-label="수량 증가"
-                  >
-                    +
-                  </button>
-                </div>
-                <span className="text-sm font-bold text-gray-800">
-                  {formatPrice(unitPrice * quantity)}
-                </span>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  disabled={!canAddToCart}
-                  className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  장바구니 담기
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBuyNow}
-                  disabled={!canAddToCart}
-                  className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  바로 주문
-                </button>
-              </div>
-            </>
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              className="w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition"
+            >
+              구매하기
+            </button>
           ) : (
             <button
               type="button"
@@ -422,6 +361,145 @@ export default function CourierProductDetailPage() {
               품절된 상품입니다
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Bottom Sheet Overlay */}
+      {sheetOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 transition-opacity"
+          onClick={closeSheet}
+        />
+      )}
+
+      {/* Bottom Sheet */}
+      <div
+        ref={sheetRef}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className={`fixed left-0 right-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-transform duration-300 ease-out ${
+          sheetOpen ? 'translate-y-0' : 'translate-y-full'
+        }`}
+        style={{ maxHeight: '80vh', overflowY: 'auto' }}
+      >
+        <div className="max-w-md mx-auto">
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-2 cursor-grab">
+            <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          </div>
+
+          <div className="px-4 pb-6 space-y-4">
+            {/* Option groups */}
+            {product.optionGroups && product.optionGroups.length > 0 && (
+              <div>
+                {product.optionGroups.map(group => (
+                  <div key={group.id} className="mb-3 last:mb-0">
+                    <div className="text-sm font-semibold text-gray-700 mb-2">
+                      {group.name}
+                      {group.required && <span className="text-red-500 ml-1">*</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.options.map(option => {
+                        const isSelected = selectedOptions.get(group.id) === option.id;
+                        const isSoldOut = option.stock !== null && option.stock <= 0;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => !isSoldOut && handleOptionSelect(group.id, option.id)}
+                            disabled={isSoldOut}
+                            className={`px-3 py-2 rounded-lg border text-sm transition ${
+                              isSoldOut
+                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                : isSelected
+                                ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {option.name}
+                            {option.additionalPrice > 0 && (
+                              <span className="text-xs ml-1 text-gray-500">
+                                (+{option.additionalPrice.toLocaleString()}원)
+                              </span>
+                            )}
+                            {isSoldOut && (
+                              <span className="text-xs ml-1 text-red-400">품절</span>
+                            )}
+                            {option.stock !== null && option.stock > 0 && option.stock <= 10 && (
+                              <span className="text-xs ml-1 text-orange-500">
+                                ({option.stock}개 남음)
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Quantity selector */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">수량</span>
+              <div className="flex items-center border rounded-lg overflow-hidden h-9">
+                <button
+                  type="button"
+                  onClick={() => handleQuantityChange(-1)}
+                  disabled={quantity <= 1}
+                  className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
+                  aria-label="수량 감소"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={e => handleDirectInput(e.target.value)}
+                  className="w-12 h-full text-center text-sm border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  min={1}
+                  max={product.stock}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleQuantityChange(1)}
+                  disabled={quantity >= product.stock}
+                  className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
+                  aria-label="수량 증가"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Total price */}
+            <div className="flex items-center justify-between border-t pt-3">
+              <span className="text-sm text-gray-600">총 금액</span>
+              <span className="text-lg font-bold text-orange-500">
+                {formatPrice(unitPrice * quantity)}
+              </span>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { handleAddToCart(); closeSheet(); }}
+                disabled={!canAddToCart}
+                className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                장바구니 담기
+              </button>
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={!canAddToCart}
+                className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                바로 주문
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </main>
