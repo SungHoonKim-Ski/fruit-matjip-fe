@@ -14,7 +14,6 @@ type Product = {
   id: number;
   name: string;
   price: number;
-  stock: number;
   imageUrl: string;
   orderIndex: number;
   categories: { id: number; name: string }[];
@@ -86,7 +85,6 @@ const AdminCourierProductOrderPage = () => {
           id: Number(p.id),
           name: String(p.name ?? ''),
           price: Number(p.price ?? 0),
-          stock: Number(p.stock ?? 0),
           imageUrl: addImgPrefix(p.product_url ?? p.image_url ?? p.imageUrl ?? ''),
           orderIndex: Number(p.sort_order ?? p.order_index ?? p.orderIndex ?? 0),
           categories: (p.categories ?? []).map((c: any) => ({ id: Number(c.id), name: String(c.name ?? '') })),
@@ -264,9 +262,10 @@ const AdminCourierProductOrderPage = () => {
                 onClick={() => handleCategorySelect(null)}
                 className={`px-3 py-1.5 rounded-full border text-xs font-medium whitespace-nowrap transition ${
                   selectedCategoryId === null
-                    ? 'bg-orange-500 border-orange-500 text-white'
+                    ? 'text-white'
                     : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
+                style={selectedCategoryId === null ? { backgroundColor: 'var(--color-primary-500)', borderColor: 'var(--color-primary-500)' } : undefined}
               >
                 전체
               </button>
@@ -277,9 +276,10 @@ const AdminCourierProductOrderPage = () => {
                   onClick={() => handleCategorySelect(selectedCategoryId === cat.id ? null : cat.id)}
                   className={`px-3 py-1.5 rounded-full border text-xs font-medium whitespace-nowrap transition ${
                     selectedCategoryId === cat.id
-                      ? 'bg-orange-500 border-orange-500 text-white'
+                      ? 'text-white'
                       : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                   }`}
+                  style={selectedCategoryId === cat.id ? { backgroundColor: 'var(--color-primary-500)', borderColor: 'var(--color-primary-500)' } : undefined}
                 >
                   {cat.name}
                 </button>
@@ -312,7 +312,7 @@ const AdminCourierProductOrderPage = () => {
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 w-6 h-6 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                            <div className="flex-shrink-0 w-6 h-6 text-white text-xs rounded-full flex items-center justify-center font-medium" style={{ backgroundColor: 'var(--color-primary-500)' }}>
                               {currentOrder}
                             </div>
                             <img
@@ -323,7 +323,7 @@ const AdminCourierProductOrderPage = () => {
                             <div>
                               <div className="font-medium text-sm text-gray-900">{product.name}</div>
                               <div className="text-xs text-gray-500">
-                                {product.price.toLocaleString()}원 · 재고 {product.stock}개
+                                {product.price.toLocaleString()}원
                               </div>
                             </div>
                           </div>
@@ -332,7 +332,7 @@ const AdminCourierProductOrderPage = () => {
                           <select
                             value={currentOrder}
                             onChange={e => handleOrderChange(product.id, parseInt(e.target.value))}
-                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-orange-500 focus:border-orange-500"
+                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"
                           >
                             {Array.from({ length: filteredProducts.length }, (_, i) => i + 1).map(num => (
                               <option key={num} value={num}>
@@ -353,7 +353,8 @@ const AdminCourierProductOrderPage = () => {
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="h-10 px-6 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:bg-gray-300 transition"
+                className="h-10 px-6 rounded-lg text-white text-sm font-medium disabled:bg-gray-300 transition"
+                style={{ backgroundColor: 'var(--color-primary-500)' }}
               >
                 {isSaving ? '저장 중...' : '저장'}
               </button>

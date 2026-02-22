@@ -230,7 +230,6 @@ export default function AdminCourierCreateProductPage() {
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
         ['link', 'image'],
-        ['clean'],
       ],
       handlers: {
         image: imageHandler,
@@ -374,7 +373,7 @@ export default function AdminCourierCreateProductPage() {
             className="w-full border px-3 py-2 rounded bg-white"
           >
             <option value="">선택하세요</option>
-            {shippingFeeTemplates.filter(t => t.active).map(t => (
+            {shippingFeeTemplates.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
@@ -446,7 +445,7 @@ export default function AdminCourierCreateProductPage() {
             <img
               src={mainPreview}
               alt="대표 이미지 미리보기"
-              className="w-28 h-28 rounded object-cover border"
+              className="max-w-xs max-h-60 rounded object-contain border"
             />
           )}
           <div className="flex items-center gap-2 flex-wrap">
@@ -481,7 +480,16 @@ export default function AdminCourierCreateProductPage() {
           {optionGroups.length > 0 && (
             <div className="space-y-3">
               {optionGroups.map((group, gi) => (
-                <div key={gi} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                <div key={gi} className="border rounded-lg p-3 space-y-2 bg-gray-50 relative">
+                  {/* Group delete button */}
+                  <button
+                    type="button"
+                    onClick={() => removeOptionGroup(gi)}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white text-red-500 hover:bg-red-50 text-sm flex items-center justify-center shadow"
+                    aria-label="그룹 삭제"
+                  >
+                    -
+                  </button>
                   {/* Group header */}
                   <div className="flex items-center gap-2">
                     <input
@@ -496,58 +504,56 @@ export default function AdminCourierCreateProductPage() {
                         type="checkbox"
                         checked={group.required}
                         onChange={e => updateOptionGroup(gi, 'required', e.target.checked)}
-                        className="accent-orange-500"
+                        className="accent-green-600"
                       />
                       필수
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => removeOptionGroup(gi)}
-                      className="text-red-400 hover:text-red-600 text-xs px-1"
-                      aria-label="그룹 삭제"
-                    >
-                      삭제
-                    </button>
                   </div>
                   {/* Options */}
-                  <div className="space-y-1.5 pl-1">
+                  <div className="space-y-1.5">
                     {group.options.map((opt, oi) => (
-                      <div key={oi} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={opt.name}
-                          onChange={e => updateOption(gi, oi, 'name', e.target.value)}
-                          className="flex-1 border px-2 py-1 rounded text-sm"
-                          placeholder="옵션명"
-                        />
-                        <input
-                          type="number"
-                          value={opt.additionalPrice}
-                          onChange={e => updateOption(gi, oi, 'additionalPrice', e.target.value)}
-                          className="w-24 border px-2 py-1 rounded text-sm"
-                          placeholder="추가금액"
-                          min={0}
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
-                        <input
-                          type="number"
-                          value={opt.stock}
-                          onChange={e => updateOption(gi, oi, 'stock', e.target.value)}
-                          className="w-20 border px-2 py-1 rounded text-sm"
-                          placeholder="재고"
-                          min={0}
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">개</span>
-                        {group.options.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeOption(gi, oi)}
-                            className="text-gray-400 hover:text-red-500 text-xs"
-                            aria-label="옵션 삭제"
-                          >
-                            ✕
-                          </button>
-                        )}
+                      <div key={oi} className="space-y-1.5 bg-white rounded p-2 border border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={opt.name}
+                            onChange={e => updateOption(gi, oi, 'name', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="옵션명 (예: 대, 중, 소)"
+                          />
+                          {group.options.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeOption(gi, oi)}
+                              className="text-gray-400 hover:text-red-500 text-xs"
+                              aria-label="옵션 삭제"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={opt.additionalPrice}
+                            onChange={e => updateOption(gi, oi, 'additionalPrice', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="추가금액"
+                            min={0}
+                          />
+                          <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={opt.stock}
+                            onChange={e => updateOption(gi, oi, 'stock', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="재고 (미입력 시 무제한)"
+                            min={0}
+                          />
+                          <span className="text-xs text-gray-500 whitespace-nowrap">개</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -569,7 +575,8 @@ export default function AdminCourierCreateProductPage() {
           type="button"
           onClick={handleSubmit}
           disabled={uploading}
-          className="w-full bg-orange-500 text-white py-2.5 rounded hover:bg-orange-600 disabled:bg-gray-300 font-medium"
+          className="w-full text-white py-2.5 rounded disabled:bg-gray-300 font-medium"
+          style={uploading ? undefined : { backgroundColor: 'var(--color-primary-500)' }}
         >
           {uploading ? '등록 중...' : '상품 등록'}
         </button>

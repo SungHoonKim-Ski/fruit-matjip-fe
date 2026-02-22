@@ -40,7 +40,6 @@ export default function CourierCartPage() {
   const handleQuantityChange = (item: CartItem, diff: number) => {
     const next = item.quantity + diff;
     if (next < 1) return;
-    if (next > item.stock) return;
     updateQuantity(item.courierProductId, next, item.selectedOptions);
     refresh();
   };
@@ -52,7 +51,7 @@ export default function CourierCartPage() {
       refresh();
       return;
     }
-    const clamped = Math.min(num, item.stock);
+    const clamped = num;
     updateQuantity(item.courierProductId, clamped, item.selectedOptions);
     refresh();
   };
@@ -137,8 +136,8 @@ export default function CourierCartPage() {
                 <button className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50" onClick={() => setDrawerOpen(false)} aria-label="메뉴 닫기">✕</button>
               </div>
               <nav className="mt-2 space-y-2 text-sm">
-                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
-                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
+                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
+                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
               </nav>
               <div className="mt-6 text-xs text-gray-400 space-y-1">
                 <p className="font-semibold text-gray-500">{theme.displayName}</p>
@@ -162,7 +161,8 @@ export default function CourierCartPage() {
             <button
               type="button"
               onClick={() => nav('/shop')}
-              className="mt-6 h-11 px-6 rounded-lg bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 transition"
+              className="mt-6 h-11 px-6 rounded-lg text-white font-medium text-sm transition"
+              style={{ backgroundColor: 'var(--color-primary-500)' }}
             >
               쇼핑하기
             </button>
@@ -208,8 +208,8 @@ export default function CourierCartPage() {
               <button className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50" onClick={() => setDrawerOpen(false)} aria-label="메뉴 닫기">✕</button>
             </div>
             <nav className="mt-2 space-y-2 text-sm">
-              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
-              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
+              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
+              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
             </nav>
             <div className="mt-6 text-xs text-gray-400 space-y-1">
               <p className="font-semibold text-gray-500">{theme.displayName}</p>
@@ -269,7 +269,7 @@ export default function CourierCartPage() {
                         )}
                       </div>
                     )}
-                    <div className="mt-1 text-sm font-bold text-orange-500">
+                    <div className="mt-1 text-sm font-bold" style={{ color: 'var(--color-primary-700)' }}>
                       {formatPrice(getItemUnitPrice(item) * item.quantity)}
                       {item.quantity > 1 && (
                         <span className="text-[10px] text-gray-400 font-normal ml-1">
@@ -295,12 +295,10 @@ export default function CourierCartPage() {
                           onChange={e => handleDirectInput(item, e.target.value)}
                           className="w-10 h-full text-center text-xs border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           min={1}
-                          max={item.stock}
                         />
                         <button
                           type="button"
                           onClick={() => handleQuantityChange(item, 1)}
-                          disabled={item.quantity >= item.stock}
                           className="w-8 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm disabled:opacity-30"
                           aria-label="수량 증가"
                         >
@@ -353,12 +351,13 @@ export default function CourierCartPage() {
             {/* Always visible: total + button */}
             <div className="flex items-center justify-between font-bold text-gray-900 text-base mb-3">
               <span>결제 예상액</span>
-              <span className="text-orange-500">{formatPrice(totalPrice + (shippingFee?.totalFee ?? 0))}</span>
+              <span style={{ color: 'var(--color-primary-700)' }}>{formatPrice(totalPrice + (shippingFee?.totalFee ?? 0))}</span>
             </div>
             <button
               type="button"
               onClick={handleCheckout}
-              className="w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition"
+              className="w-full h-12 rounded-lg text-white font-semibold text-sm transition"
+              style={{ backgroundColor: 'var(--color-primary-500)' }}
             >
               주문하기
             </button>

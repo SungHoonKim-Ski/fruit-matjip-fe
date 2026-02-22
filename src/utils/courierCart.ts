@@ -11,7 +11,6 @@ export type CartItem = {
   price: number; // base price (without options)
   quantity: number;
   imageUrl: string;
-  stock: number;
   selectedOptions?: SelectedOption[];
 };
 
@@ -43,11 +42,10 @@ export const addToCart = (item: CartItem) => {
   const key = getCartKey(item);
   const existing = cart.find(c => getCartKey(c) === key);
   if (existing) {
-    existing.quantity = Math.min(existing.quantity + item.quantity, item.stock);
+    existing.quantity = existing.quantity + item.quantity;
     existing.price = item.price;
     existing.name = item.name;
     existing.imageUrl = item.imageUrl;
-    existing.stock = item.stock;
     existing.selectedOptions = item.selectedOptions;
   } else {
     cart.push({ ...item });
@@ -63,7 +61,7 @@ export const updateQuantity = (courierProductId: number, quantity: number, selec
     if (quantity <= 0) {
       saveCart(cart.filter(c => getCartKey(c) !== key));
     } else {
-      item.quantity = Math.min(quantity, item.stock);
+      item.quantity = quantity;
       saveCart(cart);
     }
   }

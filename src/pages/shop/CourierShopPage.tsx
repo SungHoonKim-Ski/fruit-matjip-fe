@@ -17,7 +17,7 @@ type CourierProduct = {
   id: number;
   name: string;
   price: number;
-  stock: number;
+  soldOut?: boolean;
   imageUrl: string;
   weight?: string;
   totalSold?: number;
@@ -47,18 +47,19 @@ const mapProduct = (p: any): CourierProduct => ({
   id: Number(p.id),
   name: String(p.name ?? ''),
   price: Number(p.price ?? 0),
-  stock: Number(p.stock ?? 0),
+  soldOut: p.sold_out === true || p.soldOut === true,
   imageUrl: addImgPrefix(p.product_url ?? p.image_url ?? p.imageUrl ?? ''),
   weight: p.weight ?? undefined,
   totalSold: p.total_sold ?? p.totalSold ?? 0,
   orderIndex: p.sort_order ?? p.order_index ?? p.orderIndex ?? 0,
 });
 
-// ── Product card (shared) ─────────────────────────────────────────────────────
+// ── Product card (2-col grid, store-style colors) ────────────────────────────
 function ProductCard({ product, onClick }: { product: CourierProduct; onClick: () => void }) {
   return (
     <div
-      className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md transition-shadow active:scale-[0.98]"
+      className="rounded-lg border overflow-hidden shadow-sm cursor-pointer transition-all duration-200 active:scale-[0.97]"
+      style={{ borderColor: 'var(--color-primary-500)', backgroundColor: 'var(--color-primary-50)' }}
       onClick={onClick}
       role="button"
       aria-label={`${product.name} 상세 보기`}
@@ -67,45 +68,70 @@ function ProductCard({ product, onClick }: { product: CourierProduct; onClick: (
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover${product.soldOut ? ' opacity-40' : ''}`}
           loading="lazy"
         />
-        {product.stock === 0 && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+        {product.soldOut && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <span className="text-white font-bold text-sm bg-black/60 px-3 py-1 rounded-full">품절</span>
           </div>
         )}
-        {product.stock > 0 && product.stock <= 10 && (
-          <span className="absolute top-2 right-2 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full font-medium">
-            마감임박
-          </span>
-        )}
       </div>
-      <div className="p-3">
+      <div className="p-2.5">
         <h3 className="text-sm font-medium text-gray-800 leading-tight line-clamp-2 min-h-[2.5rem]">
           {product.name}
         </h3>
-        <div className="mt-1 text-sm font-bold text-orange-500">
+        <div className="mt-1 text-sm font-bold" style={{ color: 'var(--color-primary-700)' }}>
           {formatPrice(product.price)}
         </div>
-        {product.stock > 0 && (
-          <div className="mt-0.5 text-[11px] text-gray-400">재고 {product.stock}개</div>
-        )}
       </div>
     </div>
   );
 }
 
-// ── Grid skeleton ─────────────────────────────────────────────────────────────
-function GridSkeleton({ count = 4 }: { count?: number }) {
+// ── Compact product card for horizontal scroll ───────────────────────────────
+function CompactProductCard({ product, onClick }: { product: CourierProduct; onClick: () => void }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div
+      className="flex-none w-28 cursor-pointer active:scale-[0.97] transition-transform"
+      onClick={onClick}
+      role="button"
+      aria-label={`${product.name} 상세 보기`}
+    >
+      <div className="relative w-28 h-28">
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className={`w-28 h-28 object-cover rounded-lg border${product.soldOut ? ' opacity-40' : ''}`}
+          style={{ borderColor: 'var(--color-primary-500)' }}
+          loading="lazy"
+        />
+        {product.soldOut && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
+            <span className="text-white font-bold text-xs bg-black/60 px-2 py-0.5 rounded-full">품절</span>
+          </div>
+        )}
+      </div>
+      <h3 className="text-xs font-medium text-gray-800 leading-tight line-clamp-2 mt-1.5">{product.name}</h3>
+      <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--color-primary-700)' }}>
+        {formatPrice(product.price)}
+      </div>
+    </div>
+  );
+}
+
+// ── List skeleton ─────────────────────────────────────────────────────────────
+function ListSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="space-y-2">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="bg-white rounded-lg shadow animate-pulse">
-          <div className="w-full aspect-square bg-gray-200 rounded-t-lg" />
-          <div className="p-3 space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
+        <div key={i} className="bg-white rounded-lg shadow animate-pulse p-2.5">
+          <div className="flex gap-3">
+            <div className="w-20 h-20 bg-gray-200 rounded-lg flex-shrink-0" />
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-4 bg-gray-200 rounded w-3/4" />
+              <div className="h-4 bg-gray-200 rounded w-1/2" />
+            </div>
           </div>
         </div>
       ))}
@@ -116,9 +142,13 @@ function GridSkeleton({ count = 4 }: { count?: number }) {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
-    <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500 mt-4">
+    <div
+      className="bg-white rounded-lg shadow-sm border p-10 text-center text-gray-500 mt-4"
+      style={{ borderColor: 'var(--color-primary-100)' }}
+    >
       <svg
-        className="mx-auto mb-3 w-12 h-12 text-gray-300"
+        className="mx-auto mb-3 w-12 h-12"
+        style={{ color: 'var(--color-primary-300)' }}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -130,7 +160,7 @@ function EmptyState() {
           d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
         />
       </svg>
-      <p className="text-sm font-medium">등록된 상품이 없습니다</p>
+      <p className="text-sm font-medium text-gray-600">등록된 상품이 없습니다</p>
       <p className="text-xs text-gray-400 mt-1">곧 새로운 상품이 등록될 예정입니다.</p>
     </div>
   );
@@ -150,13 +180,19 @@ export default function CourierShopPage() {
   const [searchResults, setSearchResults] = useState<CourierProduct[]>([]);
   const [recommendedProducts, setRecommendedProducts] = useState<CourierProduct[]>([]);
   const [categoryProducts, setCategoryProducts] = useState<CategoryGroup[]>([]);
-  const [selectedChip, setSelectedChip] = useState<'recommended' | number>('recommended');
+  const [selectedChip, setSelectedChip] = useState<null | 'recommended' | number>(null);
+  const [visibleCount, setVisibleCount] = useState(8);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
+  // ── Fade transition state ──────────────────────────────────────────────────
+  const [contentVisible, setContentVisible] = useState(true);
+  const prevChipRef = useRef<null | 'recommended' | number>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Cart count sync ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -298,6 +334,59 @@ export default function CourierShopPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
   };
 
+  const handleChipSelect = (chip: 'recommended' | number) => {
+    // Fade out → update → fade in
+    setContentVisible(false);
+    setTimeout(() => {
+      if (selectedChip === chip) {
+        setSelectedChip(null);
+      } else {
+        setSelectedChip(chip);
+        setVisibleCount(8);
+      }
+      prevChipRef.current = chip;
+      setContentVisible(true);
+    }, 150);
+  };
+
+  const handleChipDeselect = () => {
+    setContentVisible(false);
+    setTimeout(() => {
+      setSelectedChip(null);
+      prevChipRef.current = null;
+      setContentVisible(true);
+    }, 150);
+  };
+
+  // Lazy rendering: load more when sentinel is visible
+  const selectedProducts = selectedChip === 'recommended'
+    ? recommendedProducts
+    : selectedChip !== null
+    ? (categoryProducts.find(g => g.categoryId === selectedChip)?.products ?? [])
+    : [];
+
+  const selectedCategoryName = selectedChip === 'recommended'
+    ? '추천'
+    : selectedChip !== null
+    ? (categoryProducts.find(g => g.categoryId === selectedChip)?.categoryName ?? '')
+    : '';
+
+  useEffect(() => {
+    if (selectedChip === null) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount(prev => prev + 8);
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [selectedChip, visibleCount]);
+
   const openDetail = (productId: number) => {
     setDetailDialog({ isOpen: true, productId });
     window.history.pushState({ modal: 'courierProduct', productId }, '');
@@ -340,7 +429,10 @@ export default function CourierShopPage() {
                 <path d="M16 10a4 4 0 01-8 0" />
               </svg>
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                <span
+                  className="absolute -top-0.5 -right-0.5 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1"
+                  style={{ backgroundColor: 'var(--color-primary-500)' }}
+                >
                   {cartCount > 99 ? '99+' : cartCount}
                 </span>
               )}
@@ -366,13 +458,13 @@ export default function CourierShopPage() {
             </div>
             <nav className="mt-2 space-y-2 text-sm">
               <button
-                className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50"
+                className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50"
                 onClick={() => { setDrawerOpen(false); nav('/store/products'); }}
               >
                 매장 예약
               </button>
               <button
-                className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-orange-50"
+                className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50"
                 onClick={() => { setDrawerOpen(false); nav('/shop'); }}
               >
                 택배 주문
@@ -393,7 +485,7 @@ export default function CourierShopPage() {
       <main className="bg-[#f6f6f6] min-h-screen flex flex-col items-center pt-16 pb-24">
         {/* ── Search bar (slide-down, visible only when searchOpen) ── */}
         {searchOpen && (
-          <div className="sticky top-14 z-40 w-full bg-white shadow-sm">
+          <div className="sticky top-14 z-40 w-full bg-white shadow-md border-b border-gray-100">
             <div className="max-w-md mx-auto px-4 py-2.5">
               <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
                 <svg
@@ -439,7 +531,11 @@ export default function CourierShopPage() {
             type="button"
             onClick={openSearch}
             aria-label="상품 검색"
-            className="fixed bottom-20 right-4 z-40 w-12 h-12 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-600 active:scale-95 transition"
+            className="fixed bottom-20 right-4 z-40 w-12 h-12 text-white rounded-full flex items-center justify-center active:opacity-90 transition"
+            style={{
+              backgroundColor: 'var(--color-primary-500)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            }}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -447,7 +543,40 @@ export default function CourierShopPage() {
           </button>
         )}
 
-        <div className="w-full max-w-md px-4 pt-4">
+        {/* ── Sticky chip row ── */}
+        {!loading && viewMode === 'main' && (
+          <div
+            className="sticky z-30 w-full bg-white shadow-sm border-b border-gray-100 pb-2 pt-2"
+            style={{ top: searchOpen ? '110px' : '56px' }}
+          >
+            <div
+              className="max-w-md mx-auto px-4 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {[
+                { key: 'all', label: '전체', isActive: selectedChip === null, onSelect: () => { if (selectedChip !== null) handleChipDeselect(); } },
+                { key: 'recommended', label: '추천', isActive: selectedChip === 'recommended', onSelect: () => handleChipSelect('recommended') },
+                ...categoryProducts.map(g => ({ key: String(g.categoryId), label: g.categoryName, isActive: selectedChip === g.categoryId, onSelect: () => handleChipSelect(g.categoryId) })),
+              ].map(chip => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={chip.onSelect}
+                  className="flex-none px-4 py-2 rounded-full text-sm font-medium border transition whitespace-nowrap"
+                  style={
+                    chip.isActive
+                      ? { backgroundColor: 'var(--color-primary-500)', borderColor: 'var(--color-primary-500)', color: '#fff' }
+                      : { color: '#374151' }
+                  }
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="w-full max-w-md px-4 pt-2">
           {/* ════════════════════════════════════════════════════════════════
               VIEW: SEARCH
           ════════════════════════════════════════════════════════════════ */}
@@ -457,7 +586,7 @@ export default function CourierShopPage() {
                 {searchLoading ? '검색 중...' : `검색 결과: ${searchResults.length}건`}
               </p>
 
-              {searchLoading && <GridSkeleton count={4} />}
+              {searchLoading && <ListSkeleton count={4} />}
 
               {!searchLoading && searchResults.length > 0 && (
                 <div className="grid grid-cols-2 gap-3">
@@ -472,9 +601,13 @@ export default function CourierShopPage() {
               )}
 
               {!searchLoading && searchResults.length === 0 && (
-                <div className="bg-white rounded-lg shadow p-10 text-center text-gray-500">
+                <div
+                  className="bg-white rounded-lg shadow-sm border p-10 text-center text-gray-500"
+                  style={{ borderColor: 'var(--color-primary-100)' }}
+                >
                   <svg
-                    className="mx-auto mb-3 w-12 h-12 text-gray-300"
+                    className="mx-auto mb-3 w-12 h-12"
+                    style={{ color: 'var(--color-primary-300)' }}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -486,7 +619,7 @@ export default function CourierShopPage() {
                       d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
                     />
                   </svg>
-                  <p className="text-sm font-medium">검색 결과가 없습니다</p>
+                  <p className="text-sm font-medium text-gray-600">검색 결과가 없습니다</p>
                   <p className="text-xs text-gray-400 mt-1">다른 키워드로 검색해 보세요.</p>
                 </div>
               )}
@@ -498,87 +631,118 @@ export default function CourierShopPage() {
           ════════════════════════════════════════════════════════════════ */}
           {viewMode === 'main' && (
             <>
-              {loading && (
-                <>
-                  {/* Chip placeholders */}
-                  <div className="flex gap-2 mb-4">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="h-7 w-14 bg-gray-200 rounded-full animate-pulse flex-none" />
-                    ))}
-                  </div>
-                  <GridSkeleton count={4} />
-                </>
-              )}
+              {loading && <ListSkeleton count={4} />}
 
               {!loading && (
-                <>
-                  {/* ── Chip row ── */}
-                  <div
-                    className="flex gap-2 overflow-x-auto pb-2 mb-4 [&::-webkit-scrollbar]:hidden"
-                    style={{ scrollbarWidth: 'none' }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedChip('recommended')}
-                      className={`flex-none px-3 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
-                        selectedChip === 'recommended'
-                          ? 'bg-orange-500 border-orange-500 text-white'
-                          : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      추천
-                    </button>
-                    {categoryProducts.map(group => (
-                      <button
-                        key={group.categoryId}
-                        type="button"
-                        onClick={() => setSelectedChip(group.categoryId)}
-                        className={`flex-none px-3 py-1.5 rounded-full text-xs font-medium border transition whitespace-nowrap ${
-                          selectedChip === group.categoryId
-                            ? 'bg-orange-500 border-orange-500 text-white'
-                            : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {group.categoryName}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* ── Selected chip content ── */}
-                  {selectedChip === 'recommended' ? (
-                    recommendedProducts.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {recommendedProducts.map(product => (
-                          <ProductCard
-                            key={product.id}
-                            product={product}
-                            onClick={() => openDetail(product.id)}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState />
-                    )
-                  ) : (
-                    (() => {
-                      const group = categoryProducts.find(g => g.categoryId === selectedChip);
-                      const products = group?.products ?? [];
-                      return products.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-3">
-                          {products.map(product => (
-                            <ProductCard
-                              key={product.id}
-                              product={product}
-                              onClick={() => openDetail(product.id)}
-                            />
-                          ))}
+                <div
+                  className="transition-opacity duration-200"
+                  style={{ opacity: contentVisible ? 1 : 0 }}
+                >
+                  {/* ── Chip content below sticky row ── */}
+                  {selectedChip !== null ? (
+                    /* ── Infinite scroll for selected chip ── */
+                    <>
+                      {/* Selected category header */}
+                      <div className="flex items-center justify-between mb-3 mt-1">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold text-gray-800">{selectedCategoryName}</h2>
+                          <span className="text-xs text-gray-400 font-normal">{selectedProducts.length}개</span>
                         </div>
+                        <button
+                          type="button"
+                          onClick={handleChipDeselect}
+                          className="text-xs font-medium transition flex items-center gap-0.5"
+                          style={{ color: 'var(--color-primary-500)' }}
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                          </svg>
+                          전체 보기
+                        </button>
+                      </div>
+
+                      {selectedProducts.length > 0 ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            {selectedProducts.slice(0, visibleCount).map(product => (
+                              <ProductCard
+                                key={product.id}
+                                product={product}
+                                onClick={() => openDetail(product.id)}
+                              />
+                            ))}
+                          </div>
+                          {visibleCount < selectedProducts.length && (
+                            <div ref={sentinelRef} className="h-10" />
+                          )}
+                        </>
                       ) : (
                         <EmptyState />
-                      );
-                    })()
+                      )}
+                    </>
+                  ) : (
+                    /* ── Section view (default) ── */
+                    <>
+                      {/* Recommended section — horizontal scroll */}
+                      {recommendedProducts.length > 0 && (
+                        <section className="mb-4 bg-white rounded-xl shadow-sm p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-base font-bold text-gray-800">추천</h2>
+                          </div>
+                          <div
+                            className="flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden"
+                            style={{ scrollbarWidth: 'none' }}
+                          >
+                            {recommendedProducts.map(product => (
+                              <CompactProductCard
+                                key={product.id}
+                                product={product}
+                                onClick={() => openDetail(product.id)}
+                              />
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      {/* Category sections */}
+                      {categoryProducts.map(group => (
+                        group.products.length > 0 && (
+                          <section
+                            key={group.categoryId}
+                            className="mb-4 bg-white rounded-xl shadow-sm p-4"
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <h2 className="text-base font-bold text-gray-800">{group.categoryName}</h2>
+                              {group.products.length > 4 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleChipSelect(group.categoryId)}
+                                  className="text-xs font-medium transition"
+                                  style={{ color: 'var(--color-primary-500)' }}
+                                >
+                                  더보기 &gt;
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              {group.products.slice(0, 4).map(product => (
+                                <ProductCard
+                                  key={product.id}
+                                  product={product}
+                                  onClick={() => openDetail(product.id)}
+                                />
+                              ))}
+                            </div>
+                          </section>
+                        )
+                      ))}
+
+                      {recommendedProducts.length === 0 && categoryProducts.length === 0 && (
+                        <EmptyState />
+                      )}
+                    </>
                   )}
-                </>
+                </div>
               )}
             </>
           )}

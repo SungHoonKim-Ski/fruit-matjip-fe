@@ -11,9 +11,8 @@ type Product = {
   id: number;
   name: string;
   price: number;
-  stock: number;
   visible: boolean;
-  recommended: boolean;
+  soldOut: boolean;
   imageUrl: string;
   categories: Array<{ id: number; name: string }>;
 };
@@ -57,9 +56,8 @@ export default function AdminCourierProductPage() {
             id: Number(p.id),
             name: String(p.name ?? ''),
             price: Number(p.price ?? 0),
-            stock: Number(p.stock ?? 0),
             visible: typeof p.visible === 'boolean' ? p.visible : (typeof p.is_visible === 'boolean' ? p.is_visible : true),
-            recommended: typeof p.recommended === 'boolean' ? p.recommended : false,
+            soldOut: typeof p.sold_out === 'boolean' ? p.sold_out : false,
             imageUrl: addImgPrefix(p.product_url ?? p.image_url ?? p.imageUrl ?? ''),
             categories: Array.isArray(p.categories) ? p.categories.map((c: any) => ({ id: Number(c.id), name: String(c.name ?? '') })) : [],
           })));
@@ -113,7 +111,8 @@ export default function AdminCourierProductPage() {
                 value={searchKeyword}
                 onChange={e => setSearchKeyword(e.target.value)}
                 placeholder="상품명 검색..."
-                className="w-full h-10 pl-10 pr-10 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                className="w-full h-10 pl-10 pr-10 border rounded-lg text-sm focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--color-primary-300)' } as React.CSSProperties}
                 autoFocus
               />
               <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -138,29 +137,22 @@ export default function AdminCourierProductPage() {
         {!loading && uniqueCategories.length > 0 && (
           <div className="mb-4">
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedCategoryId(null)}
-                className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
-                  selectedCategoryId === null
-                    ? 'bg-orange-500 border-orange-500 text-white'
-                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                전체
-              </button>
-              {uniqueCategories.map(cat => (
+              {[
+                { key: 'all', label: '전체', isActive: selectedCategoryId === null, onClick: () => setSelectedCategoryId(null) },
+                ...uniqueCategories.map(cat => ({ key: String(cat.id), label: cat.name, isActive: selectedCategoryId === cat.id, onClick: () => setSelectedCategoryId(cat.id) })),
+              ].map(chip => (
                 <button
-                  key={cat.id}
+                  key={chip.key}
                   type="button"
-                  onClick={() => setSelectedCategoryId(cat.id)}
-                  className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
-                    selectedCategoryId === cat.id
-                      ? 'bg-orange-500 border-orange-500 text-white'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
+                  onClick={chip.onClick}
+                  className="px-3 py-1.5 rounded-full border text-xs font-medium transition"
+                  style={
+                    chip.isActive
+                      ? { backgroundColor: 'var(--color-primary-500)', borderColor: 'var(--color-primary-500)', color: '#fff' }
+                      : { color: '#374151' }
+                  }
                 >
-                  {cat.name}
+                  {chip.label}
                 </button>
               ))}
             </div>
@@ -201,7 +193,7 @@ export default function AdminCourierProductPage() {
                 key={product.id}
                 type="button"
                 onClick={() => navigate(`/admin/courier/products/${product.id}/edit`)}
-                className="bg-white rounded-xl shadow hover:shadow-md hover:ring-2 hover:ring-orange-200 transition-all text-left group cursor-pointer overflow-hidden"
+                className="bg-white rounded-xl shadow hover:shadow-md transition-all text-left group cursor-pointer overflow-hidden"
               >
                 <div className="aspect-square overflow-hidden bg-gray-100">
                   <img
@@ -214,7 +206,6 @@ export default function AdminCourierProductPage() {
                   <h3 className="text-sm font-semibold text-gray-800 truncate">{product.name}</h3>
                   <div className="flex items-baseline justify-between">
                     <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
-                    <span className="text-xs text-gray-400">재고 {product.stock}</span>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {!product.visible && (
@@ -222,14 +213,9 @@ export default function AdminCourierProductPage() {
                         숨김
                       </span>
                     )}
-                    {product.stock === 0 && (
-                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-600">
+                    {product.soldOut && (
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-orange-100 text-orange-600">
                         품절
-                      </span>
-                    )}
-                    {product.recommended && (
-                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-yellow-100 text-yellow-600">
-                        추천
                       </span>
                     )}
                   </div>
@@ -244,7 +230,8 @@ export default function AdminCourierProductPage() {
       <button
         type="button"
         onClick={() => setSearchOpen(prev => !prev)}
-        className="fixed bottom-20 right-4 z-40 w-12 h-12 rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 transition flex items-center justify-center"
+        className="fixed bottom-20 right-4 z-40 w-12 h-12 rounded-full text-white shadow-lg transition flex items-center justify-center active:opacity-90"
+        style={{ backgroundColor: 'var(--color-primary-500)' }}
         aria-label="검색"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

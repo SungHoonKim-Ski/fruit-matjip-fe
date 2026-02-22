@@ -22,6 +22,7 @@ type ProductEdit = {
   price: number;
   description: string;
   visible: boolean;
+  soldOut: boolean;
   imageUrl: string;
   categoryIds: number[];
 };
@@ -163,6 +164,7 @@ export default function AdminCourierEditProductPage() {
             price: Number(data.price ?? 0),
             description: String(data.description ?? ''),
             visible: typeof data.visible === 'boolean' ? data.visible : true,
+            soldOut: typeof data.sold_out === 'boolean' ? data.sold_out : false,
             imageUrl: addImgPrefix(data.product_url ?? data.image_url ?? data.imageUrl ?? ''),
             categoryIds: catIds,
           });
@@ -279,7 +281,6 @@ export default function AdminCourierEditProductPage() {
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
         ['link', 'image'],
-        ['clean'],
       ],
       handlers: {
         image: imageHandler,
@@ -333,6 +334,7 @@ export default function AdminCourierEditProductPage() {
         name: form.name.trim(),
         price: form.price,
         visible: form.visible,
+        sold_out: form.soldOut,
       };
       if (newMainKey) payload.product_url = newMainKey;
       payload.description = form.description.trim() || null;
@@ -457,7 +459,7 @@ export default function AdminCourierEditProductPage() {
             className="w-full border px-3 py-2 rounded bg-white"
           >
             <option value="">선택하세요</option>
-            {shippingFeeTemplates.filter(t => t.active).map(t => (
+            {shippingFeeTemplates.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
@@ -509,20 +511,36 @@ export default function AdminCourierEditProductPage() {
           </div>
         </div>
 
-        {/* Visible toggle */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">상품 노출 여부</label>
-          <button
-            type="button"
-            onClick={() => setForm({ ...form, visible: !form.visible })}
-            className={`h-8 w-full rounded font-medium transition text-sm ${
-              form.visible
-                ? 'bg-green-500 hover:bg-green-600 text-white'
-                : 'bg-rose-500 hover:bg-rose-600 text-white'
-            }`}
-          >
-            {form.visible ? '노출 O' : '노출 X'}
-          </button>
+        {/* Visible + SoldOut toggles (one row) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium">노출 여부</label>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, visible: !form.visible })}
+              className={`h-8 w-full rounded font-medium transition text-sm ${
+                form.visible
+                  ? 'bg-green-500 hover:bg-green-600 text-white'
+                  : 'bg-rose-500 hover:bg-rose-600 text-white'
+              }`}
+            >
+              {form.visible ? '노출 O' : '노출 X'}
+            </button>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-sm font-medium">품절 여부</label>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, soldOut: !form.soldOut })}
+              className={`h-8 w-full rounded font-medium transition text-sm ${
+                form.soldOut
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              {form.soldOut ? '품절 O' : '품절 X'}
+            </button>
+          </div>
         </div>
 
         {/* Main image */}
@@ -531,7 +549,7 @@ export default function AdminCourierEditProductPage() {
           <img
             src={mainPreview || form.imageUrl}
             alt={form.name}
-            className="w-28 h-28 rounded object-cover border"
+            className="max-w-xs max-h-60 rounded object-contain border"
           />
           <div className="flex items-center gap-2 flex-wrap">
             <input
@@ -566,7 +584,16 @@ export default function AdminCourierEditProductPage() {
           {optionGroups.length > 0 && (
             <div className="space-y-3">
               {optionGroups.map((group, gi) => (
-                <div key={gi} className="border rounded-lg p-3 space-y-2 bg-gray-50">
+                <div key={gi} className="border rounded-lg p-3 space-y-2 bg-gray-50 relative">
+                  {/* Group delete button */}
+                  <button
+                    type="button"
+                    onClick={() => removeOptionGroup(gi)}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white text-red-500 hover:bg-red-50 text-sm flex items-center justify-center shadow"
+                    aria-label="그룹 삭제"
+                  >
+                    -
+                  </button>
                   {/* Group header */}
                   <div className="flex items-center gap-2">
                     <input
@@ -581,58 +608,56 @@ export default function AdminCourierEditProductPage() {
                         type="checkbox"
                         checked={group.required}
                         onChange={e => updateOptionGroup(gi, 'required', e.target.checked)}
-                        className="accent-orange-500"
+                        className="accent-green-600"
                       />
                       필수
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => removeOptionGroup(gi)}
-                      className="text-red-400 hover:text-red-600 text-xs px-1"
-                      aria-label="그룹 삭제"
-                    >
-                      삭제
-                    </button>
                   </div>
                   {/* Options */}
-                  <div className="space-y-1.5 pl-1">
+                  <div className="space-y-1.5">
                     {group.options.map((opt, oi) => (
-                      <div key={oi} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={opt.name}
-                          onChange={e => updateOption(gi, oi, 'name', e.target.value)}
-                          className="flex-1 border px-2 py-1 rounded text-sm"
-                          placeholder="옵션명"
-                        />
-                        <input
-                          type="number"
-                          value={opt.additionalPrice}
-                          onChange={e => updateOption(gi, oi, 'additionalPrice', e.target.value)}
-                          className="w-24 border px-2 py-1 rounded text-sm"
-                          placeholder="추가금액"
-                          min={0}
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
-                        <input
-                          type="number"
-                          value={opt.stock}
-                          onChange={e => updateOption(gi, oi, 'stock', e.target.value)}
-                          className="w-20 border px-2 py-1 rounded text-sm"
-                          placeholder="재고"
-                          min={0}
-                        />
-                        <span className="text-xs text-gray-500 whitespace-nowrap">개</span>
-                        {group.options.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeOption(gi, oi)}
-                            className="text-gray-400 hover:text-red-500 text-xs"
-                            aria-label="옵션 삭제"
-                          >
-                            ✕
-                          </button>
-                        )}
+                      <div key={oi} className="space-y-1.5 bg-white rounded p-2 border border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={opt.name}
+                            onChange={e => updateOption(gi, oi, 'name', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="옵션명 (예: 대, 중, 소)"
+                          />
+                          {group.options.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeOption(gi, oi)}
+                              className="text-gray-400 hover:text-red-500 text-xs"
+                              aria-label="옵션 삭제"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={opt.additionalPrice}
+                            onChange={e => updateOption(gi, oi, 'additionalPrice', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="추가금액"
+                            min={0}
+                          />
+                          <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={opt.stock}
+                            onChange={e => updateOption(gi, oi, 'stock', e.target.value)}
+                            className="flex-1 border px-2 py-1 rounded text-sm"
+                            placeholder="재고 (미입력 시 무제한)"
+                            min={0}
+                          />
+                          <span className="text-xs text-gray-500 whitespace-nowrap">개</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -655,7 +680,8 @@ export default function AdminCourierEditProductPage() {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className={`h-10 px-5 rounded text-white font-medium ${saving ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
+            className={`h-10 px-5 rounded text-white font-medium ${saving ? 'bg-gray-400' : ''}`}
+            style={saving ? undefined : { backgroundColor: 'var(--color-primary-500)' }}
           >
             {saving ? '저장 중...' : '저장'}
           </button>

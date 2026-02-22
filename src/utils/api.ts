@@ -1758,6 +1758,11 @@ export const toggleAdminCourierProductVisible = async (id: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const toggleAdminCourierProductSoldOut = async (id: number) => {
+  const res = await adminFetch(`/api/admin/courier/products/sold-out/${id}`, { method: 'PATCH' }, true);
+  return res;
+};
+
 export const updateAdminCourierProductOrder = async (productIds: number[]) => {
   const key = 'updateAdminCourierProductOrder';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
@@ -2694,7 +2699,6 @@ export type ShippingFeePolicyResponse = {
   maxQuantity: number;
   fee: number;
   sortOrder: number;
-  active: boolean;
 };
 
 export type ShippingFeePolicyListResponse = {
@@ -2767,7 +2771,6 @@ const parseShippingFeePolicy = (d: any): ShippingFeePolicyResponse => ({
   maxQuantity: Number(d.max_quantity ?? d.maxQuantity ?? 0),
   fee: Number(d.fee ?? 0),
   sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
-  active: typeof d.active === 'boolean' ? d.active : true,
 });
 
 const toSnakePolicy = (p: ShippingFeePolicyResponse) => ({
@@ -2776,7 +2779,6 @@ const toSnakePolicy = (p: ShippingFeePolicyResponse) => ({
   max_quantity: p.maxQuantity,
   fee: p.fee,
   sort_order: p.sortOrder,
-  active: p.active,
 });
 
 export const getAdminCourierShippingFeePolicies = async (): Promise<ShippingFeePolicyListResponse> => {
@@ -2825,7 +2827,6 @@ export type ShippingFeeTemplateResponse = {
   baseFee: number;
   perQuantityFee: number | null;
   freeShippingMinAmount: number | null;
-  active: boolean;
   sortOrder: number;
 };
 
@@ -2839,7 +2840,6 @@ const parseShippingFeeTemplate = (d: any): ShippingFeeTemplateResponse => ({
   baseFee: Number(d.base_fee ?? d.baseFee ?? 0),
   perQuantityFee: d.per_quantity_fee ?? d.perQuantityFee ?? null,
   freeShippingMinAmount: d.free_shipping_min_amount ?? d.freeShippingMinAmount ?? null,
-  active: typeof d.active === 'boolean' ? d.active : true,
   sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
 });
 
@@ -2848,7 +2848,6 @@ const toSnakeTemplate = (data: Omit<ShippingFeeTemplateResponse, 'id'>) => ({
   base_fee: data.baseFee,
   per_quantity_fee: data.perQuantityFee,
   free_shipping_min_amount: data.freeShippingMinAmount,
-  active: data.active,
   sort_order: data.sortOrder,
 });
 

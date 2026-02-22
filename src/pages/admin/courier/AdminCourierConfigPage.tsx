@@ -34,7 +34,6 @@ const DEFAULT_POLICY: ShippingFeePolicyResponse = {
   maxQuantity: 0,
   fee: 0,
   sortOrder: 0,
-  active: true,
 };
 
 const DEFAULT_TEMPLATE_FORM = {
@@ -42,7 +41,6 @@ const DEFAULT_TEMPLATE_FORM = {
   baseFee: 0,
   perQuantityFee: '' as string | number,
   freeShippingMinAmount: '' as string | number,
-  active: true,
   sortOrder: 0,
 };
 
@@ -181,7 +179,6 @@ export default function AdminCourierConfigPage() {
     baseFee: Number(form.baseFee) || 0,
     perQuantityFee: form.perQuantityFee === '' ? null : Number(form.perQuantityFee),
     freeShippingMinAmount: form.freeShippingMinAmount === '' ? null : Number(form.freeShippingMinAmount),
-    active: form.active,
     sortOrder: Number(form.sortOrder) || 0,
   });
 
@@ -199,7 +196,6 @@ export default function AdminCourierConfigPage() {
       baseFee: t.baseFee,
       perQuantityFee: t.perQuantityFee ?? '',
       freeShippingMinAmount: t.freeShippingMinAmount ?? '',
-      active: t.active,
       sortOrder: t.sortOrder,
     });
     setTemplateModalOpen(true);
@@ -428,11 +424,6 @@ export default function AdminCourierConfigPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">{t.name}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    t.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {t.active ? '활성' : '비활성'}
-                  </span>
                 </div>
                 <div className="flex gap-1">
                   <button
@@ -515,25 +506,11 @@ export default function AdminCourierConfigPage() {
                     min={0} step={100}
                   />
                 </div>
-                <div className="flex items-end gap-2">
-                  <div className="flex-1">
-                    <label className="block text-xs text-gray-500 mb-1">활성화</label>
-                    <button
-                      type="button"
-                      onClick={() => updatePolicy(index, 'active', !policy.active)}
-                      className={`w-full h-[38px] rounded text-xs font-medium transition ${
-                        policy.active
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-300 text-gray-700'
-                      }`}
-                    >
-                      {policy.active ? '활성' : '비활성'}
-                    </button>
-                  </div>
+                <div className="flex items-end">
                   <button
                     type="button"
                     onClick={() => removePolicy(index)}
-                    className="h-[38px] px-3 rounded bg-red-500 hover:bg-red-600 text-white text-xs font-medium"
+                    className="h-[38px] px-3 rounded bg-red-500 hover:bg-red-600 text-white text-xs font-medium w-full"
                   >
                     삭제
                   </button>
@@ -610,20 +587,6 @@ export default function AdminCourierConfigPage() {
                   className="w-full border px-3 py-2 rounded text-sm"
                   min={0} step={1000} placeholder="미입력 시 없음"
                 />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-700">활성화</label>
-                <button
-                  type="button"
-                  onClick={() => setTemplateModalForm(prev => ({ ...prev, active: !prev.active }))}
-                  className={`px-3 py-1 rounded text-xs font-medium transition ${
-                    templateModalForm.active
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}
-                >
-                  {templateModalForm.active ? '활성' : '비활성'}
-                </button>
               </div>
             </div>
             <div className="flex gap-3 pt-2">

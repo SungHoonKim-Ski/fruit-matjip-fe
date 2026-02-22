@@ -25,7 +25,7 @@ type ProductDetail = {
   id: number;
   name: string;
   price: number;
-  stock: number;
+  soldOut?: boolean;
   imageUrl: string;
   weight?: string;
   description?: string;
@@ -97,7 +97,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
             id: Number(data.id),
             name: String(data.name ?? ''),
             price: Number(data.price ?? 0),
-            stock: Number(data.stock ?? 0),
+            soldOut: data.sold_out === true || data.soldOut === true,
             imageUrl: addImgPrefix(data.product_url ?? data.image_url ?? data.imageUrl ?? ''),
             weight: data.weight ?? undefined,
             description: data.description ?? undefined,
@@ -173,7 +173,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
     setQuantity(prev => {
       const next = prev + diff;
       if (next < 1) return 1;
-      if (product && next > product.stock) return product.stock;
       return next;
     });
   };
@@ -182,10 +181,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
     const num = parseInt(val, 10);
     if (isNaN(num) || num < 1) {
       setQuantity(1);
-      return;
-    }
-    if (product && num > product.stock) {
-      setQuantity(product.stock);
       return;
     }
     setQuantity(num);
@@ -203,10 +198,10 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
       price: product.price,
       quantity,
       imageUrl: product.imageUrl,
-      stock: product.stock,
       selectedOptions: buildSelectedOptions(),
     });
     show('장바구니에 담겼습니다.', { variant: 'info' });
+    onClose();
   };
 
   const handleBuyNow = () => {
@@ -221,7 +216,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
       price: product.price,
       quantity,
       imageUrl: product.imageUrl,
-      stock: product.stock,
       selectedOptions: buildSelectedOptions(),
     });
     nav('/shop/checkout');
@@ -266,9 +260,9 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
                 <img
                   src={product.imageUrl}
                   alt={product.name}
-                  className="w-full block"
+                  className={`w-full block${product.soldOut ? ' opacity-40' : ''}`}
                 />
-                {product.stock === 0 && (
+                {product.soldOut && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                     <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
                   </div>
@@ -279,10 +273,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
             {/* Product info */}
             <div className="bg-white px-4 py-4 mt-1">
               <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
-              <div className="mt-2 text-xl font-bold text-orange-500">{formatPrice(product.price)}</div>
-              <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
-                <span>재고: {product.stock > 0 ? `${product.stock}개` : '품절'}</span>
-              </div>
+              <div className="mt-2 text-xl font-bold" style={{ color: 'var(--color-primary-700)' }}>{formatPrice(product.price)}</div>
             </div>
 
             {/* Detail images */}
@@ -359,9 +350,10 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
                               isSoldOut
                                 ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
                                 : isSelected
-                                ? 'border-orange-500 bg-orange-50 text-orange-700 font-medium'
+                                ? 'font-medium'
                                 : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                             }`}
+                            style={!isSoldOut && isSelected ? { borderColor: 'var(--color-primary-500)', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-700)' } : undefined}
                           >
                             {option.name}
                             {option.additionalPrice > 0 && (
@@ -373,7 +365,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
                               <span className="text-xs ml-1 text-red-400">품절</span>
                             )}
                             {option.stock !== null && option.stock > 0 && option.stock <= 10 && (
-                              <span className="text-xs ml-1 text-orange-500">
+                              <span className="text-xs ml-1" style={{ color: 'var(--color-primary-600)' }}>
                                 ({option.stock}개 남음)
                               </span>
                             )}
@@ -405,12 +397,10 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
                   onChange={e => handleDirectInput(e.target.value)}
                   className="w-12 h-full text-center text-sm border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   min={1}
-                  max={product.stock}
                 />
                 <button
                   type="button"
                   onClick={() => handleQuantityChange(1)}
-                  disabled={quantity >= product.stock}
                   className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
                   aria-label="수량 증가"
                 >
@@ -422,30 +412,40 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
             {/* Total price */}
             <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between border-t border-gray-100">
               <span className="text-sm text-gray-600">총 금액</span>
-              <span className="text-lg font-bold text-orange-500">
+              <span className="text-lg font-bold" style={{ color: 'var(--color-primary-700)' }}>
                 {formatPrice(unitPrice * quantity)}
               </span>
             </div>
 
             {/* Action buttons */}
-            <div className="px-4 py-4 mt-1 flex gap-2">
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                disabled={!canAddToCart || product.stock === 0}
-                className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                장바구니 담기
-              </button>
-              <button
-                type="button"
-                onClick={handleBuyNow}
-                disabled={!canAddToCart || product.stock === 0}
-                className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                바로 주문
-              </button>
-            </div>
+            {product.soldOut ? (
+              <div className="px-4 py-4 mt-1">
+                <div className="w-full h-12 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-semibold text-sm">
+                  품절된 상품입니다
+                </div>
+              </div>
+            ) : (
+              <div className="px-4 py-4 mt-1 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  disabled={!canAddToCart}
+                  className="flex-1 h-12 rounded-lg border-2 font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ borderColor: 'var(--color-primary-500)', color: 'var(--color-primary-500)' }}
+                >
+                  장바구니 담기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  disabled={!canAddToCart}
+                  className="flex-1 h-12 rounded-lg text-white font-semibold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--color-primary-500)' }}
+                >
+                  바로 주문
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
