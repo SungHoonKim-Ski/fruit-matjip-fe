@@ -29,7 +29,7 @@ import { AdminDeliveryAlertProvider } from './contexts/AdminDeliveryAlertContext
 import AdminDeliveriesPage from './pages/admin/AdminDeliveriesPage';
 import MainPage from './pages/MainPage';
 import CourierShopPage from './pages/shop/CourierShopPage';
-import CourierProductDetailPage from './pages/shop/CourierProductDetailPage';
+import CourierProductDetailStandalone from './pages/shop/CourierProductDetailStandalone';
 import CourierCartPage from './pages/shop/CourierCartPage';
 import CourierCheckoutPage from './pages/shop/CourierCheckoutPage';
 import CourierOrdersPage from './pages/shop/CourierOrdersPage';
@@ -116,7 +116,7 @@ export default function App() {
       <Route path="/shop/approve" element={<CourierApprovePage />} />
       <Route path="/shop/cancel" element={<CourierCancelPage />} />
       <Route path="/shop/fail" element={<CourierFailPage />} />
-      <Route path="/shop/:id" element={<CourierProductDetailPage />} />
+      <Route path="/shop/:id" element={<CourierProductDetailStandalone />} />
 
       {/* ===== /admin/courier — 택배 관리자 (catch-all보다 먼저 선언) ===== */}
       <Route path="/admin/courier" element={<Navigate to="/admin/courier/login" replace />} />

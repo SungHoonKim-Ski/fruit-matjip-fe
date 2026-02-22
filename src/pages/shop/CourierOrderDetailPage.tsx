@@ -287,8 +287,8 @@ export default function CourierOrderDetailPage() {
         </section>
       )}
 
-      {/* CS claim button - only for DELIVERED */}
-      {order.status === 'DELIVERED' && (
+      {/* CS claim button - available after payment */}
+      {!['PENDING_PAYMENT', 'CANCELED', 'FAILED'].includes(order.status) && (
         <section className="max-w-md mx-auto px-4 mt-3">
           <button
             type="button"

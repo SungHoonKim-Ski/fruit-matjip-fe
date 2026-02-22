@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import CourierBottomNav from '../../components/shop/CourierBottomNav';
-import { getCart, CartItem } from '../../utils/courierCart';
+import { getCart, getBuyNowItem, clearBuyNow, CartItem } from '../../utils/courierCart';
 import {
   getCourierShippingFee,
   createCourierOrder,
@@ -22,7 +22,15 @@ export default function CourierCheckoutPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
 
-  const [items] = useState<CartItem[]>(() => getCart());
+  const [isBuyNow] = useState(() => !!getBuyNowItem());
+  const [items] = useState<CartItem[]>(() => {
+    const buyNow = getBuyNowItem();
+    if (buyNow) {
+      clearBuyNow();
+      return [buyNow];
+    }
+    return getCart();
+  });
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [postalCode, setPostalCode] = useState('');
@@ -36,6 +44,8 @@ export default function CourierCheckoutPage() {
   const [bottomExpanded, setBottomExpanded] = useState(false);
 
   const idempotencyKeyRef = useRef<string | null>(null);
+  const dragStartY = useRef(0);
+  const isDragging = useRef(false);
   const buildIdempotencyKey = () => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
       return crypto.randomUUID();
@@ -176,6 +186,9 @@ export default function CourierCheckoutPage() {
 
       if (result.orderCode) {
         localStorage.setItem('pendingCourierOrderCode', result.orderCode);
+        if (isBuyNow) {
+          localStorage.setItem('courierBuyNowOrder', 'true');
+        }
       }
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -208,7 +221,7 @@ export default function CourierCheckoutPage() {
   if (items.length === 0) return null;
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-56">
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-80">
 
       {/* Order items summary */}
       <section className="max-w-md mx-auto px-4 mt-3">
@@ -355,37 +368,30 @@ export default function CourierCheckoutPage() {
         </div>
       </section>
 
-      {/* Payment method */}
-      <section className="max-w-md mx-auto px-4 mt-3">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-base font-semibold text-gray-800 mb-3">결제 수단</h2>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="radio" checked readOnly className="accent-orange-500" />
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
-                style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
-                카카오페이
-              </span>
-            </div>
-          </label>
-        </div>
-      </section>
-
-      {/* Payment summary - fixed bottom */}
-      <div className="fixed bottom-16 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        {/* Toggle handle */}
-        <button
-          type="button"
+      {/* Bottom Sheet */}
+      <div
+        className="fixed left-0 right-0 bottom-16 z-30 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out"
+      >
+        {/* Drag handle */}
+        <div
+          className="flex justify-center pt-3 pb-1 cursor-grab"
+          onTouchStart={(e) => { dragStartY.current = e.touches[0].clientY; isDragging.current = true; }}
+          onTouchEnd={(e) => {
+            if (!isDragging.current) return;
+            isDragging.current = false;
+            const diff = e.changedTouches[0].clientY - dragStartY.current;
+            if (diff > 40) setBottomExpanded(false);
+            if (diff < -40) setBottomExpanded(true);
+          }}
           onClick={() => setBottomExpanded(prev => !prev)}
-          className="w-full flex justify-center pt-2 pb-1"
-          aria-label={bottomExpanded ? '결제 요약 접기' : '결제 요약 펼치기'}
         >
-          <div className="w-8 h-1 bg-gray-300 rounded-full" />
-        </button>
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
 
         <div className="max-w-md mx-auto px-4 pb-4">
-          {bottomExpanded && (
-            <div className="space-y-1 text-sm mb-3">
+          {/* Expandable details */}
+          <div className={`overflow-hidden transition-all duration-300 ease-out ${bottomExpanded ? 'max-h-96 opacity-100 mb-3' : 'max-h-0 opacity-0'}`}>
+            <div className="space-y-1 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>상품 합계</span>
                 <span>{formatPrice(productTotal)}</span>
@@ -395,11 +401,32 @@ export default function CourierCheckoutPage() {
                 <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
               </div>
             </div>
-          )}
-          <div className="flex justify-between font-bold text-gray-900 text-base mb-3">
-            <span>총 결제 금액</span>
-            <span className="text-orange-500">{formatPrice(totalPayment)}</span>
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">결제 수단</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked readOnly className="accent-orange-500" />
+                  <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                    style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
+                    카카오페이
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-between font-bold text-gray-900 text-base mt-3 pt-3 border-t border-gray-100">
+              <span>총 결제 금액</span>
+              <span className="text-orange-500">{formatPrice(totalPayment)}</span>
+            </div>
+            {!canSubmit && !submitting && submitBlockers.length > 0 && (
+              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 space-y-1">
+                {submitBlockers.map((reason, idx) => (
+                  <div key={`${reason}-${idx}`}>&#8226; {reason}</div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Always visible: button */}
           <button
             type="button"
             onClick={handleSubmit}
@@ -408,13 +435,6 @@ export default function CourierCheckoutPage() {
           >
             {submitting ? '결제 준비 중...' : `${formatPrice(totalPayment)} 결제하기`}
           </button>
-          {!canSubmit && !submitting && submitBlockers.length > 0 && (
-            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 space-y-1">
-              {submitBlockers.map((reason, idx) => (
-                <div key={`${reason}-${idx}`}>&#8226; {reason}</div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 

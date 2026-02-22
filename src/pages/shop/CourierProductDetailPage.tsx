@@ -1,11 +1,11 @@
 import DOMPurify from 'dompurify';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
 import { getCourierProduct } from '../../utils/api';
-import { addToCart, SelectedOption } from '../../utils/courierCart';
-import CourierBottomNav from '../../components/shop/CourierBottomNav';
+import { addToCart, setBuyNowItem, SelectedOption } from '../../utils/courierCart';
+import { theme } from '../../brand';
 
 type OptionItem = {
   id: number;
@@ -33,6 +33,12 @@ type ProductDetail = {
   optionGroups: OptionGroup[];
 };
 
+interface CourierProductDetailDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  productId: number;
+}
+
 const IMG_BASE = process.env.REACT_APP_IMG_URL || '';
 
 const addImgPrefix = (url?: string) => {
@@ -44,8 +50,7 @@ const addImgPrefix = (url?: string) => {
 const formatPrice = (price: number) =>
   price.toLocaleString('ko-KR', { style: 'currency', currency: 'KRW' });
 
-export default function CourierProductDetailPage() {
-  const { id } = useParams();
+export default function CourierProductDetailPage({ isOpen, onClose, productId }: CourierProductDetailDialogProps) {
   const nav = useNavigate();
   const { show } = useSnackbar();
 
@@ -53,31 +58,17 @@ export default function CourierProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map()); // groupId -> optionId
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const dragStartY = useRef(0);
-  const isDragging = useRef(false);
-
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    dragStartY.current = e.touches[0].clientY;
-    isDragging.current = true;
-  }, []);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-    const diff = e.changedTouches[0].clientY - dragStartY.current;
-    if (diff > 80) closeSheet();
-  }, [closeSheet]);
 
   useEffect(() => {
+    if (!isOpen) return;
     let alive = true;
     (async () => {
       try {
         setLoading(true);
-        const res = await getCourierProduct(Number(id));
+        setProduct(null);
+        setQuantity(1);
+        setSelectedOptions(new Map());
+        const res = await getCourierProduct(productId);
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) return;
           throw new Error('상품 정보를 불러오지 못했습니다.');
@@ -122,7 +113,7 @@ export default function CourierProductDetailPage() {
       }
     })();
     return () => { alive = false; };
-  }, [id, show]);
+  }, [isOpen, productId, show]);
 
   const handleOptionSelect = (groupId: number, optionId: number) => {
     setSelectedOptions(prev => {
@@ -224,7 +215,7 @@ export default function CourierProductDetailPage() {
       show('필수 옵션을 선택해주세요.', { variant: 'error' });
       return;
     }
-    addToCart({
+    setBuyNowItem({
       courierProductId: product.id,
       name: product.name,
       price: product.price,
@@ -236,162 +227,118 @@ export default function CourierProductDetailPage() {
     nav('/shop/checkout');
   };
 
-  if (loading) {
-    return (
-      <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
-        <div className="max-w-md mx-auto px-4 mb-2">
-          <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-            뒤로
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-[#f6f6f6] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        {/* Dialog header */}
+        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <span className="font-semibold text-gray-900">상품 상세</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-900 transition p-1"
+            aria-label="닫기"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        <div className="max-w-md mx-auto">
-          <div className="w-full aspect-square bg-gray-200 animate-pulse" />
+
+        {loading ? (
           <div className="p-4 space-y-3">
+            <div className="w-full aspect-square bg-gray-200 animate-pulse rounded" />
             <div className="h-6 bg-gray-200 animate-pulse rounded w-3/4" />
             <div className="h-5 bg-gray-200 animate-pulse rounded w-1/3" />
             <div className="h-20 bg-gray-200 animate-pulse rounded" />
           </div>
-        </div>
-        <CourierBottomNav />
-      </main>
-    );
-  }
+        ) : !product ? (
+          <div className="p-10 text-center text-gray-500">
+            상품을 찾을 수 없습니다.
+          </div>
+        ) : (
+          <>
+            {/* Main image */}
+            <div className="bg-white">
+              <div className="relative w-full">
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  className="w-full block"
+                />
+                {product.stock === 0 && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-  if (!product) {
-    return (
-      <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
-        <div className="max-w-md mx-auto px-4 mb-2">
-          <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-            뒤로
-          </button>
-        </div>
-        <div className="max-w-md mx-auto p-10 text-center text-gray-500">
-          상품을 찾을 수 없습니다.
-        </div>
-        <CourierBottomNav />
-      </main>
-    );
-  }
+            {/* Product info */}
+            <div className="bg-white px-4 py-4 mt-1">
+              <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
+              <div className="mt-2 text-xl font-bold text-orange-500">{formatPrice(product.price)}</div>
+              <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
+                <span>재고: {product.stock > 0 ? `${product.stock}개` : '품절'}</span>
+              </div>
+            </div>
 
-  return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
-      <div className="max-w-md mx-auto px-4 mb-2">
-        <button type="button" onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900" aria-label="뒤로 가기">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-          뒤로
-        </button>
-      </div>
-
-      <div className="max-w-md mx-auto">
-        {/* Main image */}
-        <div className="bg-white">
-          <div className="relative w-full">
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full block"
-            />
-            {product.stock === 0 && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
+            {/* Detail images */}
+            {product.detailImages && product.detailImages.length > 0 && (
+              <div className="bg-white mt-1">
+                {product.detailImages.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt={`${product.name} 상세 ${i + 1}`}
+                    className="w-full block"
+                    loading="lazy"
+                  />
+                ))}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Product info */}
-        <div className="bg-white px-4 py-4 mt-1">
-          <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
-          <div className="mt-2 text-xl font-bold text-orange-500">{formatPrice(product.price)}</div>
-          <div className="mt-2 flex items-center gap-3 text-sm text-gray-500">
-            <span>재고: {product.stock > 0 ? `${product.stock}개` : '품절'}</span>
-          </div>
-        </div>
+            {/* Description */}
+            {product.description && (
+              <div className="bg-white px-4 py-4 mt-1">
+                <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
+                <div
+                  className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
+                    ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
+                    ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']
+                  }) }}
+                />
+              </div>
+            )}
 
-        {/* Detail images */}
-        {product.detailImages && product.detailImages.length > 0 && (
-          <div className="bg-white mt-1">
-            {product.detailImages.map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt={`${product.name} 상세 ${i + 1}`}
-                className="w-full block"
-                loading="lazy"
-              />
-            ))}
-          </div>
-        )}
+            {/* Legal info: 배송/교환/환불 안내 */}
+            <div className="mt-4 mx-4 rounded-md border bg-white p-3 text-xs text-gray-700 space-y-2">
+              <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
+              <ul className="list-disc list-inside space-y-1">
+                <li>택배 배송 (결제 후 2-3일 이내 발송)</li>
+                <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
+              </ul>
+              <div className="flex flex-wrap gap-3 text-blue-600">
+                <Link to="/store/refund" target="_blank" rel="noopener noreferrer" className="hover:underline">교환/환불 정책</Link>
+                <Link to="/store/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">이용약관</Link>
+              </div>
+            </div>
 
-        {/* Description */}
-        {product.description && (
-          <div className="bg-white px-4 py-4 mt-1">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
-            <div
-              className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
-                ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
-                ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']
-              }) }}
-            />
-          </div>
-        )}
+            {/* Legal info: Company info */}
+            <div className="mt-3 mx-4 rounded-md border bg-white p-3 text-xs text-gray-600 space-y-1">
+              <div className="font-semibold text-gray-800">{theme.companyName}</div>
+              <div>대표자: {theme.contact.representative}</div>
+              <div>사업자등록번호: {theme.contact.businessNumber}</div>
+              {theme.contact.address && <div>주소: {theme.contact.address}</div>}
+              <div>전화번호: {theme.contact.phone}</div>
+            </div>
 
-      </div>
-
-      {/* Bottom trigger bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div className="max-w-md mx-auto px-4 py-3">
-          {product.stock > 0 ? (
-            <button
-              type="button"
-              onClick={() => setSheetOpen(true)}
-              className="w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition"
-            >
-              구매하기
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="w-full h-12 rounded-lg bg-gray-300 text-gray-500 font-semibold text-sm cursor-not-allowed"
-            >
-              품절된 상품입니다
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Sheet Overlay */}
-      {sheetOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 transition-opacity"
-          onClick={closeSheet}
-        />
-      )}
-
-      {/* Bottom Sheet */}
-      <div
-        ref={sheetRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className={`fixed left-0 right-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-transform duration-300 ease-out ${
-          sheetOpen ? 'translate-y-0' : 'translate-y-full'
-        }`}
-        style={{ maxHeight: '80vh', overflowY: 'auto' }}
-      >
-        <div className="max-w-md mx-auto">
-          {/* Drag handle */}
-          <div className="flex justify-center pt-3 pb-2 cursor-grab">
-            <div className="w-10 h-1 bg-gray-300 rounded-full" />
-          </div>
-
-          <div className="px-4 pb-6 space-y-4">
             {/* Option groups */}
             {product.optionGroups && product.optionGroups.length > 0 && (
-              <div>
+              <div className="bg-white px-4 py-4 mt-4 mx-0">
                 {product.optionGroups.map(group => (
                   <div key={group.id} className="mb-3 last:mb-0">
                     <div className="text-sm font-semibold text-gray-700 mb-2">
@@ -440,7 +387,7 @@ export default function CourierProductDetailPage() {
             )}
 
             {/* Quantity selector */}
-            <div className="flex items-center justify-between">
+            <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between">
               <span className="text-sm text-gray-600">수량</span>
               <div className="flex items-center border rounded-lg overflow-hidden h-9">
                 <button
@@ -473,7 +420,7 @@ export default function CourierProductDetailPage() {
             </div>
 
             {/* Total price */}
-            <div className="flex items-center justify-between border-t pt-3">
+            <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between border-t border-gray-100">
               <span className="text-sm text-gray-600">총 금액</span>
               <span className="text-lg font-bold text-orange-500">
                 {formatPrice(unitPrice * quantity)}
@@ -481,11 +428,11 @@ export default function CourierProductDetailPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-2">
+            <div className="px-4 py-4 mt-1 flex gap-2">
               <button
                 type="button"
-                onClick={() => { handleAddToCart(); closeSheet(); }}
-                disabled={!canAddToCart}
+                onClick={handleAddToCart}
+                disabled={!canAddToCart || product.stock === 0}
                 className="flex-1 h-12 rounded-lg border-2 border-orange-500 text-orange-500 font-semibold text-sm hover:bg-orange-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 장바구니 담기
@@ -493,15 +440,15 @@ export default function CourierProductDetailPage() {
               <button
                 type="button"
                 onClick={handleBuyNow}
-                disabled={!canAddToCart}
+                disabled={!canAddToCart || product.stock === 0}
                 className="flex-1 h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 바로 주문
               </button>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
-    </main>
+    </div>
   );
 }

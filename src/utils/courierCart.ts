@@ -83,6 +83,25 @@ export const getCartTotalQuantity = (): number => {
   return getCart().reduce((sum, item) => sum + item.quantity, 0);
 };
 
+const BUY_NOW_KEY = 'courier-buy-now';
+
+export const setBuyNowItem = (item: CartItem) => {
+  localStorage.setItem(BUY_NOW_KEY, JSON.stringify(item));
+};
+
+export const getBuyNowItem = (): CartItem | null => {
+  try {
+    const raw = localStorage.getItem(BUY_NOW_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearBuyNow = () => {
+  localStorage.removeItem(BUY_NOW_KEY);
+};
+
 export const getCartTotalPrice = (): number => {
   return getCart().reduce((sum, item) => {
     const optionExtra = (item.selectedOptions || []).reduce((s, o) => s + o.additionalPrice, 0);

@@ -35,7 +35,11 @@ export default function CourierApprovePage() {
         if (!res.ok) {
           throw new Error('approve failed');
         }
-        clearCart();
+        const wasBuyNow = localStorage.getItem('courierBuyNowOrder');
+        localStorage.removeItem('courierBuyNowOrder');
+        if (!wasBuyNow) {
+          clearCart();
+        }
         setStatus('success');
         setTimeout(() => nav(`/shop/orders/${orderCode}`, { replace: true }), 1500);
       } catch (e) {
