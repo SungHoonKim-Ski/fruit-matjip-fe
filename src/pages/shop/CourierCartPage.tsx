@@ -66,7 +66,7 @@ export default function CourierCartPage() {
 
   // Fetch base shipping fee (no postal code)
   useEffect(() => {
-    if (totalQuantity <= 0) {
+    if (items.length === 0) {
       setShippingFee(null);
       return;
     }
@@ -74,7 +74,8 @@ export default function CourierCartPage() {
     (async () => {
       try {
         setShippingLoading(true);
-        const fee = await getCourierShippingFee(totalQuantity);
+        const feeItems = items.map(i => ({ courierProductId: i.courierProductId, quantity: i.quantity }));
+        const fee = await getCourierShippingFee(feeItems);
         if (alive) setShippingFee(fee);
       } catch (e) {
         safeErrorLog(e, 'CourierCartPage - getCourierShippingFee');
@@ -84,7 +85,7 @@ export default function CourierCartPage() {
       }
     })();
     return () => { alive = false; };
-  }, [totalQuantity]);
+  }, [items]);
 
   const handleCheckout = () => {
     const token = localStorage.getItem('access');

@@ -61,12 +61,13 @@ export default function CourierCheckoutPage() {
 
   // Fetch base shipping fee on mount (no postal code yet)
   useEffect(() => {
-    if (totalQuantity <= 0) return;
+    if (items.length === 0) return;
     let alive = true;
     (async () => {
       try {
         setShippingLoading(true);
-        const fee = await getCourierShippingFee(totalQuantity);
+        const feeItems = items.map(i => ({ courierProductId: i.courierProductId, quantity: i.quantity }));
+        const fee = await getCourierShippingFee(feeItems);
         if (alive) setShippingFee(fee);
       } catch (e) {
         safeErrorLog(e, 'CourierCheckoutPage - getCourierShippingFee (init)');
@@ -75,14 +76,15 @@ export default function CourierCheckoutPage() {
       }
     })();
     return () => { alive = false; };
-  }, [totalQuantity]);
+  }, [items]);
 
   // Recalculate shipping fee when postal code changes
   const fetchShippingFeeForPostal = async (postal: string) => {
-    if (totalQuantity <= 0) return;
+    if (items.length === 0) return;
     try {
       setShippingLoading(true);
-      const fee = await getCourierShippingFee(totalQuantity, postal);
+      const feeItems = items.map(i => ({ courierProductId: i.courierProductId, quantity: i.quantity }));
+      const fee = await getCourierShippingFee(feeItems, postal);
       setShippingFee(fee);
     } catch (e) {
       safeErrorLog(e, 'CourierCheckoutPage - getCourierShippingFee (postal)');
@@ -205,7 +207,7 @@ export default function CourierCheckoutPage() {
   if (items.length === 0) return null;
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-32">
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-56">
 
       {/* Order items summary */}
       <section className="max-w-md mx-auto px-4 mt-3">

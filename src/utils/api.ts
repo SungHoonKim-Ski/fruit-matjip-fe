@@ -1954,6 +1954,7 @@ export type CourierOrderReadyRequest = {
   address1: string;
   address2: string;
   deliveryMemo: string;
+  pgProvider?: string;
   idempotencyKey: string;
 };
 
@@ -2010,21 +2011,31 @@ export type CourierOrderDetailResponse = {
 };
 
 // 택배 배송비 조회
-export const getCourierShippingFee = async (quantity: number, postalCode?: string): Promise<ShippingFeeResponse> => {
+export const getCourierShippingFee = async (
+  items: Array<{ courierProductId: number; quantity: number }>,
+  postalCode?: string,
+): Promise<ShippingFeeResponse> => {
   const key = 'getCourierShippingFee';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const params = [`quantity=${quantity}`];
-    if (postalCode) params.push(`postalCode=${encodeURIComponent(postalCode)}`);
-    const res = await apiFetch(`/api/auth/courier/orders/shipping-fee?${params.join('&')}`);
+    const res = await apiFetch('/api/auth/courier/shipping-fee', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: items.map(i => ({
+          courier_product_id: i.courierProductId,
+          quantity: i.quantity,
+        })),
+        postal_code: postalCode || null,
+      }),
+    });
     if (!res.ok) throw new Error('배송비 조회에 실패했습니다.');
     const data = await res.json();
     resetApiRetryCount(key);
     return {
-      baseFee: Number(data.base_fee ?? data.baseFee ?? 0),
-      extraFee: Number(data.extra_fee ?? data.extraFee ?? 0),
-      totalFee: Number(data.total_fee ?? data.totalFee ?? 0),
-      isRemoteArea: Boolean(data.is_remote_area ?? data.isRemoteArea ?? false),
+      baseFee: Number(data.shipping_fee ?? data.shippingFee ?? 0),
+      extraFee: Number(data.island_surcharge ?? data.islandSurcharge ?? 0),
+      totalFee: Number(data.total_shipping_fee ?? data.totalShippingFee ?? 0),
+      isRemoteArea: Boolean(data.is_island ?? data.isIsland ?? false),
     };
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
@@ -2060,12 +2071,13 @@ export const createCourierOrder = async (request: CourierOrderReadyRequest): Pro
           quantity: i.quantity,
           selected_option_ids: i.selectedOptionIds,
         })),
-        recipient_name: request.recipientName,
-        recipient_phone: request.recipientPhone,
+        receiver_name: request.recipientName,
+        receiver_phone: request.recipientPhone,
         postal_code: request.postalCode,
         address1: request.address1,
         address2: request.address2,
-        delivery_memo: request.deliveryMemo,
+        shipping_memo: request.deliveryMemo,
+        pg_provider: request.pgProvider || 'KAKAOPAY',
         idempotency_key: request.idempotencyKey,
       }),
     });
@@ -2383,6 +2395,24 @@ export const downloadAdminCourierWaybillExcelBulk = async (orderIds: number[]): 
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderIds }),
+  });
+  if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
+  return res.blob();
+};
+
+// 관리자 택배 운송장 Excel 다운로드 (기간/상품 필터)
+export const downloadAdminCourierWaybillExcelByFilter = async (
+  startDate: string,
+  endDate: string,
+  productId?: number,
+): Promise<Blob> => {
+  const body: Record<string, any> = { start_date: startDate, end_date: endDate };
+  if (productId != null) body.product_id = productId;
+  const res = await fetch(`${API_BASE}/api/admin/courier/orders/waybill/excel/filter`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
   return res.blob();
@@ -2803,7 +2833,7 @@ export const getAdminCourierShippingFeeTemplates = async (): Promise<ShippingFee
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const res = await adminFetch('/api/admin/courier/shipping-fee-templates', {}, true);
-    if (!res.ok) throw new Error('배송비 템플릿 조회에 실패했습니다.');
+    if (!res.ok) throw new Error('배송 정책 조회에 실패했습니다.');
     resetApiRetryCount(key);
     const raw = await res.json();
     const d = raw?.response ?? raw;
@@ -2821,7 +2851,7 @@ export const createAdminCourierShippingFeeTemplate = async (data: Omit<ShippingF
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(toSnakeTemplate(data)),
     }, true);
-    if (!res.ok) throw new Error('배송비 템플릿 생성에 실패했습니다.');
+    if (!res.ok) throw new Error('배송 정책 생성에 실패했습니다.');
     resetApiRetryCount(key);
     const raw = await res.json();
     const d = raw?.response ?? raw;
@@ -2838,7 +2868,7 @@ export const updateAdminCourierShippingFeeTemplate = async (id: number, data: Om
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(toSnakeTemplate(data)),
     }, true);
-    if (!res.ok) throw new Error('배송비 템플릿 수정에 실패했습니다.');
+    if (!res.ok) throw new Error('배송 정책 수정에 실패했습니다.');
     resetApiRetryCount(key);
     const raw = await res.json();
     const d = raw?.response ?? raw;
@@ -2853,7 +2883,7 @@ export const deleteAdminCourierShippingFeeTemplate = async (id: number): Promise
     const res = await adminFetch(`/api/admin/courier/shipping-fee-templates/${id}`, {
       method: 'DELETE',
     }, true);
-    if (!res.ok) throw new Error('배송비 템플릿 삭제에 실패했습니다.');
+    if (!res.ok) throw new Error('배송 정책 삭제에 실패했습니다.');
     resetApiRetryCount(key);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
