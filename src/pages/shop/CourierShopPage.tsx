@@ -145,6 +145,7 @@ export default function CourierShopPage() {
   const [selectedChip, setSelectedChip] = useState<'recommended' | number>('recommended');
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -182,7 +183,6 @@ export default function CourierShopPage() {
             ? catData
             : [];
           const groups: CategoryGroup[] = catArr
-            .filter((g: any) => Array.isArray(g.products) && g.products.length > 0)
             .map((g: any) => ({
               categoryId: Number(g.categoryId ?? g.category_id),
               categoryName: String(g.categoryName ?? g.category_name ?? ''),
@@ -210,8 +210,8 @@ export default function CourierShopPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (q.trim() === '') {
-      setViewMode('main');
       setSearchResults([]);
+      setViewMode('search');
       return;
     }
 
@@ -245,50 +245,78 @@ export default function CourierShopPage() {
     searchInputRef.current?.focus();
   };
 
+  const openSearch = () => {
+    setSearchOpen(true);
+    setViewMode('search');
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setViewMode('main');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <main className="bg-[#f6f6f6] min-h-screen flex flex-col items-center pb-24">
-      {/* ── Search bar (sticky) ── */}
-      <div className="sticky top-0 z-40 w-full bg-white shadow-sm">
-        <div className="max-w-md mx-auto px-4 py-2.5">
-          <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-            <svg
-              className="w-4 h-4 text-gray-400 flex-none"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+      {/* ── Search bar (slide-down, visible only when searchOpen) ── */}
+      {searchOpen && (
+        <div className="sticky top-0 z-40 w-full bg-white shadow-sm">
+          <div className="max-w-md mx-auto px-4 py-2.5">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
+              <svg
+                className="w-4 h-4 text-gray-400 flex-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+                />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="상품 검색"
+                className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none"
               />
-            </svg>
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder="상품 검색"
-              className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none"
-            />
-            {searchQuery.length > 0 && (
               <button
                 type="button"
-                onClick={clearSearch}
-                aria-label="검색 초기화"
+                onClick={closeSearch}
+                aria-label="검색 닫기"
                 className="flex-none text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── FAB search button ── */}
+      {!searchOpen && (
+        <button
+          type="button"
+          onClick={openSearch}
+          aria-label="상품 검색"
+          className="fixed bottom-20 right-4 z-40 w-12 h-12 bg-orange-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-orange-600 active:scale-95 transition"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+        </button>
+      )}
 
       <div className="w-full max-w-md px-4 pt-4">
         {/* ════════════════════════════════════════════════════════════════

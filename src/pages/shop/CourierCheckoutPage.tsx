@@ -33,6 +33,7 @@ export default function CourierCheckoutPage() {
   const [shippingLoading, setShippingLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFallbackPcUrl, setPaymentFallbackPcUrl] = useState<string | null>(null);
+  const [bottomExpanded, setBottomExpanded] = useState(false);
 
   const idempotencyKeyRef = useRef<string | null>(null);
   const buildIdempotencyKey = () => {
@@ -372,20 +373,32 @@ export default function CourierCheckoutPage() {
 
       {/* Payment summary - fixed bottom */}
       <div className="fixed bottom-16 left-0 right-0 z-30 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div className="max-w-md mx-auto px-4 py-4">
-          <div className="space-y-1 text-sm mb-3">
-            <div className="flex justify-between text-gray-600">
-              <span>상품 합계</span>
-              <span>{formatPrice(productTotal)}</span>
+        {/* Toggle handle */}
+        <button
+          type="button"
+          onClick={() => setBottomExpanded(prev => !prev)}
+          className="w-full flex justify-center pt-2 pb-1"
+          aria-label={bottomExpanded ? '결제 요약 접기' : '결제 요약 펼치기'}
+        >
+          <div className="w-8 h-1 bg-gray-300 rounded-full" />
+        </button>
+
+        <div className="max-w-md mx-auto px-4 pb-4">
+          {bottomExpanded && (
+            <div className="space-y-1 text-sm mb-3">
+              <div className="flex justify-between text-gray-600">
+                <span>상품 합계</span>
+                <span>{formatPrice(productTotal)}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>배송비</span>
+                <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span>배송비</span>
-              <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
-            </div>
-            <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-1">
-              <span>총 결제 금액</span>
-              <span className="text-orange-500">{formatPrice(totalPayment)}</span>
-            </div>
+          )}
+          <div className="flex justify-between font-bold text-gray-900 text-base mb-3">
+            <span>총 결제 금액</span>
+            <span className="text-orange-500">{formatPrice(totalPayment)}</span>
           </div>
           <button
             type="button"
