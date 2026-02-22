@@ -31,6 +31,8 @@ type CategoryItem = {
   sortOrder: number;
 };
 
+// ===== Sortable Category Item =====
+
 interface SortableItemProps {
   item: CategoryItem;
   onDelete: (item: CategoryItem) => void;
@@ -49,35 +51,40 @@ function SortableItem({ item, onDelete, onEdit, deleting }: SortableItemProps) {
     <li
       ref={setNodeRef}
       style={style}
-      className="flex items-center mb-2 text-sm bg-gray-50 border rounded px-3 py-2.5"
+      className="mb-2 text-sm bg-gray-50 border rounded px-3 py-2.5"
     >
-      <div {...attributes} {...listeners} className="cursor-move mr-3 text-gray-400 hover:text-gray-600 px-1">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-        </svg>
-      </div>
-      <span className="flex-1 font-medium text-gray-800">{item.name}</span>
-      <div className="flex gap-1.5 ml-auto">
-        <button
-          onClick={() => onEdit(item)}
-          className="text-[11px] font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-colors"
-        >
-          수정
-        </button>
-        <button
-          onClick={() => onDelete(item)}
-          disabled={deleting === item.id}
-          className="text-[11px] font-bold px-2.5 py-1 rounded bg-red-50 text-red-600 hover:bg-red-200 border border-red-100 disabled:opacity-50 transition-colors"
-        >
-          {deleting === item.id ? '...' : '삭제'}
-        </button>
+      <div className="flex items-center">
+        <div {...attributes} {...listeners} className="cursor-move mr-3 text-gray-400 hover:text-gray-600 px-1">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+          </svg>
+        </div>
+        <span className="flex-1 font-medium text-gray-800">{item.name}</span>
+        <div className="flex gap-1.5 ml-auto">
+          <button
+            onClick={() => onEdit(item)}
+            className="text-[11px] font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-colors"
+          >
+            수정
+          </button>
+          <button
+            onClick={() => onDelete(item)}
+            disabled={deleting === item.id}
+            className="text-[11px] font-bold px-2.5 py-1 rounded bg-red-50 text-red-600 hover:bg-red-200 border border-red-100 disabled:opacity-50 transition-colors"
+          >
+            {deleting === item.id ? '...' : '삭제'}
+          </button>
+        </div>
       </div>
     </li>
   );
 }
 
+// ===== Main Page =====
+
 export default function AdminCourierCategoryPage() {
   const { show } = useSnackbar();
+
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
@@ -92,12 +99,12 @@ export default function AdminCourierCategoryPage() {
       const res = await getAdminCourierCategoriesList();
       if (!res.ok) throw new Error('카테고리 목록을 불러오지 못했습니다.');
       const data = await res.json();
-      const list = Array.isArray(data?.response) ? data.response : (Array.isArray(data) ? data : []);
-      setCategories(list.map((c: any) => ({
+      const list: CategoryItem[] = (Array.isArray(data?.response) ? data.response : (Array.isArray(data) ? data : [])).map((c: any) => ({
         id: Number(c.id),
         name: String(c.name ?? ''),
         sortOrder: Number(c.sortOrder ?? 0),
-      })));
+      }));
+      setCategories(list);
     } catch (e: any) {
       safeErrorLog(e, 'AdminCourierCategoryPage - load');
       show(getSafeErrorMessage(e, '카테고리 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -106,7 +113,9 @@ export default function AdminCourierCategoryPage() {
     }
   }, [show]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const categoryNames = categories.map(c => c.name);
   const canAdd = input.trim().length > 0 && input.trim().length <= 10 && !categoryNames.includes(input.trim());
@@ -193,7 +202,7 @@ export default function AdminCourierCategoryPage() {
         <AdminCourierHeader />
       </div>
 
-      <div className="border bg-white rounded-xl shadow mb-8 overflow-hidden">
+      <div className="border bg-white rounded-xl shadow mb-6 overflow-hidden">
         <div className="bg-gray-50 border-b px-6 py-4 flex justify-between items-center">
           <div className="text-sm font-semibold text-gray-700">
             {editingItem ? '카테고리 수정' : '카테고리 추가'}
@@ -234,16 +243,25 @@ export default function AdminCourierCategoryPage() {
         </div>
 
         <div className="bg-gray-50 border-t px-6 py-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 카테고리 ({categories.length}개)</div>
+          <div className="text-sm font-semibold text-gray-700 mb-3">등록된 카테고리 ({categories.length + 1}개)</div>
           {loading ? (
             <div className="text-gray-500 text-sm">로딩 중...</div>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
                 <ul>
-                  {categories.length === 0 && (
-                    <li className="text-gray-400 text-sm">등록된 카테고리가 없습니다.</li>
-                  )}
+                  {/* 추천 상품: FE static 항목 — 수정/삭제/드래그 불가 */}
+                  <li className="mb-2 text-sm bg-orange-50 border border-orange-200 rounded px-3 py-2.5">
+                    <div className="flex items-center">
+                      <div className="mr-3 text-orange-300 px-1">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      </div>
+                      <span className="flex-1 font-medium text-orange-700">추천 상품</span>
+                      <span className="text-[10px] text-orange-400 font-medium">고정</span>
+                    </div>
+                  </li>
                   {categories.map(item => (
                     <SortableItem
                       key={item.id}

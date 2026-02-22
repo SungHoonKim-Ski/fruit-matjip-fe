@@ -1920,6 +1920,30 @@ export const updateAdminCourierCategoryOrder = async (categoryIds: number[]) => 
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+export const getAdminCourierCategoryProducts = async (categoryId: number) => {
+  const key = 'getAdminCourierCategoryProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/categories/${categoryId}/products`, {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminCourierCategoryProducts = async (categoryId: number, productIds: number[]) => {
+  const key = 'updateAdminCourierCategoryProducts';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/categories/${categoryId}/products`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_ids: productIds }),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 // ===== Courier Order APIs =====
 
 export type CourierOrderStatus =
