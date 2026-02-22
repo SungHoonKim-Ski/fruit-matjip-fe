@@ -276,7 +276,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
               <div className="bg-white px-4 py-4 mt-1">
                 <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
                 <div
-                  className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap"
+                  className="text-sm text-gray-600 leading-relaxed [&_img]:w-full [&_img]:h-auto [&_img]:rounded [&_img]:my-2 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_a]:text-blue-600 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_strong]:font-bold [&_em]:italic [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold"
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
                     ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
                     ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']

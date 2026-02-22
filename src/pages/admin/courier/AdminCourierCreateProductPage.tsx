@@ -352,16 +352,18 @@ export default function AdminCourierCreateProductPage() {
         {/* Description */}
         <div className="space-y-2">
           <label className="block text-sm font-medium">설명 (선택)</label>
-          <ReactQuill
-            ref={quillRef}
-            theme="snow"
-            value={form.description}
-            onChange={(value: string) => setForm(prev => ({ ...prev, description: value }))}
-            modules={quillModules}
-            formats={['size', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
-            placeholder="상품 설명을 입력하세요"
-            style={{ minHeight: '150px' }}
-          />
+          <div className="[&_.ql-editor_img]:w-full [&_.ql-editor_img]:h-auto [&_.ql-editor_img]:rounded">
+            <ReactQuill
+              ref={quillRef}
+              theme="snow"
+              value={form.description}
+              onChange={(value: string) => setForm(prev => ({ ...prev, description: value }))}
+              modules={quillModules}
+              formats={['size', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
+              placeholder="상품 설명을 입력하세요"
+              style={{ minHeight: '150px' }}
+            />
+          </div>
         </div>
 
         {/* Shipping fee template */}
