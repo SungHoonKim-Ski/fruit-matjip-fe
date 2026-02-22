@@ -12,12 +12,11 @@ import {
   getAdminCourierShippingFeeTemplates,
   ShippingFeeTemplateResponse,
 } from '../../../utils/api';
-import { compressImage, DETAIL_IMAGE_OPTS } from '../../../utils/image-compress';
+import { compressImage } from '../../../utils/image-compress';
 
 type ProductForm = {
   name: string;
   price: number;
-  stock: number;
   description: string;
   visible: boolean;
 };
@@ -50,7 +49,6 @@ export default function AdminCourierCreateProductPage() {
   const [form, setForm] = useState<ProductForm>({
     name: '',
     price: 0,
-    stock: 0,
     description: '',
     visible: true,
   });
@@ -59,10 +57,6 @@ export default function AdminCourierCreateProductPage() {
   // Main image
   const [mainFile, setMainFile] = useState<File | null>(null);
   const [mainPreview, setMainPreview] = useState<string | null>(null);
-
-  // Detail images
-  const [detailFiles, setDetailFiles] = useState<File[]>([]);
-  const [detailPreviews, setDetailPreviews] = useState<string[]>([]);
 
   // Categories
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -76,13 +70,10 @@ export default function AdminCourierCreateProductPage() {
   // Option groups
   const [optionGroups, setOptionGroups] = useState<OptionGroupForm[]>([]);
 
-  const DETAIL_IMAGES_MAX = 10;
-
   // Cleanup preview URLs (unmount only)
   useEffect(() => {
     return () => {
       if (mainPreview) URL.revokeObjectURL(mainPreview);
-      detailPreviews.forEach(u => URL.revokeObjectURL(u));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -150,37 +141,6 @@ export default function AdminCourierCreateProductPage() {
       show(getSafeErrorMessage(err, '이미지 처리 중 오류가 발생했습니다.'), { variant: 'error' });
     }
     e.target.value = '';
-  };
-
-  const handleDetailImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
-    if (!files.length) return;
-    const available = DETAIL_IMAGES_MAX - detailFiles.length;
-    if (available <= 0) {
-      show(`상세 이미지는 최대 ${DETAIL_IMAGES_MAX}장까지 등록할 수 있습니다.`, { variant: 'info' });
-      e.target.value = '';
-      return;
-    }
-    const allowed = files.slice(0, available);
-    if (allowed.length < files.length) {
-      show(`최대 ${DETAIL_IMAGES_MAX}장까지만 추가할 수 있습니다.`, { variant: 'info' });
-    }
-    const compressed = await Promise.all(
-      allowed.map(async f => {
-        try { return await compressImage(f, DETAIL_IMAGE_OPTS); }
-        catch { return f; }
-      })
-    );
-    const previews = compressed.map(f => URL.createObjectURL(f));
-    setDetailFiles(prev => [...prev, ...compressed]);
-    setDetailPreviews(prev => [...prev, ...previews]);
-    e.target.value = '';
-  };
-
-  const removeDetailImage = (index: number) => {
-    URL.revokeObjectURL(detailPreviews[index]);
-    setDetailFiles(prev => prev.filter((_, i) => i !== index));
-    setDetailPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const uploadFileWithPresignedUrl = async (file: File): Promise<string> => {
@@ -266,6 +226,7 @@ export default function AdminCourierCreateProductPage() {
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
+        [{ size: ['small', false, 'large', 'huge'] }],
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
         ['link', 'image'],
@@ -286,10 +247,6 @@ export default function AdminCourierCreateProductPage() {
       show('가격을 입력해주세요.', { variant: 'error' });
       return;
     }
-    if (form.stock <= 0) {
-      show('재고를 입력해주세요.', { variant: 'error' });
-      return;
-    }
     if (!mainFile) {
       show('대표 이미지를 업로드해주세요.', { variant: 'error' });
       return;
@@ -305,14 +262,7 @@ export default function AdminCourierCreateProductPage() {
       // 1) Upload main image
       const mainKey = await uploadFileWithPresignedUrl(mainFile);
 
-      // 2) Upload detail images
-      const detailKeys: string[] = [];
-      for (const file of detailFiles) {
-        const key = await uploadFileWithPresignedUrl(file);
-        detailKeys.push(key);
-      }
-
-      // 3) Build option groups payload
+      // 2) Build option groups payload
       const optionGroupsPayload = optionGroups
         .filter(g => g.name.trim())
         .map((g, gi) => ({
@@ -329,16 +279,14 @@ export default function AdminCourierCreateProductPage() {
             })),
         }));
 
-      // 4) Create product
+      // 3) Create product
       const payload: any = {
         name: form.name.trim(),
         price: form.price,
-        stock: form.stock,
         product_url: mainKey,
         visible: form.visible,
       };
       if (form.description.trim()) payload.description = form.description.trim();
-      if (detailKeys.length > 0) payload.detail_image_urls = detailKeys;
       if (selectedCategoryIds.length > 0) payload.category_ids = selectedCategoryIds;
       if (selectedTemplateId != null) payload.shipping_fee_template_id = selectedTemplateId;
       if (optionGroupsPayload.length > 0) payload.option_groups = optionGroupsPayload;
@@ -382,42 +330,24 @@ export default function AdminCourierCreateProductPage() {
           />
         </div>
 
-        {/* Price + Stock */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">가격 <span className="text-red-500">*</span></label>
-            <input
-              type="number"
-              value={form.price}
-              onChange={e => {
-                const num = Number(e.target.value);
-                if (!Number.isFinite(num) || num < 0) return;
-                setForm(prev => ({ ...prev, price: Math.min(num, PRICE_MAX) }));
-              }}
-              onInput={handleNumberInput}
-              className="w-full border px-3 py-2 rounded"
-              step={100}
-              max={PRICE_MAX}
-              min={0}
-            />
-            <p className="text-xs text-gray-500">최대 1,000,000원</p>
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">재고 수량 <span className="text-red-500">*</span></label>
-            <input
-              type="number"
-              value={form.stock}
-              onChange={e => {
-                const num = Number(e.target.value);
-                if (!Number.isFinite(num) || num < 0) return;
-                setForm(prev => ({ ...prev, stock: num }));
-              }}
-              onInput={handleNumberInput}
-              className="w-full border px-3 py-2 rounded"
-              step={1}
-              min={0}
-            />
-          </div>
+        {/* Price */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">가격 <span className="text-red-500">*</span></label>
+          <input
+            type="number"
+            value={form.price}
+            onChange={e => {
+              const num = Number(e.target.value);
+              if (!Number.isFinite(num) || num < 0) return;
+              setForm(prev => ({ ...prev, price: Math.min(num, PRICE_MAX) }));
+            }}
+            onInput={handleNumberInput}
+            className="w-full border px-3 py-2 rounded"
+            step={100}
+            max={PRICE_MAX}
+            min={0}
+          />
+          <p className="text-xs text-gray-500">최대 1,000,000원</p>
         </div>
 
         {/* Description */}
@@ -429,7 +359,7 @@ export default function AdminCourierCreateProductPage() {
             value={form.description}
             onChange={(value: string) => setForm(prev => ({ ...prev, description: value }))}
             modules={quillModules}
-            formats={['bold', 'italic', 'underline', 'list', 'link', 'image']}
+            formats={['size', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
             placeholder="상품 설명을 입력하세요"
             style={{ minHeight: '150px' }}
           />
@@ -533,41 +463,6 @@ export default function AdminCourierCreateProductPage() {
             {mainFile && (
               <span className="text-sm text-gray-700 truncate max-w-full">{mainFile.name}</span>
             )}
-          </div>
-        </div>
-
-        {/* Detail images */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">상세 이미지 (최대 {DETAIL_IMAGES_MAX}장)</label>
-          {detailPreviews.length > 0 && (
-            <div className="flex gap-3 flex-wrap">
-              {detailPreviews.map((src, i) => (
-                <div key={src} className="relative w-28">
-                  <img src={src} alt={`상세 ${i + 1}`} className="w-28 h-28 rounded object-cover border" />
-                  <button
-                    type="button"
-                    onClick={() => removeDetailImage(i)}
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-xs"
-                    aria-label="이미지 제거"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              id="courier-detail-images"
-              type="file"
-              accept="image/png, image/jpeg"
-              multiple
-              onChange={handleDetailImagesChange}
-              className="hidden"
-            />
-            <label htmlFor="courier-detail-images" className="h-9 px-3 inline-flex items-center rounded border text-sm cursor-pointer hover:bg-gray-50">
-              파일 선택
-            </label>
           </div>
         </div>
 
