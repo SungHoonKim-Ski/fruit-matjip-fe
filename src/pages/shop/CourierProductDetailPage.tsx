@@ -275,8 +275,22 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
             {product.description && (
               <div className="bg-white px-4 py-4 mt-1">
                 <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
+                <style>{`
+                  .desc-content img { width: 100%; height: auto; border-radius: 4px; margin: 8px 0; }
+                  .desc-content p { margin: 4px 0; }
+                  .desc-content ul { list-style: disc; padding-left: 20px; }
+                  .desc-content ol { list-style: decimal; padding-left: 20px; }
+                  .desc-content li { margin: 2px 0; }
+                  .desc-content a { color: #2563eb; text-decoration: underline; }
+                  .desc-content blockquote { border-left: 4px solid #d1d5db; padding-left: 12px; font-style: italic; }
+                  .desc-content strong, .desc-content b { font-weight: bold; }
+                  .desc-content em, .desc-content i { font-style: italic; }
+                  .desc-content .ql-size-small { font-size: 0.75rem; }
+                  .desc-content .ql-size-large { font-size: 1.25rem; }
+                  .desc-content .ql-size-huge { font-size: 1.5rem; }
+                `}</style>
                 <div
-                  className="text-sm text-gray-600 leading-relaxed [&_img]:w-full [&_img]:h-auto [&_img]:rounded [&_img]:my-2 [&_p]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_a]:text-blue-600 [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_strong]:font-bold [&_em]:italic [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold"
+                  className="desc-content text-sm text-gray-600 leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
                     ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
                     ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']

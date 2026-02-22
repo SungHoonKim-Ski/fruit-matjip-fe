@@ -226,7 +226,7 @@ export default function AdminCourierCreateProductPage() {
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
-        [{ header: [1, 2, 3, false] }],
+        [{ size: ['small', false, 'large', 'huge'] }],
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
         ['link', 'image'],
@@ -359,7 +359,7 @@ export default function AdminCourierCreateProductPage() {
               value={form.description}
               onChange={(value: string) => setForm(prev => ({ ...prev, description: value }))}
               modules={quillModules}
-              formats={['header', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
+              formats={['size', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
               placeholder="상품 설명을 입력하세요"
               style={{ minHeight: '150px' }}
             />
