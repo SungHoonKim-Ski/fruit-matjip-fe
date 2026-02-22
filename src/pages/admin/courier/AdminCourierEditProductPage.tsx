@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
 import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import {
   getAdminCourierProduct,
   updateAdminCourierProduct,
@@ -12,14 +14,13 @@ import {
   getAdminCourierShippingFeeTemplates,
   ShippingFeeTemplateResponse,
 } from '../../../utils/api';
-import { compressImage } from '../../../utils/image-compress';
+import { compressImage, DETAIL_IMAGE_OPTS } from '../../../utils/image-compress';
 
 type ProductEdit = {
   id: number;
   name: string;
   price: number;
   stock: number;
-  weight: string;
   description: string;
   orderIndex: number;
   visible: boolean;
@@ -36,6 +37,7 @@ type CategoryItem = {
 type OptionItemForm = {
   name: string;
   additionalPrice: string;
+  stock: string; // empty string = unlimited (null on BE)
 };
 
 type OptionGroupForm = {
@@ -79,6 +81,8 @@ export default function AdminCourierEditProductPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const quillRef = useRef<any>(null);
+
   // Main image replacement
   const mainFileRef = useRef<HTMLInputElement>(null);
   const [newMainFile, setNewMainFile] = useState<File | null>(null);
@@ -90,6 +94,7 @@ export default function AdminCourierEditProductPage() {
 
   // Categories
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoryConfirmed, setCategoryConfirmed] = useState(false);
 
   // Shipping fee templates
   const [shippingFeeTemplates, setShippingFeeTemplates] = useState<ShippingFeeTemplateResponse[]>([]);
@@ -173,8 +178,9 @@ export default function AdminCourierEditProductPage() {
                 ? g.options.map((o: any) => ({
                     name: String(o.name ?? ''),
                     additionalPrice: String(o.additional_price ?? o.additionalPrice ?? 0),
+                    stock: o.stock != null ? String(o.stock) : '',
                   }))
-                : [{ name: '', additionalPrice: '0' }],
+                : [{ name: '', additionalPrice: '0', stock: '' }],
             }))
           : [];
 
@@ -184,7 +190,6 @@ export default function AdminCourierEditProductPage() {
             name: String(data.name ?? ''),
             price: Number(data.price ?? 0),
             stock: Number(data.stock ?? 0),
-            weight: String(data.weight ?? ''),
             description: String(data.description ?? ''),
             orderIndex: Number(data.sort_order ?? data.order_index ?? data.orderIndex ?? 0),
             visible: typeof data.visible === 'boolean' ? data.visible : true,
@@ -195,6 +200,7 @@ export default function AdminCourierEditProductPage() {
           const templateId = data.shipping_fee_template_id ?? data.shippingFeeTemplateId ?? null;
           setSelectedTemplateId(templateId != null ? Number(templateId) : null);
           setOptionGroups(parsedOptionGroups);
+          setCategoryConfirmed(true);
         }
       } catch (e: any) {
         safeErrorLog(e, 'AdminCourierEditProductPage - load');
@@ -234,7 +240,7 @@ export default function AdminCourierEditProductPage() {
     const allowed = files.slice(0, available);
     const compressed = await Promise.all(
       allowed.map(async f => {
-        try { return await compressImage(f); }
+        try { return await compressImage(f, DETAIL_IMAGE_OPTS); }
         catch { return f; }
       })
     );
@@ -276,7 +282,7 @@ export default function AdminCourierEditProductPage() {
 
   // Option group helpers
   const addOptionGroup = () => {
-    setOptionGroups(prev => [...prev, { name: '', required: true, options: [{ name: '', additionalPrice: '0' }] }]);
+    setOptionGroups(prev => [...prev, { name: '', required: true, options: [{ name: '', additionalPrice: '0', stock: '' }] }]);
   };
 
   const removeOptionGroup = (gi: number) => {
@@ -289,7 +295,7 @@ export default function AdminCourierEditProductPage() {
 
   const addOption = (gi: number) => {
     setOptionGroups(prev => prev.map((g, i) =>
-      i === gi ? { ...g, options: [...g.options, { name: '', additionalPrice: '0' }] } : g
+      i === gi ? { ...g, options: [...g.options, { name: '', additionalPrice: '0', stock: '' }] } : g
     ));
   };
 
@@ -307,6 +313,47 @@ export default function AdminCourierEditProductPage() {
     ));
   };
 
+  const imageHandler = useCallback(() => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/png, image/jpeg');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const compressed = await compressImage(file);
+        const key = await uploadFileWithPresignedUrl(compressed);
+        const imgUrl = IMG_BASE ? `${IMG_BASE}/${key}` : key;
+
+        const quill = quillRef.current?.getEditor();
+        if (quill) {
+          const range = quill.getSelection(true);
+          quill.insertEmbed(range.index, 'image', imgUrl);
+          quill.setSelection(range.index + 1);
+        }
+      } catch (err) {
+        safeErrorLog(err, 'imageHandler');
+        show('이미지 업로드에 실패했습니다.', { variant: 'error' });
+      }
+    };
+  }, [show]);
+
+  const quillModules = useMemo(() => ({
+    toolbar: {
+      container: [
+        ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link', 'image'],
+        ['clean'],
+      ],
+      handlers: {
+        image: imageHandler,
+      },
+    },
+  }), [imageHandler]);
+
   const handleSave = async () => {
     if (!form) return;
     if (!form.name.trim()) {
@@ -319,6 +366,10 @@ export default function AdminCourierEditProductPage() {
     }
     if (form.stock < 0) {
       show('재고는 0 이상이어야 합니다.', { variant: 'error' });
+      return;
+    }
+    if (!categoryConfirmed && form.categoryIds.length === 0) {
+      show('카테고리를 선택해주세요.', { variant: 'error' });
       return;
     }
 
@@ -351,6 +402,7 @@ export default function AdminCourierEditProductPage() {
               name: o.name.trim(),
               additional_price: Number(o.additionalPrice) || 0,
               sort_order: oi,
+              stock: o.stock.trim() === '' ? null : Number(o.stock),
             })),
         }));
 
@@ -366,8 +418,6 @@ export default function AdminCourierEditProductPage() {
         sort_order: form.orderIndex,
       };
       if (newMainKey) payload.product_url = newMainKey;
-      if (form.weight.trim()) payload.weight = form.weight.trim();
-      else payload.weight = null;
       payload.description = form.description.trim() || null;
       payload.detail_image_urls = allDetailKeys;
       if (form.categoryIds.length > 0) payload.category_ids = form.categoryIds;
@@ -483,29 +533,19 @@ export default function AdminCourierEditProductPage() {
           </div>
         </div>
 
-        {/* Weight */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">중량 (선택)</label>
-          <input
-            type="text"
-            value={form.weight}
-            onChange={e => setForm({ ...form, weight: e.target.value })}
-            className="w-full border px-3 py-2 rounded"
-            placeholder="예) 1kg, 500g"
-          />
-        </div>
-
         {/* Description */}
         <div className="space-y-2">
           <label className="block text-sm font-medium">설명 (선택)</label>
-          <textarea
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
             value={form.description}
-            onChange={e => setForm({ ...form, description: e.target.value })}
-            className="w-full border px-3 py-2 rounded min-h-[100px] resize-y"
-            placeholder="상품 설명 (HTML 태그 사용 가능: b, i, br, ul, li, p 등)"
-            maxLength={500}
+            onChange={(value: string) => setForm({ ...form, description: value })}
+            modules={quillModules}
+            formats={['bold', 'italic', 'underline', 'list', 'link', 'image']}
+            placeholder="상품 설명을 입력하세요"
+            style={{ minHeight: '150px' }}
           />
-          <p className="text-xs text-gray-500 text-right">{form.description.length} / 500</p>
         </div>
 
         {/* Order index */}
@@ -522,13 +562,13 @@ export default function AdminCourierEditProductPage() {
 
         {/* Shipping fee template */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium">배송비 템플릿</label>
+          <label className="block text-sm font-medium">배송 정책</label>
           <select
             value={selectedTemplateId ?? ''}
             onChange={e => setSelectedTemplateId(e.target.value === '' ? null : Number(e.target.value))}
             className="w-full border px-3 py-2 rounded bg-white"
           >
-            <option value="">전역 정책 사용 (기본)</option>
+            <option value="">선택하세요</option>
             {shippingFeeTemplates.filter(t => t.active).map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
@@ -536,37 +576,50 @@ export default function AdminCourierEditProductPage() {
         </div>
 
         {/* Categories */}
-        {categories.length > 0 && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">카테고리</label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(cat => {
-                const active = form.categoryIds.includes(cat.id);
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setForm({
-                        ...form,
-                        categoryIds: active
-                          ? form.categoryIds.filter(cid => cid !== cat.id)
-                          : [...form.categoryIds, cat.id],
-                      });
-                    }}
-                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
-                      active
-                        ? 'bg-blue-600 border-blue-600 text-white'
-                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">카테고리 <span className="text-red-500">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setForm({ ...form, categoryIds: [] });
+                setCategoryConfirmed(true);
+              }}
+              className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                categoryConfirmed && form.categoryIds.length === 0
+                  ? 'bg-gray-700 border-gray-700 text-white'
+                  : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              없음
+            </button>
+            {categories.map(cat => {
+              const active = form.categoryIds.includes(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setCategoryConfirmed(true);
+                    setForm({
+                      ...form,
+                      categoryIds: active
+                        ? form.categoryIds.filter(cid => cid !== cat.id)
+                        : [...form.categoryIds, cat.id],
+                    });
+                  }}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                    active
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         {/* Visible toggle */}
         <div className="space-y-2">
@@ -730,6 +783,15 @@ export default function AdminCourierEditProductPage() {
                           min={0}
                         />
                         <span className="text-xs text-gray-500 whitespace-nowrap">원</span>
+                        <input
+                          type="number"
+                          value={opt.stock}
+                          onChange={e => updateOption(gi, oi, 'stock', e.target.value)}
+                          className="w-20 border px-2 py-1 rounded text-sm"
+                          placeholder="재고"
+                          min={0}
+                        />
+                        <span className="text-xs text-gray-500 whitespace-nowrap">개</span>
                         {group.options.length > 1 && (
                           <button
                             type="button"
