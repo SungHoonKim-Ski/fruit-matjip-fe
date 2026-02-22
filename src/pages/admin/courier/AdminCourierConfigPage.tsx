@@ -65,10 +65,11 @@ export default function AdminCourierConfigPage() {
   const [templates, setTemplates] = useState<ShippingFeeTemplateResponse[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
-  const [editingTemplateForm, setEditingTemplateForm] = useState<TemplateForm>(DEFAULT_TEMPLATE_FORM);
-  const [showNewTemplate, setShowNewTemplate] = useState(false);
-  const [newTemplateForm, setNewTemplateForm] = useState<TemplateForm>(DEFAULT_TEMPLATE_FORM);
   const [templateSaving, setTemplateSaving] = useState(false);
+
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [templateModalMode, setTemplateModalMode] = useState<'create' | 'edit'>('create');
+  const [templateModalForm, setTemplateModalForm] = useState<TemplateForm>(DEFAULT_TEMPLATE_FORM);
 
   useEffect(() => {
     let alive = true;
@@ -113,7 +114,7 @@ export default function AdminCourierConfigPage() {
         if (alive) setTemplates(data.templates ?? []);
       } catch (err) {
         safeErrorLog(err, 'AdminCourierConfigPage - loadTemplates');
-        if (alive) show(getSafeErrorMessage(err, '배송비 템플릿을 불러오지 못했습니다.'), { variant: 'error' });
+        if (alive) show(getSafeErrorMessage(err, '배송 정책을 불러오지 못했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setTemplatesLoading(false);
       }
@@ -184,29 +185,16 @@ export default function AdminCourierConfigPage() {
     sortOrder: Number(form.sortOrder) || 0,
   });
 
-  const handleCreateTemplate = async () => {
-    if (!newTemplateForm.name.trim()) {
-      show('템플릿 이름을 입력해주세요.', { variant: 'error' });
-      return;
-    }
-    setTemplateSaving(true);
-    try {
-      const created = await createAdminCourierShippingFeeTemplate(buildTemplatePayload(newTemplateForm));
-      setTemplates(prev => [...prev, created]);
-      setShowNewTemplate(false);
-      setNewTemplateForm(DEFAULT_TEMPLATE_FORM);
-      show('배송비 템플릿이 추가되었습니다.', { variant: 'success' });
-    } catch (err) {
-      safeErrorLog(err, 'AdminCourierConfigPage - createTemplate');
-      show(getSafeErrorMessage(err, '배송비 템플릿 생성에 실패했습니다.'), { variant: 'error' });
-    } finally {
-      setTemplateSaving(false);
-    }
+  const openCreateModal = () => {
+    setTemplateModalMode('create');
+    setTemplateModalForm(DEFAULT_TEMPLATE_FORM);
+    setTemplateModalOpen(true);
   };
 
-  const startEditTemplate = (t: ShippingFeeTemplateResponse) => {
+  const openEditModal = (t: ShippingFeeTemplateResponse) => {
     setEditingTemplateId(t.id);
-    setEditingTemplateForm({
+    setTemplateModalMode('edit');
+    setTemplateModalForm({
       name: t.name,
       baseFee: t.baseFee,
       perQuantityFee: t.perQuantityFee ?? '',
@@ -214,38 +202,59 @@ export default function AdminCourierConfigPage() {
       active: t.active,
       sortOrder: t.sortOrder,
     });
+    setTemplateModalOpen(true);
   };
 
-  const handleUpdateTemplate = async () => {
-    if (editingTemplateId === null) return;
-    if (!editingTemplateForm.name.trim()) {
+  const handleCreateTemplate = async () => {
+    if (!templateModalForm.name.trim()) {
       show('템플릿 이름을 입력해주세요.', { variant: 'error' });
       return;
     }
     setTemplateSaving(true);
     try {
-      const updated = await updateAdminCourierShippingFeeTemplate(editingTemplateId, buildTemplatePayload(editingTemplateForm));
+      const created = await createAdminCourierShippingFeeTemplate(buildTemplatePayload(templateModalForm));
+      setTemplates(prev => [...prev, created]);
+      setTemplateModalOpen(false);
+      show('배송 정책이 추가되었습니다.', { variant: 'success' });
+    } catch (err) {
+      safeErrorLog(err, 'AdminCourierConfigPage - createTemplate');
+      show(getSafeErrorMessage(err, '배송 정책 생성에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (editingTemplateId === null) return;
+    if (!templateModalForm.name.trim()) {
+      show('템플릿 이름을 입력해주세요.', { variant: 'error' });
+      return;
+    }
+    setTemplateSaving(true);
+    try {
+      const updated = await updateAdminCourierShippingFeeTemplate(editingTemplateId, buildTemplatePayload(templateModalForm));
       setTemplates(prev => prev.map(t => t.id === editingTemplateId ? updated : t));
       setEditingTemplateId(null);
-      show('배송비 템플릿이 수정되었습니다.', { variant: 'success' });
+      setTemplateModalOpen(false);
+      show('배송 정책이 수정되었습니다.', { variant: 'success' });
     } catch (err) {
       safeErrorLog(err, 'AdminCourierConfigPage - updateTemplate');
-      show(getSafeErrorMessage(err, '배송비 템플릿 수정에 실패했습니다.'), { variant: 'error' });
+      show(getSafeErrorMessage(err, '배송 정책 수정에 실패했습니다.'), { variant: 'error' });
     } finally {
       setTemplateSaving(false);
     }
   };
 
   const handleDeleteTemplate = async (id: number) => {
-    if (!window.confirm('이 배송비 템플릿을 삭제하시겠습니까?')) return;
+    if (!window.confirm('이 배송 정책을 삭제하시겠습니까?')) return;
     try {
       await deleteAdminCourierShippingFeeTemplate(id);
       setTemplates(prev => prev.filter(t => t.id !== id));
       if (editingTemplateId === id) setEditingTemplateId(null);
-      show('배송비 템플릿이 삭제되었습니다.', { variant: 'success' });
+      show('배송 정책이 삭제되었습니다.', { variant: 'success' });
     } catch (err) {
       safeErrorLog(err, 'AdminCourierConfigPage - deleteTemplate');
-      show(getSafeErrorMessage(err, '배송비 템플릿 삭제에 실패했습니다.'), { variant: 'error' });
+      show(getSafeErrorMessage(err, '배송 정책 삭제에 실패했습니다.'), { variant: 'error' });
     }
   };
 
@@ -259,15 +268,19 @@ export default function AdminCourierConfigPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 pt-6 pb-24 space-y-6">
-      <div className="max-w-md mx-auto mb-4">
+      <div className="max-w-lg mx-auto mb-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">택배 서비스 설정</h1>
           <AdminCourierHeader />
         </div>
       </div>
 
-      {/* 택배 서비스 설정 */}
-      <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
+      {/* 기본 설정 */}
+      <section className="max-w-lg mx-auto p-6 bg-white rounded shadow space-y-4">
+        <div>
+          <h2 className="text-lg font-bold">기본 설정</h2>
+          <p className="text-sm text-gray-500 mt-1">택배 서비스 운영에 필요한 기본 설정입니다.</p>
+        </div>
 
         {/* 활성화 토글 */}
         <div className="space-y-1">
@@ -314,11 +327,23 @@ export default function AdminCourierConfigPage() {
           />
           <p className="text-xs text-gray-500 text-right">{(config.noticeText ?? '').length} / 500</p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleConfigSave}
+          disabled={configSaving}
+          className="w-full bg-orange-500 text-white py-2.5 rounded hover:bg-orange-600 disabled:bg-gray-300 font-medium"
+        >
+          {configSaving ? '저장 중...' : '저장'}
+        </button>
       </section>
 
       {/* 발송인 정보 */}
-      <section className="max-w-md mx-auto p-6 bg-white rounded shadow space-y-4">
-        <h2 className="text-xl font-bold">발송인 정보</h2>
+      <section className="max-w-lg mx-auto p-6 bg-white rounded shadow space-y-4">
+        <div>
+          <h2 className="text-lg font-bold">발송인 정보</h2>
+          <p className="text-sm text-gray-500 mt-1">운송장에 표시될 발송인 정보입니다.</p>
+        </div>
 
         <div className="space-y-1">
           <label className="block text-sm font-medium">보내는 사람 이름</label>
@@ -385,348 +410,137 @@ export default function AdminCourierConfigPage() {
         </button>
       </section>
 
-      {/* 배송비 템플릿 */}
-      <section className="max-w-2xl mx-auto p-6 bg-white rounded shadow space-y-4">
-        <h2 className="text-xl font-bold">배송비 템플릿</h2>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="border px-2 py-2 font-medium">이름</th>
-                <th className="border px-2 py-2 font-medium">기본배송비</th>
-                <th className="border px-2 py-2 font-medium">수량당추가</th>
-                <th className="border px-2 py-2 font-medium">무료배송기준</th>
-                <th className="border px-2 py-2 font-medium">활성</th>
-                <th className="border px-2 py-2 font-medium">순서</th>
-                <th className="border px-2 py-2 font-medium">액션</th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.length === 0 && !showNewTemplate && (
-                <tr>
-                  <td colSpan={7} className="border px-2 py-4 text-center text-gray-400">
-                    등록된 배송비 템플릿이 없습니다.
-                  </td>
-                </tr>
-              )}
-              {templates.map(t => (
-                editingTemplateId === t.id ? (
-                  <tr key={t.id} className="bg-blue-50">
-                    <td className="border px-2 py-1">
-                      <input
-                        type="text"
-                        value={editingTemplateForm.name}
-                        onChange={e => setEditingTemplateForm(prev => ({ ...prev, name: e.target.value }))}
-                        className="w-full border px-2 py-1 rounded text-sm"
-                        placeholder="템플릿 이름"
-                      />
-                    </td>
-                    <td className="border px-2 py-1">
-                      <input
-                        type="number"
-                        value={editingTemplateForm.baseFee}
-                        onChange={e => setEditingTemplateForm(prev => ({ ...prev, baseFee: Number(e.target.value) || 0 }))}
-                        className="w-full border px-2 py-1 rounded text-sm"
-                        min={0}
-                        step={100}
-                      />
-                    </td>
-                    <td className="border px-2 py-1">
-                      <input
-                        type="number"
-                        value={editingTemplateForm.perQuantityFee}
-                        onChange={e => setEditingTemplateForm(prev => ({ ...prev, perQuantityFee: e.target.value }))}
-                        className="w-full border px-2 py-1 rounded text-sm"
-                        min={0}
-                        step={100}
-                        placeholder="선택"
-                      />
-                    </td>
-                    <td className="border px-2 py-1">
-                      <input
-                        type="number"
-                        value={editingTemplateForm.freeShippingMinAmount}
-                        onChange={e => setEditingTemplateForm(prev => ({ ...prev, freeShippingMinAmount: e.target.value }))}
-                        className="w-full border px-2 py-1 rounded text-sm"
-                        min={0}
-                        step={1000}
-                        placeholder="선택"
-                      />
-                    </td>
-                    <td className="border px-2 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setEditingTemplateForm(prev => ({ ...prev, active: !prev.active }))}
-                        className={`px-2 py-1 rounded text-xs font-medium transition ${
-                          editingTemplateForm.active
-                            ? 'bg-green-500 hover:bg-green-600 text-white'
-                            : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                        }`}
-                      >
-                        {editingTemplateForm.active ? '활성' : '비활성'}
-                      </button>
-                    </td>
-                    <td className="border px-2 py-1">
-                      <input
-                        type="number"
-                        value={editingTemplateForm.sortOrder}
-                        onChange={e => setEditingTemplateForm(prev => ({ ...prev, sortOrder: Number(e.target.value) || 0 }))}
-                        className="w-full border px-2 py-1 rounded text-sm"
-                        min={0}
-                      />
-                    </td>
-                    <td className="border px-2 py-1">
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={handleUpdateTemplate}
-                          disabled={templateSaving}
-                          className="px-2 py-1 rounded text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium disabled:bg-gray-300"
-                        >
-                          {templateSaving ? '...' : '확인'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingTemplateId(null)}
-                          className="px-2 py-1 rounded text-xs border hover:bg-gray-50 text-gray-600 font-medium"
-                        >
-                          취소
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="border px-2 py-2">{t.name}</td>
-                    <td className="border px-2 py-2">{formatPrice(t.baseFee)}</td>
-                    <td className="border px-2 py-2 text-gray-500">
-                      {t.perQuantityFee != null ? formatPrice(t.perQuantityFee) : '-'}
-                    </td>
-                    <td className="border px-2 py-2 text-gray-500">
-                      {t.freeShippingMinAmount != null ? formatPrice(t.freeShippingMinAmount) : '-'}
-                    </td>
-                    <td className="border px-2 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        t.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {t.active ? '활성' : '비활성'}
-                      </span>
-                    </td>
-                    <td className="border px-2 py-2 text-center">{t.sortOrder}</td>
-                    <td className="border px-2 py-2">
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => startEditTemplate(t)}
-                          className="px-2 py-1 rounded text-xs border border-orange-400 text-orange-500 hover:bg-orange-50 font-medium"
-                        >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteTemplate(t.id)}
-                          className="px-2 py-1 rounded text-xs bg-red-500 hover:bg-red-600 text-white font-medium"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              ))}
-              {/* New template inline form */}
-              {showNewTemplate && (
-                <tr className="bg-green-50">
-                  <td className="border px-2 py-1">
-                    <input
-                      type="text"
-                      value={newTemplateForm.name}
-                      onChange={e => setNewTemplateForm(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      placeholder="템플릿 이름"
-                      autoFocus
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={newTemplateForm.baseFee}
-                      onChange={e => setNewTemplateForm(prev => ({ ...prev, baseFee: Number(e.target.value) || 0 }))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                      step={100}
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={newTemplateForm.perQuantityFee}
-                      onChange={e => setNewTemplateForm(prev => ({ ...prev, perQuantityFee: e.target.value }))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                      step={100}
-                      placeholder="선택"
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={newTemplateForm.freeShippingMinAmount}
-                      onChange={e => setNewTemplateForm(prev => ({ ...prev, freeShippingMinAmount: e.target.value }))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                      step={1000}
-                      placeholder="선택"
-                    />
-                  </td>
-                  <td className="border px-2 py-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setNewTemplateForm(prev => ({ ...prev, active: !prev.active }))}
-                      className={`px-2 py-1 rounded text-xs font-medium transition ${
-                        newTemplateForm.active
-                          ? 'bg-green-500 hover:bg-green-600 text-white'
-                          : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-                      }`}
-                    >
-                      {newTemplateForm.active ? '활성' : '비활성'}
-                    </button>
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={newTemplateForm.sortOrder}
-                      onChange={e => setNewTemplateForm(prev => ({ ...prev, sortOrder: Number(e.target.value) || 0 }))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={handleCreateTemplate}
-                        disabled={templateSaving}
-                        className="px-2 py-1 rounded text-xs bg-orange-500 hover:bg-orange-600 text-white font-medium disabled:bg-gray-300"
-                      >
-                        {templateSaving ? '...' : '추가'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowNewTemplate(false); setNewTemplateForm(DEFAULT_TEMPLATE_FORM); }}
-                        className="px-2 py-1 rounded text-xs border hover:bg-gray-50 text-gray-600 font-medium"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* 배송 정책 */}
+      <section className="max-w-lg mx-auto p-6 bg-white rounded shadow space-y-4">
+        <div>
+          <h2 className="text-lg font-bold">배송 정책</h2>
+          <p className="text-sm text-gray-500 mt-1">상품별로 지정할 수 있는 배송비 정책입니다. 상품 등록/수정 시 선택할 수 있습니다.</p>
         </div>
 
-        {!showNewTemplate && (
-          <button
-            type="button"
-            onClick={() => { setShowNewTemplate(true); setEditingTemplateId(null); }}
-            className="w-full border border-orange-500 text-orange-500 py-2 rounded hover:bg-orange-50 font-medium text-sm"
-          >
-            + 템플릿 추가
-          </button>
-        )}
+        <div className="space-y-3">
+          {templates.length === 0 && (
+            <div className="text-center text-gray-400 py-6 border rounded-lg">
+              등록된 배송 정책이 없습니다.
+            </div>
+          )}
+          {templates.map(t => (
+            <div key={t.id} className="border rounded-lg p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{t.name}</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    t.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {t.active ? '활성' : '비활성'}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(t)}
+                    className="px-3 py-1 rounded text-xs border border-orange-400 text-orange-500 hover:bg-orange-50 font-medium"
+                  >
+                    수정
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTemplate(t.id)}
+                    className="px-3 py-1 rounded text-xs bg-red-500 hover:bg-red-600 text-white font-medium"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600">
+                <span>기본 배송비: {formatPrice(t.baseFee)}</span>
+                <span>수량당 추가: {t.perQuantityFee != null ? formatPrice(t.perQuantityFee) : '-'}</span>
+                <span>무료배송 기준: {t.freeShippingMinAmount != null ? formatPrice(t.freeShippingMinAmount) : '-'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="w-full border border-orange-500 text-orange-500 py-2 rounded hover:bg-orange-50 font-medium text-sm"
+        >
+          + 정책 추가
+        </button>
       </section>
 
-      {/* 배송비 정책 */}
-      <section className="max-w-2xl mx-auto p-6 bg-white rounded shadow space-y-4">
-        <h2 className="text-xl font-bold">배송비 정책</h2>
+      {/* 수량별 배송비 */}
+      <section className="max-w-lg mx-auto p-6 bg-white rounded shadow space-y-4">
+        <div>
+          <h2 className="text-lg font-bold">수량별 배송비</h2>
+          <p className="text-sm text-gray-500 mt-1">주문 수량 구간에 따라 자동 적용되는 배송비입니다. 배송 정책이 지정되지 않은 상품에 적용됩니다.</p>
+        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="border px-2 py-2 font-medium">최소수량</th>
-                <th className="border px-2 py-2 font-medium">최대수량</th>
-                <th className="border px-2 py-2 font-medium">배송비 (원)</th>
-                <th className="border px-2 py-2 font-medium">정렬순서</th>
-                <th className="border px-2 py-2 font-medium">활성화</th>
-                <th className="border px-2 py-2 font-medium">삭제</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="border px-2 py-4 text-center text-gray-400">
-                    등록된 배송비 정책이 없습니다.
-                  </td>
-                </tr>
-              )}
-              {policies.map((policy, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={policy.minQuantity}
-                      onChange={e => updatePolicy(index, 'minQuantity', Number(e.target.value))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={policy.maxQuantity}
-                      onChange={e => updatePolicy(index, 'maxQuantity', Number(e.target.value))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={policy.fee}
-                      onChange={e => updatePolicy(index, 'fee', Number(e.target.value))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                      step={100}
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="number"
-                      value={policy.sortOrder}
-                      onChange={e => updatePolicy(index, 'sortOrder', Number(e.target.value))}
-                      className="w-full border px-2 py-1 rounded text-sm"
-                      min={0}
-                    />
-                  </td>
-                  <td className="border px-2 py-1 text-center">
+        <div className="space-y-3">
+          {policies.length === 0 && (
+            <div className="text-center text-gray-400 py-6 border rounded-lg">
+              등록된 수량별 배송비가 없습니다.
+            </div>
+          )}
+          {policies.map((policy, index) => (
+            <div key={index} className="border rounded-lg p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">최소 수량</label>
+                  <input
+                    type="number"
+                    value={policy.minQuantity}
+                    onChange={e => updatePolicy(index, 'minQuantity', Number(e.target.value))}
+                    className="w-full border px-3 py-2 rounded text-sm"
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">최대 수량</label>
+                  <input
+                    type="number"
+                    value={policy.maxQuantity}
+                    onChange={e => updatePolicy(index, 'maxQuantity', Number(e.target.value))}
+                    className="w-full border px-3 py-2 rounded text-sm"
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">배송비 (원)</label>
+                  <input
+                    type="number"
+                    value={policy.fee}
+                    onChange={e => updatePolicy(index, 'fee', Number(e.target.value))}
+                    className="w-full border px-3 py-2 rounded text-sm"
+                    min={0} step={100}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">활성화</label>
                     <button
                       type="button"
                       onClick={() => updatePolicy(index, 'active', !policy.active)}
-                      className={`px-2 py-1 rounded text-xs font-medium transition ${
+                      className={`w-full h-[38px] rounded text-xs font-medium transition ${
                         policy.active
-                          ? 'bg-green-500 hover:bg-green-600 text-white'
-                          : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-300 text-gray-700'
                       }`}
                     >
                       {policy.active ? '활성' : '비활성'}
                     </button>
-                  </td>
-                  <td className="border px-2 py-1 text-center">
-                    <button
-                      type="button"
-                      onClick={() => removePolicy(index)}
-                      className="px-2 py-1 rounded text-xs bg-red-500 hover:bg-red-600 text-white font-medium"
-                    >
-                      삭제
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removePolicy(index)}
+                    className="h-[38px] px-3 rounded bg-red-500 hover:bg-red-600 text-white text-xs font-medium"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-3">
@@ -748,6 +562,93 @@ export default function AdminCourierConfigPage() {
         </div>
       </section>
 
+      {/* 배송 정책 모달 */}
+      {templateModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-semibold">
+              {templateModalMode === 'create' ? '배송 정책 추가' : '배송 정책 수정'}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">정책 이름</label>
+                <input
+                  type="text"
+                  value={templateModalForm.name}
+                  onChange={e => setTemplateModalForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full border px-3 py-2 rounded text-sm"
+                  placeholder="정책 이름"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">기본 배송비 (원)</label>
+                <input
+                  type="number"
+                  value={templateModalForm.baseFee}
+                  onChange={e => setTemplateModalForm(prev => ({ ...prev, baseFee: Number(e.target.value) || 0 }))}
+                  className="w-full border px-3 py-2 rounded text-sm"
+                  min={0} step={100}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">수량당 추가비 (원, 선택)</label>
+                <input
+                  type="number"
+                  value={templateModalForm.perQuantityFee}
+                  onChange={e => setTemplateModalForm(prev => ({ ...prev, perQuantityFee: e.target.value }))}
+                  className="w-full border px-3 py-2 rounded text-sm"
+                  min={0} step={100} placeholder="미입력 시 없음"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">무료배송 기준금액 (원, 선택)</label>
+                <input
+                  type="number"
+                  value={templateModalForm.freeShippingMinAmount}
+                  onChange={e => setTemplateModalForm(prev => ({ ...prev, freeShippingMinAmount: e.target.value }))}
+                  className="w-full border px-3 py-2 rounded text-sm"
+                  min={0} step={1000} placeholder="미입력 시 없음"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-gray-700">활성화</label>
+                <button
+                  type="button"
+                  onClick={() => setTemplateModalForm(prev => ({ ...prev, active: !prev.active }))}
+                  className={`px-3 py-1 rounded text-xs font-medium transition ${
+                    templateModalForm.active
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {templateModalForm.active ? '활성' : '비활성'}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setTemplateModalOpen(false)}
+                className="flex-1 h-10 rounded border text-gray-700 hover:bg-gray-50 text-sm"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (templateModalMode === 'create') handleCreateTemplate();
+                  else handleUpdateTemplate();
+                }}
+                disabled={templateSaving}
+                className="flex-1 h-10 rounded bg-orange-500 text-white hover:bg-orange-600 disabled:bg-gray-300 font-medium text-sm"
+              >
+                {templateSaving ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

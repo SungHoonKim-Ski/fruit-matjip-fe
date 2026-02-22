@@ -7,6 +7,8 @@ import {
   getAdminCourierOrders,
   downloadAdminCourierWaybillExcel,
   downloadAdminCourierWaybillExcelBulk,
+  downloadAdminCourierWaybillExcelByFilter,
+  getAdminCourierProducts,
   type AdminCourierOrderSummary,
   type CourierOrderStatus,
 } from '../../../utils/api';
@@ -70,7 +72,44 @@ export default function AdminCourierOrdersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
 
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterProductId, setFilterProductId] = useState<number | undefined>(undefined);
+  const [filterProducts, setFilterProducts] = useState<Array<{ id: number; name: string }>>([]);
+  const [filterDownloading, setFilterDownloading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getAdminCourierProducts();
+        if (!res.ok) return;
+        const data = await res.json();
+        const arr = Array.isArray(data?.response) ? data.response : (Array.isArray(data) ? data : []);
+        setFilterProducts(arr.map((p: any) => ({ id: Number(p.id), name: String(p.name ?? '') })));
+      } catch {}
+    })();
+  }, []);
+
+  const handleFilterDownload = async () => {
+    if (!filterStartDate || !filterEndDate) {
+      show('시작일과 종료일을 입력해주세요.', { variant: 'error' });
+      return;
+    }
+    try {
+      setFilterDownloading(true);
+      const blob = await downloadAdminCourierWaybillExcelByFilter(filterStartDate, filterEndDate, filterProductId);
+      triggerDownload(blob, `waybill-filter-${filterStartDate}-${filterEndDate}.xlsx`);
+      show('필터 Excel 다운로드 완료', { variant: 'success' });
+    } catch (err) {
+      safeErrorLog(err, 'AdminCourierOrdersPage - filterDownload');
+      show(getSafeErrorMessage(err, '필터 Excel 다운로드에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setFilterDownloading(false);
+    }
+  };
 
   const fetchOrders = useCallback(async (status?: string, page = 0) => {
     try {
@@ -216,6 +255,65 @@ export default function AdminCourierOrdersPage() {
               {opt.label}
             </button>
           ))}
+        </div>
+
+        {/* Filter section */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setFilterOpen(prev => !prev)}
+            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 font-medium"
+          >
+            <svg className={`w-4 h-4 transition-transform ${filterOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+            </svg>
+            기간/상품별 Excel 다운로드
+          </button>
+          {filterOpen && (
+            <div className="mt-2 bg-white rounded-lg shadow p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">시작일</label>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={e => setFilterStartDate(e.target.value)}
+                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">종료일</label>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={e => setFilterEndDate(e.target.value)}
+                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">상품</label>
+                  <select
+                    value={filterProductId ?? ''}
+                    onChange={e => setFilterProductId(e.target.value ? Number(e.target.value) : undefined)}
+                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[140px]"
+                  >
+                    <option value="">전체 상품</option>
+                    {filterProducts.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFilterDownload}
+                  disabled={filterDownloading || !filterStartDate || !filterEndDate}
+                  className="h-9 px-4 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {filterDownloading ? '다운로드 중...' : '필터 Excel 다운로드'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Loading */}
