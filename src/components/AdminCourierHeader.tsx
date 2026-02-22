@@ -111,7 +111,7 @@ export default function AdminCourierHeader() {
     // 설정 버튼
     const configBtn = document.createElement('button');
     configBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
-    configBtn.innerHTML = '⚙️ 설정';
+    configBtn.innerHTML = '⚙️ 택배 서비스 설정';
     configBtn.onclick = () => {
       goConfig();
       menu.remove();

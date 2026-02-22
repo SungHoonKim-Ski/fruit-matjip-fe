@@ -1973,6 +1973,7 @@ export type CourierConfigResponse = {
   freeShippingThreshold: number | null;
   shippingBaseFee: number;
   remoteAreaExtraFee: number;
+  noticeText: string | null;
 };
 
 export type CourierOrderReadyRequest = {
@@ -2083,6 +2084,7 @@ export const getCourierConfig = async (): Promise<CourierConfigResponse> => {
       freeShippingThreshold: data.free_shipping_threshold ?? data.freeShippingThreshold ?? null,
       shippingBaseFee: Number(data.shipping_base_fee ?? data.shippingBaseFee ?? 3000),
       remoteAreaExtraFee: Number(data.remote_area_extra_fee ?? data.remoteAreaExtraFee ?? 3000),
+      noticeText: data.notice_text ?? data.noticeText ?? null,
     };
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };

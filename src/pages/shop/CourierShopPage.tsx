@@ -6,6 +6,7 @@ import {
   getRecommendedCourierProducts,
   searchCourierProducts,
   getCourierProductsByCategory,
+  getCourierConfig,
 } from '../../utils/api';
 import CourierBottomNav from '../../components/shop/CourierBottomNav';
 import { theme, logoText } from '../../brand';
@@ -182,6 +183,7 @@ export default function CourierShopPage() {
   const [categoryProducts, setCategoryProducts] = useState<CategoryGroup[]>([]);
   const [selectedChip, setSelectedChip] = useState<null | 'recommended' | number>(null);
   const [visibleCount, setVisibleCount] = useState(8);
+  const [noticeText, setNoticeText] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -231,12 +233,17 @@ export default function CourierShopPage() {
     (async () => {
       try {
         setLoading(true);
-        const [recRes, catRes] = await Promise.all([
+        const [recRes, catRes, configData] = await Promise.all([
           getRecommendedCourierProducts(8),
           getCourierProductsByCategory(),
+          getCourierConfig().catch(() => null),
         ]);
 
         if (!alive) return;
+
+        if (configData?.noticeText) {
+          setNoticeText(configData.noticeText);
+        }
 
         // Recommended
         if (recRes.ok) {
@@ -483,6 +490,15 @@ export default function CourierShopPage() {
       )}
 
       <main className="bg-[#f6f6f6] min-h-screen flex flex-col items-center pt-16 pb-24">
+        {/* ── Notice banner ── */}
+        {noticeText && (
+          <div className="w-full" style={{ backgroundColor: 'var(--color-primary-50)' }}>
+            <div className="max-w-md mx-auto px-4 py-2.5 flex items-start gap-2">
+              <span className="text-sm flex-none mt-0.5" style={{ color: 'var(--color-primary-700)' }}>📢</span>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--color-primary-800)' }}>{noticeText}</p>
+            </div>
+          </div>
+        )}
         {/* ── Search bar (slide-down, visible only when searchOpen) ── */}
         {searchOpen && (
           <div className="sticky top-14 z-40 w-full bg-white shadow-md border-b border-gray-100">
