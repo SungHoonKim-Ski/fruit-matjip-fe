@@ -2075,7 +2075,7 @@ export const getCourierConfig = async (): Promise<CourierConfigResponse> => {
   const key = 'getCourierConfig';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const res = await apiFetch('/api/auth/courier/orders/config');
+    const res = await apiFetch('/api/auth/courier/config');
     if (!res.ok) throw new Error('택배 설정 조회에 실패했습니다.');
     const data = await res.json();
     resetApiRetryCount(key);

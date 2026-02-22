@@ -29,7 +29,6 @@ type ProductDetail = {
   imageUrl: string;
   weight?: string;
   description?: string;
-  detailImages?: string[];
   optionGroups: OptionGroup[];
 };
 
@@ -76,9 +75,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
         const raw = await res.json();
         const data = raw?.response ?? raw;
         if (alive) {
-          const detailUrls: string[] = Array.isArray(data.detail_image_urls ?? data.detail_urls ?? data.detailUrls)
-            ? (data.detail_image_urls ?? data.detail_urls ?? data.detailUrls).map((u: string) => addImgPrefix(u))
-            : [];
           const rawGroups = data.option_groups ?? data.optionGroups;
           const optionGroups: OptionGroup[] = Array.isArray(rawGroups)
             ? rawGroups.map((g: any) => ({
@@ -101,7 +97,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
             imageUrl: addImgPrefix(data.product_url ?? data.image_url ?? data.imageUrl ?? ''),
             weight: data.weight ?? undefined,
             description: data.description ?? undefined,
-            detailImages: detailUrls,
             optionGroups,
           });
         }
@@ -275,21 +270,6 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
               <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
               <div className="mt-2 text-xl font-bold" style={{ color: 'var(--color-primary-700)' }}>{formatPrice(product.price)}</div>
             </div>
-
-            {/* Detail images */}
-            {product.detailImages && product.detailImages.length > 0 && (
-              <div className="bg-white mt-1">
-                {product.detailImages.map((src, i) => (
-                  <img
-                    key={i}
-                    src={src}
-                    alt={`${product.name} 상세 ${i + 1}`}
-                    className="w-full block"
-                    loading="lazy"
-                  />
-                ))}
-              </div>
-            )}
 
             {/* Description */}
             {product.description && (

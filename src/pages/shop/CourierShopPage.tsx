@@ -65,11 +65,11 @@ function ProductCard({ product, onClick }: { product: CourierProduct; onClick: (
       role="button"
       aria-label={`${product.name} 상세 보기`}
     >
-      <div className="relative w-full aspect-square bg-gray-100">
+      <div className="relative w-full bg-gray-100">
         <img
           src={product.imageUrl}
           alt={product.name}
-          className={`w-full h-full object-cover${product.soldOut ? ' opacity-40' : ''}`}
+          className={`w-full${product.soldOut ? ' opacity-40' : ''}`}
           loading="lazy"
         />
         {product.soldOut && (
