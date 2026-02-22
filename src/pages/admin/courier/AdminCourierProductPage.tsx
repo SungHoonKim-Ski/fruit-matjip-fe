@@ -97,8 +97,8 @@ export default function AdminCourierProductPage() {
   }, [products, selectedCategoryId, searchKeyword]);
 
   return (
-    <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
-      <div className="max-w-3xl mx-auto">
+    <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6 pb-24">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-800">택배 상품 관리</h1>
           <AdminCourierHeader />
@@ -106,7 +106,7 @@ export default function AdminCourierProductPage() {
 
         {/* Search bar */}
         {searchOpen && (
-          <div className="max-w-3xl mx-auto mb-4">
+          <div className="mb-4">
             <div className="relative">
               <input
                 type="text"
@@ -136,7 +136,7 @@ export default function AdminCourierProductPage() {
 
         {/* Category chips */}
         {!loading && uniqueCategories.length > 0 && (
-          <div className="max-w-3xl mx-auto mb-4">
+          <div className="mb-4">
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -169,17 +169,12 @@ export default function AdminCourierProductPage() {
 
         {/* Loading */}
         {loading && (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-lg shadow p-4 animate-pulse">
-                <div className="flex gap-4">
-                  <div className="w-20 h-20 bg-gray-200 rounded" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-1/2" />
-                    <div className="h-4 bg-gray-200 rounded w-1/3" />
-                    <div className="h-4 bg-gray-200 rounded w-1/4" />
-                  </div>
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-xl shadow p-3 animate-pulse">
+                <div className="aspect-square bg-gray-200 rounded-lg mb-2" />
+                <div className="h-3.5 bg-gray-200 rounded w-3/4 mb-1.5" />
+                <div className="h-3 bg-gray-200 rounded w-1/2" />
               </div>
             ))}
           </div>
@@ -198,56 +193,48 @@ export default function AdminCourierProductPage() {
           </div>
         )}
 
-        {/* Product list */}
+        {/* Product grid */}
         {!loading && filteredProducts.length > 0 && (
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {filteredProducts.map(product => (
-              <div key={product.id} className="bg-white rounded-lg shadow p-4">
-                <div className="flex gap-4">
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => navigate(`/admin/courier/products/${product.id}/edit`)}
+                className="bg-white rounded-xl shadow hover:shadow-md hover:ring-2 hover:ring-orange-200 transition-all text-left group cursor-pointer overflow-hidden"
+              >
+                <div className="aspect-square overflow-hidden bg-gray-100">
                   <img
                     src={product.imageUrl}
                     alt={product.name}
-                    className="w-20 h-20 object-cover rounded border flex-shrink-0"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                   />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <h3 className="text-sm font-semibold text-gray-800 truncate">{product.name}</h3>
-                    <p className="text-sm text-gray-500">가격: {formatPrice(product.price)}</p>
-                    <div className="flex items-center gap-3 text-sm text-gray-500">
-                      <span>재고: {product.stock}개</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border ${
-                        product.visible
-                          ? 'bg-green-100 text-green-700 border-green-300'
-                          : 'bg-red-100 text-red-700 border-red-300'
-                      }`}>
-                        {product.visible ? '노출 O' : '노출 X'}
+                </div>
+                <div className="p-3 space-y-1.5">
+                  <h3 className="text-sm font-semibold text-gray-800 truncate">{product.name}</h3>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
+                    <span className="text-xs text-gray-400">재고 {product.stock}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {!product.visible && (
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600">
+                        숨김
                       </span>
-                      {product.stock === 0 && (
-                        <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border bg-blue-100 text-blue-700 border-blue-300">
-                          품절
-                        </span>
-                      )}
-                      {product.recommended && (
-                        <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border bg-yellow-100 text-yellow-700 border-yellow-300">
-                          추천
-                        </span>
-                      )}
-                    </div>
+                    )}
+                    {product.stock === 0 && (
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-600">
+                        품절
+                      </span>
+                    )}
+                    {product.recommended && (
+                      <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-yellow-100 text-yellow-600">
+                        추천
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                {/* Action button */}
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/admin/courier/products/${product.id}/edit`)}
-                    className="w-full h-9 rounded border border-gray-300 hover:bg-gray-50 text-sm text-gray-700 font-medium"
-                  >
-                    수정
-                  </button>
-                </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
