@@ -14,7 +14,7 @@ import {
   getAdminCourierShippingFeeTemplates,
   ShippingFeeTemplateResponse,
 } from '../../../utils/api';
-import { compressImage } from '../../../utils/image-compress';
+import { compressImage, DETAIL_IMAGE_OPTS } from '../../../utils/image-compress';
 
 type ProductEdit = {
   id: number;
@@ -257,7 +257,7 @@ export default function AdminCourierEditProductPage() {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        const compressed = await compressImage(file);
+        const compressed = await compressImage(file, DETAIL_IMAGE_OPTS);
         const key = await uploadFileWithPresignedUrl(compressed);
         const imgUrl = IMG_BASE ? `${IMG_BASE}/${key}` : key;
 
@@ -277,7 +277,7 @@ export default function AdminCourierEditProductPage() {
   const quillModules = useMemo(() => ({
     toolbar: {
       container: [
-        [{ size: ['small', false, 'large', 'huge'] }],
+        [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline'],
         [{ list: 'ordered' }, { list: 'bullet' }],
         ['link', 'image'],
@@ -445,7 +445,7 @@ export default function AdminCourierEditProductPage() {
               value={form.description}
               onChange={(value: string) => setForm({ ...form, description: value })}
               modules={quillModules}
-              formats={['size', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
+              formats={['header', 'bold', 'italic', 'underline', 'list', 'link', 'image']}
               placeholder="상품 설명을 입력하세요"
               style={{ minHeight: '150px' }}
             />
