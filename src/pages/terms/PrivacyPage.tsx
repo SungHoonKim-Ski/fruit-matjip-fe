@@ -52,7 +52,7 @@ export default function PrivacyPage() {
                 <tr className="bg-gray-50">
                   <td className="border border-gray-300 px-3 py-2">카카오 소셜 로그인 시</td>
                   <td className="border border-gray-300 px-3 py-2 font-medium">선택</td>
-                  <td className="border border-gray-300 px-3 py-2">카카오계정 전화번호, 배송지 정보</td>
+                  <td className="border border-gray-300 px-3 py-2">이름, 카카오계정 전화번호, 배송지 정보</td>
                   <td className="border border-gray-300 px-3 py-2">카카오 OAuth 인증 (이용자 동의)</td>
                 </tr>
                 <tr>
