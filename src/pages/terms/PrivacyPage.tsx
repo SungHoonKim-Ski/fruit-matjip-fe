@@ -31,15 +31,57 @@ export default function PrivacyPage() {
         <section className="space-y-2">
           <h2 className="font-semibold text-gray-800 text-base">1. 개인정보의 수집 항목 및 수집 방법</h2>
           <p className="leading-relaxed">회사는 서비스 제공을 위해 아래와 같은 개인정보를 수집합니다.</p>
-          <ul className="list-disc list-inside space-y-1 pl-2 leading-relaxed">
-            <li><span className="font-medium">이름, 카카오 닉네임, 연락처, 배송지</span> — 카카오 소셜 로그인 시 이용자 동의 하에 수집</li>
-            <li><span className="font-medium">주문·예약 정보</span> — 상품 예약 및 주문 과정에서 자동 생성</li>
-            <li><span className="font-medium">관리자 계정</span> — 이메일, 비밀번호(관리자 전용, 암호화 저장)</li>
-            <li><span className="font-medium">접속 로그, 쿠키</span> — 서비스 이용 과정에서 자동 수집</li>
-          </ul>
-          <p className="leading-relaxed mt-1">
-            <span className="font-medium">수집 방법:</span> 카카오 OAuth 로그인(이름, 닉네임, 연락처, 배송지), 서비스 이용 중 이용자 직접 입력, 서비스 자동 생성(주문·예약 처리)
-          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mt-2">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">수집 시점</th>
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">수집 조건</th>
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">수집 항목</th>
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">수집 방법</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2">카카오 소셜 로그인 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">필수</td>
+                  <td className="border border-gray-300 px-3 py-2">카카오 닉네임</td>
+                  <td className="border border-gray-300 px-3 py-2">카카오 OAuth 인증</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-2">카카오 소셜 로그인 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">선택</td>
+                  <td className="border border-gray-300 px-3 py-2">카카오계정 전화번호, 배송지 정보</td>
+                  <td className="border border-gray-300 px-3 py-2">카카오 OAuth 인증 (이용자 동의)</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2">택배 주문 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">필수</td>
+                  <td className="border border-gray-300 px-3 py-2">수령인명, 전화번호, 배송지 주소</td>
+                  <td className="border border-gray-300 px-3 py-2">이용자 직접 입력</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-2">상품 예약·주문 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">필수</td>
+                  <td className="border border-gray-300 px-3 py-2">주문·예약 정보 (주문 내역, 결제 정보)</td>
+                  <td className="border border-gray-300 px-3 py-2">서비스 이용 중 자동 생성</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2">관리자 계정 생성 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">필수</td>
+                  <td className="border border-gray-300 px-3 py-2">이메일, 비밀번호 (암호화 저장)</td>
+                  <td className="border border-gray-300 px-3 py-2">관리자 직접 입력</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-2">서비스 이용 시</td>
+                  <td className="border border-gray-300 px-3 py-2 font-medium">자동</td>
+                  <td className="border border-gray-300 px-3 py-2">접속 로그, 쿠키, 기기 정보</td>
+                  <td className="border border-gray-300 px-3 py-2">서비스 이용 과정에서 자동 수집</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         {/* Section 2 */}
@@ -105,7 +147,38 @@ export default function PrivacyPage() {
 
         {/* Section 4 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">4. 개인정보의 제3자 제공</h2>
+          <h2 className="font-semibold text-gray-800 text-base">4. 개인정보 처리 위탁</h2>
+          <p className="leading-relaxed">
+            회사는 서비스 제공을 위해 아래와 같이 개인정보 처리를 위탁하고 있습니다.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mt-2">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">수탁 업체</th>
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">위탁 업무</th>
+                  <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-gray-700">보유 기간</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2">주식회사 카카오(Kakao Corp.)</td>
+                  <td className="border border-gray-300 px-3 py-2">카카오 소셜 로그인 인증, 사용자 식별</td>
+                  <td className="border border-gray-300 px-3 py-2">위탁 계약 종료 시 또는 카카오 정책에 따름</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-2">주식회사 카카오페이(Kakao Pay Corp.)</td>
+                  <td className="border border-gray-300 px-3 py-2">결제 처리 및 결제 정보 관리</td>
+                  <td className="border border-gray-300 px-3 py-2">위탁 계약 종료 시 또는 카카오페이 정책에 따름</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Section 5 */}
+        <section className="space-y-2">
+          <h2 className="font-semibold text-gray-800 text-base">5. 개인정보의 제3자 제공</h2>
           <p className="leading-relaxed">
             회사는 원칙적으로 이용자의 개인정보를 외부에 제공하지 않습니다. 다만, 아래의 경우에는 서비스 제공을 위해 필요한 최소한의 정보를 제공합니다.
           </p>
@@ -121,21 +194,9 @@ export default function PrivacyPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">카카오(Kakao Corp.)</td>
-                  <td className="border border-gray-300 px-3 py-2">소셜 로그인 인증</td>
-                  <td className="border border-gray-300 px-3 py-2">이름, 카카오 닉네임, 연락처, 배송지, OAuth 토큰</td>
-                  <td className="border border-gray-300 px-3 py-2">카카오 정책에 따름</td>
-                </tr>
-                <tr className="bg-gray-50">
-                  <td className="border border-gray-300 px-3 py-2">카카오페이(Kakao Pay Corp.)</td>
-                  <td className="border border-gray-300 px-3 py-2">결제 처리</td>
-                  <td className="border border-gray-300 px-3 py-2">주문 금액 및 결제 정보</td>
-                  <td className="border border-gray-300 px-3 py-2">카카오페이 정책에 따름</td>
-                </tr>
-                <tr>
                   <td className="border border-gray-300 px-3 py-2">Google LLC</td>
-                  <td className="border border-gray-300 px-3 py-2">서비스 이용 통계 분석(Google Analytics)</td>
-                  <td className="border border-gray-300 px-3 py-2">서비스 접속 기록, 행동 데이터(비식별)</td>
+                  <td className="border border-gray-300 px-3 py-2">서비스 이용 통계 분석 (Google Analytics)</td>
+                  <td className="border border-gray-300 px-3 py-2">서비스 접속 기록, 행동 데이터 (비식별)</td>
                   <td className="border border-gray-300 px-3 py-2">Google 정책에 따름</td>
                 </tr>
               </tbody>
@@ -146,9 +207,9 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        {/* Section 5 */}
+        {/* Section 6 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">5. 개인정보의 파기 절차 및 방법</h2>
+          <h2 className="font-semibold text-gray-800 text-base">6. 개인정보의 파기 절차 및 방법</h2>
           <p className="leading-relaxed">
             회사는 개인정보 보유 기간이 경과하거나 처리 목적이 달성된 경우 지체 없이 해당 개인정보를 파기합니다.
           </p>
@@ -162,9 +223,9 @@ export default function PrivacyPage() {
           </ul>
         </section>
 
-        {/* Section 6 */}
+        {/* Section 7 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">6. 개인정보 보호책임자</h2>
+          <h2 className="font-semibold text-gray-800 text-base">7. 개인정보 보호책임자</h2>
           <p className="leading-relaxed">
             이용자의 개인정보를 보호하고 개인정보 관련 불만을 처리하기 위해 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.
           </p>
@@ -180,9 +241,9 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        {/* Section 7 */}
+        {/* Section 8 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">7. 이용자의 권리와 행사 방법</h2>
+          <h2 className="font-semibold text-gray-800 text-base">8. 이용자의 권리와 행사 방법</h2>
           <p className="leading-relaxed">
             이용자는 언제든지 자신의 개인정보에 대해 아래 권리를 행사할 수 있습니다.
           </p>
@@ -198,9 +259,9 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        {/* Section 8 */}
+        {/* Section 9 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">8. 쿠키 및 자동 수집 장치</h2>
+          <h2 className="font-semibold text-gray-800 text-base">9. 쿠키 및 자동 수집 장치</h2>
           <p className="leading-relaxed">
             회사는 서비스 이용 과정에서 아래 목적으로 쿠키를 사용합니다.
           </p>
@@ -215,9 +276,9 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        {/* Section 9 */}
+        {/* Section 10 */}
         <section className="space-y-2">
-          <h2 className="font-semibold text-gray-800 text-base">9. 개인정보처리방침 변경</h2>
+          <h2 className="font-semibold text-gray-800 text-base">10. 개인정보처리방침 변경</h2>
           <p className="leading-relaxed">
             본 개인정보처리방침은 법령 개정 또는 서비스 변경에 따라 내용이 추가·변경·삭제될 수 있습니다.
             변경 사항이 발생할 경우 서비스 내 공지사항을 통해 변경 내용과 시행일을 사전에 안내하겠습니다.
@@ -228,7 +289,7 @@ export default function PrivacyPage() {
         {/* Effective date */}
         <section className="border-t pt-4">
           <p className="text-xs text-gray-500 leading-relaxed">
-            본 개인정보처리방침은 <span className="font-medium">2025년 8월 1일</span>부터 시행됩니다.
+            본 개인정보처리방침은 <span className="font-medium">2026년 2월 23일</span>부터 시행됩니다.
           </p>
           <p className="text-xs text-gray-500 mt-1">
             회사명: {theme.companyName} &nbsp;|&nbsp; 대표자: {theme.contact.representative} &nbsp;|&nbsp; 사업자등록번호: {theme.contact.businessNumber}
