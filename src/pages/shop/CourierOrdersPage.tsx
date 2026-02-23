@@ -49,47 +49,87 @@ export default function CourierOrdersPage() {
   const nav = useNavigate();
   const { show } = useSnackbar();
 
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [orders, setOrders] = useState<CourierOrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<number | null>(null);
-  const [hasNext, setHasNext] = useState(false);
 
-  const fetchOrders = useCallback(async (cursor?: number) => {
+  const fetchOrders = useCallback(async (y: number, m: number) => {
     try {
-      const isInitial = cursor == null;
-      if (isInitial) setLoading(true);
-      else setLoadingMore(true);
-
-      const result = await getCourierOrders(cursor, 10);
-      if (isInitial) {
-        setOrders(result.orders);
-      } else {
-        setOrders(prev => [...prev, ...result.orders]);
-      }
-      setNextCursor(result.nextCursor);
-      setHasNext(result.hasNext);
+      setLoading(true);
+      const result = await getCourierOrders(y, m);
+      setOrders(result);
     } catch (e) {
       safeErrorLog(e, 'CourierOrdersPage - fetchOrders');
       show(getSafeErrorMessage(e, '주문 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   }, [show]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    fetchOrders(year, month);
+  }, [year, month, fetchOrders]);
 
-  const handleLoadMore = () => {
-    if (nextCursor != null && hasNext && !loadingMore) {
-      fetchOrders(nextCursor);
+  const handlePrevMonth = () => {
+    if (month === 1) {
+      setYear(y => y - 1);
+      setMonth(12);
+    } else {
+      setMonth(m => m - 1);
     }
+  };
+
+  const handleNextMonth = () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    // Don't go beyond current month
+    if (year > currentYear || (year === currentYear && month >= currentMonth)) return;
+    if (month === 12) {
+      setYear(y => y + 1);
+      setMonth(1);
+    } else {
+      setMonth(m => m + 1);
+    }
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return year === now.getFullYear() && month === now.getMonth() + 1;
   };
 
   return (
     <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-24">
+
+      {/* Month selector */}
+      <section className="max-w-md mx-auto px-4">
+        <div className="flex items-center justify-between bg-white rounded-lg shadow px-4 py-3">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-600"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="text-base font-semibold text-gray-800">
+            {year}년 {month}월
+          </span>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            disabled={isCurrentMonth()}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </section>
 
       <section className="max-w-md mx-auto px-4 mt-3">
         {loading && (
@@ -104,8 +144,7 @@ export default function CourierOrdersPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <p className="text-gray-500 font-medium">주문 내역이 없습니다</p>
-            <p className="text-sm text-gray-400 mt-1">첫 주문을 해보세요</p>
+            <p className="text-gray-500 font-medium">{year}년 {month}월 주문 내역이 없습니다</p>
             <button
               type="button"
               onClick={() => nav('/shop')}
@@ -145,17 +184,6 @@ export default function CourierOrdersPage() {
                 </div>
               </div>
             ))}
-
-            {hasNext && (
-              <button
-                type="button"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-                className="w-full h-11 rounded-lg border border-gray-300 bg-white text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                {loadingMore ? '불러오는 중...' : '더보기'}
-              </button>
-            )}
           </div>
         )}
       </section>

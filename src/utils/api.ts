@@ -2013,11 +2013,6 @@ export type CourierOrderSummary = {
   items: CourierOrderItemSummary[];
 };
 
-export type CourierOrderListResponse = {
-  orders: CourierOrderSummary[];
-  nextCursor: number | null;
-  hasNext: boolean;
-};
 
 export type CourierOrderDetailResponse = {
   displayCode: string;
@@ -2160,21 +2155,25 @@ export const failCourierPayment = async (orderCode: string) => {
 };
 
 // 택배 주문 목록
-export const getCourierOrders = async (cursor?: number, size: number = 10): Promise<CourierOrderListResponse> => {
+export const getCourierOrders = async (year?: number, month?: number): Promise<CourierOrderSummary[]> => {
   const key = 'getCourierOrders';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
-    const params = [`size=${size}`];
-    if (cursor != null) params.push(`cursor=${cursor}`);
-    const res = await apiFetch(`/api/auth/courier/orders?${params.join('&')}`);
+    const params: string[] = [];
+    if (year != null) params.push(`year=${year}`);
+    if (month != null) params.push(`month=${month}`);
+    const qs = params.length > 0 ? `?${params.join('&')}` : '';
+    const res = await apiFetch(`/api/auth/courier/orders${qs}`);
     if (!res.ok) throw new Error('주문 목록 조회에 실패했습니다.');
     const data = await res.json();
     resetApiRetryCount(key);
-    const orders: CourierOrderSummary[] = (Array.isArray(data.orders ?? data.response) ? (data.orders ?? data.response) : []).map((o: any) => ({
+    // BE returns plain array (Jackson SNAKE_CASE)
+    const arr = Array.isArray(data) ? data : (data.orders ?? data.response ?? []);
+    return arr.map((o: any) => ({
       displayCode: String(o.display_code ?? o.displayCode ?? ''),
       status: String(o.status ?? 'PENDING_PAYMENT') as CourierOrderStatus,
-      itemSummary: String(o.item_summary ?? o.itemSummary ?? ''),
-      itemCount: Number(o.item_count ?? o.itemCount ?? 0),
+      itemSummary: String(o.item_summary ?? o.itemSummary ?? o.product_summary ?? o.productSummary ?? ''),
+      itemCount: Number(o.item_count ?? o.itemCount ?? o.total_quantity ?? o.totalQuantity ?? 0),
       totalAmount: Number(o.total_amount ?? o.totalAmount ?? 0),
       createdAt: String(o.created_at ?? o.createdAt ?? ''),
       items: Array.isArray(o.items) ? o.items.map((i: any) => ({
@@ -2186,11 +2185,6 @@ export const getCourierOrders = async (cursor?: number, size: number = 10): Prom
         subtotal: Number(i.subtotal ?? 0),
       })) : [],
     }));
-    return {
-      orders,
-      nextCursor: data.next_cursor ?? data.nextCursor ?? null,
-      hasNext: Boolean(data.has_next ?? data.hasNext ?? false),
-    };
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 

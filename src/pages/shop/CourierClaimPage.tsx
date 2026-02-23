@@ -61,8 +61,8 @@ export default function CourierClaimPage() {
     e.preventDefault();
     if (!code || !order) return;
 
-    if (reason.trim().length < 10) {
-      show('사유를 10자 이상 입력해주세요.', { variant: 'error' });
+    if (reason.trim().length < 10 || reason.trim().length > 100) {
+      show('사유를 10자 이상 100자 이내로 입력해주세요.', { variant: 'error' });
       return;
     }
 
@@ -73,11 +73,11 @@ export default function CourierClaimPage() {
         courierOrderItemId: selectedItemId,
         reason: reason.trim(),
       });
-      show('CS 요청이 접수되었습니다.', { variant: 'success' });
+      show('문의가 접수되었습니다.', { variant: 'success' });
       nav(`/shop/orders/${code}`, { replace: true });
     } catch (err) {
       safeErrorLog(err, 'CourierClaimPage - createCourierClaim');
-      show(getSafeErrorMessage(err, 'CS 요청 접수에 실패했습니다.'), { variant: 'error' });
+      show(getSafeErrorMessage(err, '문의 접수에 실패했습니다.'), { variant: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +116,7 @@ export default function CourierClaimPage() {
     <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-24">
       {/* Header */}
       <section className="max-w-md mx-auto px-4">
-        <h1 className="text-xl font-bold text-gray-800">CS 요청</h1>
+        <h1 className="text-xl font-bold text-gray-800">문의하기</h1>
         <p className="text-sm text-gray-500 mt-1">주문번호 {order.displayCode}</p>
       </section>
 
@@ -157,7 +157,7 @@ export default function CourierClaimPage() {
         {/* Claim type */}
         <section className="max-w-md mx-auto px-4 mt-3">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">CS 유형 선택</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">문의 유형 선택</h2>
             <div className="space-y-2">
               {CLAIM_TYPE_OPTIONS.map(opt => (
                 <label
@@ -239,12 +239,12 @@ export default function CourierClaimPage() {
             <textarea
               value={reason}
               onChange={e => setReason(e.target.value)}
-              placeholder="CS 요청 사유를 상세히 입력해주세요. (최소 10자)"
+              placeholder="문의 사유를 상세히 입력해주세요. (10~100자)"
               rows={4}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400 resize-none"
             />
             <div className="mt-1 text-xs text-gray-400 text-right">
-              {reason.trim().length}자 / 최소 10자
+              {reason.trim().length}자 / 100자
             </div>
           </div>
         </section>
@@ -279,10 +279,10 @@ export default function CourierClaimPage() {
         <section className="max-w-md mx-auto px-4 mt-4">
           <button
             type="submit"
-            disabled={submitting || reason.trim().length < 10}
+            disabled={submitting || reason.trim().length < 10 || reason.trim().length > 100}
             className="w-full h-12 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'CS 요청 접수 중...' : 'CS 요청 접수하기'}
+            {submitting ? '문의 접수 중...' : '문의 접수하기'}
           </button>
           <button
             type="button"

@@ -295,7 +295,7 @@ export default function CourierOrderDetailPage() {
             onClick={() => nav(`/shop/orders/${order.displayCode}/claim`)}
             className="w-full h-11 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50 transition font-medium"
           >
-            CS 요청하기
+            문의하기
           </button>
         </section>
       )}
@@ -304,7 +304,7 @@ export default function CourierOrderDetailPage() {
       {claims.length > 0 && (
         <section className="max-w-md mx-auto px-4 mt-3">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-base font-semibold text-gray-800 mb-3">CS 접수 내역</h2>
+            <h2 className="text-base font-semibold text-gray-800 mb-3">문의 내역</h2>
             <div className="space-y-3">
               {claims.map(claim => (
                 <div key={claim.id} className="border border-gray-200 rounded-lg p-3">
