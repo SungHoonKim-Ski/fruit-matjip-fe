@@ -65,9 +65,9 @@ export default function App() {
       <Route path="/store/products" element={<ProductsPage />} />
       <Route path="/store/me/orders" element={<OrderPage />} />
       <Route path="/store/me/delivery" element={<DeliveryPage />} />
-      <Route path="/store/deliveries/approve" element={<DeliveryApprovePage />} />
-      <Route path="/store/deliveries/cancel" element={<DeliveryCancelPage />} />
-      <Route path="/store/deliveries/fail" element={<DeliveryFailPage />} />
+      <Route path="/store/payment/approve" element={<DeliveryApprovePage />} />
+      <Route path="/store/payment/cancel" element={<DeliveryCancelPage />} />
+      <Route path="/store/payment/fail" element={<DeliveryFailPage />} />
       <Route path="/store/terms" element={<TermsPage />} />
       <Route path="/store/privacy" element={<PrivacyPage />} />
       <Route path="/store/refund" element={<RefundPolicyPage />} />
@@ -100,9 +100,9 @@ export default function App() {
       <Route path="/products" element={<Navigate to="/store/products" replace />} />
       <Route path="/me/orders" element={<Navigate to="/store/me/orders" replace />} />
       <Route path="/me/delivery" element={<Navigate to="/store/me/delivery" replace />} />
-      <Route path="/deliveries/approve" element={<Navigate to="/store/deliveries/approve" replace />} />
-      <Route path="/deliveries/cancel" element={<Navigate to="/store/deliveries/cancel" replace />} />
-      <Route path="/deliveries/fail" element={<Navigate to="/store/deliveries/fail" replace />} />
+      <Route path="/deliveries/approve" element={<Navigate to="/store/payment/approve" replace />} />
+      <Route path="/deliveries/cancel" element={<Navigate to="/store/payment/cancel" replace />} />
+      <Route path="/deliveries/fail" element={<Navigate to="/store/payment/fail" replace />} />
       <Route path="/terms" element={<Navigate to="/store/terms" replace />} />
       <Route path="/privacy" element={<Navigate to="/store/privacy" replace />} />
       <Route path="/refund" element={<Navigate to="/store/refund" replace />} />
@@ -113,9 +113,9 @@ export default function App() {
       <Route path="/shop/orders" element={<CourierOrdersPage />} />
       <Route path="/shop/orders/:code/claim" element={<CourierClaimPage />} />
       <Route path="/shop/orders/:code" element={<CourierOrderDetailPage />} />
-      <Route path="/shop/approve" element={<CourierApprovePage />} />
-      <Route path="/shop/cancel" element={<CourierCancelPage />} />
-      <Route path="/shop/fail" element={<CourierFailPage />} />
+      <Route path="/shop/payment/approve" element={<CourierApprovePage />} />
+      <Route path="/shop/payment/cancel" element={<CourierCancelPage />} />
+      <Route path="/shop/payment/fail" element={<CourierFailPage />} />
       <Route path="/shop/:id" element={<CourierProductDetailStandalone />} />
 
       {/* ===== /admin/courier — 택배 관리자 (catch-all보다 먼저 선언) ===== */}
