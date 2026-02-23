@@ -57,6 +57,18 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map()); // groupId -> optionId
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Trigger slide-up animation after mount
+      requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+    } else {
+      setIsVisible(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -219,10 +231,21 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-[#f6f6f6] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Dialog header */}
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200">
+    <div
+      className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center"
+      onClick={onClose}
+    >
+      <div
+        className={`bg-[#f6f6f6] rounded-t-2xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col transition-transform duration-300 ease-out ${isVisible ? 'translate-y-0' : 'translate-y-full'}`}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+
+        {/* Sticky header */}
+        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
           <span className="font-semibold text-gray-900">상품 상세</span>
           <button
             type="button"
@@ -236,175 +259,183 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
           </button>
         </div>
 
-        {loading ? (
-          <div className="p-4 space-y-3">
-            <div className="w-full aspect-square bg-gray-200 animate-pulse rounded" />
-            <div className="h-6 bg-gray-200 animate-pulse rounded w-3/4" />
-            <div className="h-5 bg-gray-200 animate-pulse rounded w-1/3" />
-            <div className="h-20 bg-gray-200 animate-pulse rounded" />
-          </div>
-        ) : !product ? (
-          <div className="p-10 text-center text-gray-500">
-            상품을 찾을 수 없습니다.
-          </div>
-        ) : (
-          <>
-            {/* Main image */}
-            <div className="bg-white">
-              <div className="relative w-full">
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className={`w-full block${product.soldOut ? ' opacity-40' : ''}`}
-                />
-                {product.soldOut && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
-                  </div>
-                )}
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 pb-4">
+          {loading ? (
+            <div className="p-4 space-y-3">
+              <div className="w-full aspect-square bg-gray-200 animate-pulse rounded" />
+              <div className="h-6 bg-gray-200 animate-pulse rounded w-3/4" />
+              <div className="h-5 bg-gray-200 animate-pulse rounded w-1/3" />
+              <div className="h-20 bg-gray-200 animate-pulse rounded" />
+            </div>
+          ) : !product ? (
+            <div className="p-10 text-center text-gray-500">
+              상품을 찾을 수 없습니다.
+            </div>
+          ) : (
+            <>
+              {/* Main image */}
+              <div className="bg-white">
+                <div className="relative w-full">
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className={`w-full block${product.soldOut ? ' opacity-40' : ''}`}
+                  />
+                  {product.soldOut && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="text-white font-bold text-lg bg-black/60 px-4 py-2 rounded-full">품절</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Product info */}
-            <div className="bg-white px-4 py-4 mt-1">
-              <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
-              <div className="mt-2 text-xl font-bold" style={{ color: 'var(--color-primary-700)' }}>{formatPrice(product.price)}</div>
-            </div>
-
-            {/* Description */}
-            {product.description && (
+              {/* Product info */}
               <div className="bg-white px-4 py-4 mt-1">
-                <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
-                <style>{`
-                  .desc-content img { width: 100%; height: auto; border-radius: 4px; margin: 8px 0; }
-                  .desc-content p { margin: 4px 0; }
-                  .desc-content ul { list-style: disc; padding-left: 20px; }
-                  .desc-content ol { list-style: decimal; padding-left: 20px; }
-                  .desc-content li { margin: 2px 0; }
-                  .desc-content a { color: #2563eb; text-decoration: underline; }
-                  .desc-content blockquote { border-left: 4px solid #d1d5db; padding-left: 12px; font-style: italic; }
-                  .desc-content strong, .desc-content b { font-weight: bold; }
-                  .desc-content em, .desc-content i { font-style: italic; }
-                  .desc-content .ql-size-small { font-size: 0.75rem; }
-                  .desc-content .ql-size-large { font-size: 1.25rem; }
-                  .desc-content .ql-size-huge { font-size: 1.5rem; }
-                `}</style>
-                <div
-                  className="desc-content text-sm text-gray-600 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
-                    ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
-                    ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']
-                  }) }}
-                />
+                <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
+                <div className="mt-2 text-xl font-bold" style={{ color: 'var(--color-primary-700)' }}>{formatPrice(product.price)}</div>
               </div>
-            )}
 
-            {/* Legal info: 배송/교환/환불 안내 */}
-            <div className="mt-4 mx-4 rounded-md border bg-white p-3 text-xs text-gray-700 space-y-2">
-              <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
-              <ul className="list-disc list-inside space-y-1">
-                <li>택배 배송 (결제 후 2-3일 이내 발송)</li>
-                <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
-              </ul>
-              <div className="flex flex-wrap gap-3 text-blue-600">
-                <Link to="/store/refund" target="_blank" rel="noopener noreferrer" className="hover:underline">교환/환불 정책</Link>
-                <Link to="/store/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">이용약관</Link>
+              {/* Description */}
+              {product.description && (
+                <div className="bg-white px-4 py-4 mt-1">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-2">상품 설명</h2>
+                  <style>{`
+                    .desc-content img { width: 100%; height: auto; border-radius: 4px; margin: 8px 0; }
+                    .desc-content p { margin: 4px 0; }
+                    .desc-content ul { list-style: disc; padding-left: 20px; }
+                    .desc-content ol { list-style: decimal; padding-left: 20px; }
+                    .desc-content li { margin: 2px 0; }
+                    .desc-content a { color: #2563eb; text-decoration: underline; }
+                    .desc-content blockquote { border-left: 4px solid #d1d5db; padding-left: 12px; font-style: italic; }
+                    .desc-content strong, .desc-content b { font-weight: bold; }
+                    .desc-content em, .desc-content i { font-style: italic; }
+                    .desc-content .ql-size-small { font-size: 0.75rem; }
+                    .desc-content .ql-size-large { font-size: 1.25rem; }
+                    .desc-content .ql-size-huge { font-size: 1.5rem; }
+                  `}</style>
+                  <div
+                    className="desc-content text-sm text-gray-600 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description || '', {
+                      ALLOWED_TAGS: ['b', 'i', 'u', 'p', 'br', 'ol', 'ul', 'li', 'a', 'img', 'strong', 'em', 'span', 'h1', 'h2', 'h3', 'blockquote'],
+                      ALLOWED_ATTR: ['href', 'src', 'alt', 'target', 'rel', 'class', 'style']
+                    }) }}
+                  />
+                </div>
+              )}
+
+              {/* Legal info: 배송/교환/환불 안내 */}
+              <div className="mt-4 mx-4 rounded-md border bg-white p-3 text-xs text-gray-700 space-y-2">
+                <div className="font-semibold text-gray-800">배송/교환/환불 안내</div>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>택배 배송 (결제 후 2-3일 이내 발송)</li>
+                  <li>교환/환불: 수령 후 7일 이내 요청 가능 (신선식품 특성상 제한될 수 있음)</li>
+                </ul>
+                <div className="flex flex-wrap gap-3 text-blue-600">
+                  <Link to="/store/refund" target="_blank" rel="noopener noreferrer" className="hover:underline">교환/환불 정책</Link>
+                  <Link to="/store/terms" target="_blank" rel="noopener noreferrer" className="hover:underline">이용약관</Link>
+                </div>
               </div>
-            </div>
 
-            {/* Legal info: Company info */}
-            <div className="mt-3 mx-4 rounded-md border bg-white p-3 text-xs text-gray-600 space-y-1">
-              <div className="font-semibold text-gray-800">{theme.companyName}</div>
-              <div>대표자: {theme.contact.representative}</div>
-              <div>사업자등록번호: {theme.contact.businessNumber}</div>
-              {theme.contact.address && <div>주소: {theme.contact.address}</div>}
-              <div>전화번호: {theme.contact.phone}</div>
-            </div>
+              {/* Legal info: Company info */}
+              <div className="mt-3 mx-4 rounded-md border bg-white p-3 text-xs text-gray-600 space-y-1">
+                <div className="font-semibold text-gray-800">{theme.companyName}</div>
+                <div>대표자: {theme.contact.representative}</div>
+                <div>사업자등록번호: {theme.contact.businessNumber}</div>
+                {theme.contact.address && <div>주소: {theme.contact.address}</div>}
+                <div>전화번호: {theme.contact.phone}</div>
+              </div>
 
-            {/* Option groups */}
-            {product.optionGroups && product.optionGroups.length > 0 && (
-              <div className="bg-white px-4 py-4 mt-4 mx-0">
-                {product.optionGroups.map(group => (
-                  <div key={group.id} className="mb-3 last:mb-0">
-                    <div className="text-sm font-semibold text-gray-700 mb-2">
-                      {group.name}
-                      {group.required && <span className="text-red-500 ml-1">*</span>}
+              {/* Option groups */}
+              {product.optionGroups && product.optionGroups.length > 0 && (
+                <div className="bg-white px-4 py-4 mt-4 mx-0">
+                  {product.optionGroups.map(group => (
+                    <div key={group.id} className="mb-3 last:mb-0">
+                      <div className="text-sm font-semibold text-gray-700 mb-2">
+                        {group.name}
+                        {group.required && <span className="text-red-500 ml-1">*</span>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.options.map(option => {
+                          const isSelected = selectedOptions.get(group.id) === option.id;
+                          const isSoldOut = option.stock !== null && option.stock <= 0;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => !isSoldOut && handleOptionSelect(group.id, option.id)}
+                              disabled={isSoldOut}
+                              className={`px-3 py-2 rounded-lg border text-sm transition ${
+                                isSoldOut
+                                  ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
+                                  : isSelected
+                                  ? 'font-medium'
+                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                              }`}
+                              style={!isSoldOut && isSelected ? { borderColor: 'var(--color-primary-500)', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-700)' } : undefined}
+                            >
+                              {option.name}
+                              {option.additionalPrice > 0 && (
+                                <span className="text-xs ml-1 text-gray-500">
+                                  (+{option.additionalPrice.toLocaleString()}원)
+                                </span>
+                              )}
+                              {isSoldOut && (
+                                <span className="text-xs ml-1 text-red-400">품절</span>
+                              )}
+                              {option.stock !== null && option.stock > 0 && option.stock <= 10 && (
+                                <span className="text-xs ml-1" style={{ color: 'var(--color-primary-600)' }}>
+                                  ({option.stock}개 남음)
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {group.options.map(option => {
-                        const isSelected = selectedOptions.get(group.id) === option.id;
-                        const isSoldOut = option.stock !== null && option.stock <= 0;
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => !isSoldOut && handleOptionSelect(group.id, option.id)}
-                            disabled={isSoldOut}
-                            className={`px-3 py-2 rounded-lg border text-sm transition ${
-                              isSoldOut
-                                ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed line-through'
-                                : isSelected
-                                ? 'font-medium'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                            }`}
-                            style={!isSoldOut && isSelected ? { borderColor: 'var(--color-primary-500)', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-700)' } : undefined}
-                          >
-                            {option.name}
-                            {option.additionalPrice > 0 && (
-                              <span className="text-xs ml-1 text-gray-500">
-                                (+{option.additionalPrice.toLocaleString()}원)
-                              </span>
-                            )}
-                            {isSoldOut && (
-                              <span className="text-xs ml-1 text-red-400">품절</span>
-                            )}
-                            {option.stock !== null && option.stock > 0 && option.stock <= 10 && (
-                              <span className="text-xs ml-1" style={{ color: 'var(--color-primary-600)' }}>
-                                ({option.stock}개 남음)
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Quantity selector */}
-            <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between">
-              <span className="text-sm text-gray-600">수량</span>
-              <div className="flex items-center border rounded-lg overflow-hidden h-9">
-                <button
-                  type="button"
-                  onClick={() => handleQuantityChange(-1)}
-                  disabled={quantity <= 1}
-                  className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
-                  aria-label="수량 감소"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={e => handleDirectInput(e.target.value)}
-                  className="w-12 h-full text-center text-sm border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  min={1}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleQuantityChange(1)}
-                  className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
-                  aria-label="수량 증가"
-                >
-                  +
-                </button>
+              {/* Quantity selector */}
+              <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between">
+                <span className="text-sm text-gray-600">수량</span>
+                <div className="flex items-center border rounded-lg overflow-hidden h-9">
+                  <button
+                    type="button"
+                    onClick={() => handleQuantityChange(-1)}
+                    disabled={quantity <= 1}
+                    className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
+                    aria-label="수량 감소"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={e => handleDirectInput(e.target.value)}
+                    className="w-12 h-full text-center text-sm border-x outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    min={1}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleQuantityChange(1)}
+                    className="w-9 h-full bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg disabled:opacity-30 flex items-center justify-center"
+                    aria-label="수량 증가"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
+          )}
+        </div>
 
-            {/* Total price */}
-            <div className="bg-white px-4 py-3 mt-1 flex items-center justify-between border-t border-gray-100">
+        {/* Sticky bottom bar: total price + action buttons */}
+        {!loading && product && (
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3 z-10 flex-shrink-0">
+            {/* Total price row */}
+            <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-600">총 금액</span>
               <span className="text-lg font-bold" style={{ color: 'var(--color-primary-700)' }}>
                 {formatPrice(unitPrice * quantity)}
@@ -413,13 +444,11 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
 
             {/* Action buttons */}
             {product.soldOut ? (
-              <div className="px-4 py-4 mt-1">
-                <div className="w-full h-12 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-semibold text-sm">
-                  품절된 상품입니다
-                </div>
+              <div className="w-full h-12 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-semibold text-sm">
+                품절된 상품입니다
               </div>
             ) : (
-              <div className="px-4 py-4 mt-1 flex gap-2">
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleAddToCart}
@@ -440,7 +469,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
