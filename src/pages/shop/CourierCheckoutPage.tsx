@@ -7,6 +7,7 @@ import { getCart, getBuyNowItem, clearBuyNow, CartItem } from '../../utils/couri
 import {
   getCourierShippingFee,
   createCourierOrder,
+  getCourierInfo,
   type ShippingFeeResponse,
 } from '../../utils/api';
 
@@ -103,6 +104,29 @@ export default function CourierCheckoutPage() {
       setShippingLoading(false);
     }
   };
+
+  // Pre-fill saved courier receiver info on mount
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const info = await getCourierInfo();
+        if (!alive || !info) return;
+        if (info.receiverName) setRecipientName(info.receiverName);
+        if (info.receiverPhone) setRecipientPhone(info.receiverPhone);
+        if (info.postalCode) {
+          setPostalCode(info.postalCode);
+          await fetchShippingFeeForPostal(info.postalCode);
+        }
+        if (info.address1) setAddress1(info.address1);
+        if (info.address2) setAddress2(info.address2);
+      } catch (e) {
+        // 저장된 정보 로드 실패는 무시 (사용자가 직접 입력)
+      }
+    })();
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openPostcode = () => {
     const kakaoPostcode = (window as any)?.kakao?.Postcode;
@@ -402,15 +426,26 @@ export default function CourierCheckoutPage() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">결제 수단</span>
-                <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm font-medium text-gray-700">결제 수단</span>
+              <div className="flex gap-2 mt-2">
+                <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-orange-500 rounded-lg px-3 py-2.5">
                   <input type="radio" checked readOnly className="accent-orange-500" />
                   <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
                     style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
                     카카오페이
                   </span>
                 </label>
+                <button
+                  type="button"
+                  onClick={() => show('네이버페이는 추후 구현 예정입니다.', { variant: 'info' })}
+                  className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2.5 opacity-60 hover:opacity-80 transition"
+                >
+                  <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                    style={{ backgroundColor: '#03C75A', color: '#fff' }}>
+                    네이버페이
+                  </span>
+                </button>
               </div>
             </div>
             <div className="flex justify-between font-bold text-gray-900 text-base mt-3 pt-3 border-t border-gray-100">

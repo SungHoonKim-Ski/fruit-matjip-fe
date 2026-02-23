@@ -914,6 +914,29 @@ export default function DeliveryPage() {
           )}
           <div className="text-xs text-red-600">배달 가능 거리({config.maxDistanceKm}km) 내라도, 강이나 행정구역 경계를 넘어가는 경우 배달이 취소될 수 있습니다.</div>
         </div>
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <span className="text-xs font-medium text-gray-700">결제 수단</span>
+          <div className="flex gap-2 mt-2">
+            <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-green-500 rounded-lg px-3 py-2">
+              <input type="radio" checked readOnly className="accent-green-500" />
+              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
+                카카오페이
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => show('네이버페이는 추후 구현 예정입니다.', { variant: 'info' })}
+              className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2 opacity-60 hover:opacity-80 transition"
+            >
+              <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                style={{ backgroundColor: '#03C75A', color: '#fff' }}>
+                네이버페이
+              </span>
+            </button>
+          </div>
+        </div>
         <div className="mt-4">
           <button
             type="button"

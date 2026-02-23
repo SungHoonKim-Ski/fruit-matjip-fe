@@ -2084,6 +2084,29 @@ export const getCourierConfig = async (): Promise<CourierConfigResponse> => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+// 저장된 택배 수령인 정보 조회
+export const getCourierInfo = async (): Promise<{
+  receiverName: string;
+  receiverPhone: string;
+  postalCode: string;
+  address1: string;
+  address2: string;
+} | null> => {
+  try {
+    const res = await userFetch('/api/auth/courier/info');
+    if (res.status === 204 || !res.ok) return null;
+    const data = await res.json();
+    if (!data) return null;
+    return {
+      receiverName: String(data.receiver_name || data.receiverName || ''),
+      receiverPhone: String(data.receiver_phone || data.receiverPhone || ''),
+      postalCode: String(data.postal_code || data.postalCode || ''),
+      address1: String(data.address1 || ''),
+      address2: data.address2 ? String(data.address2) : '',
+    };
+  } catch { return null; }
+};
+
 // 택배 주문 생성 (결제 준비)
 export const createCourierOrder = async (request: CourierOrderReadyRequest): Promise<CourierOrderReadyResponse> => {
   const key = 'createCourierOrder';

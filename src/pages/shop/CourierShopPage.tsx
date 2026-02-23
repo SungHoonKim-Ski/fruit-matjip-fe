@@ -186,14 +186,19 @@ export default function CourierShopPage() {
   const [noticeText, setNoticeText] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [tempSearch, setTempSearch] = useState('');
+  const [shakeButton, setShakeButton] = useState(false);
+  const [modalSearchResults, setModalSearchResults] = useState<CourierProduct[]>([]);
+  const [modalSearchLoading, setModalSearchLoading] = useState(false);
 
   // ── Fade transition state ──────────────────────────────────────────────────
   const [contentVisible, setContentVisible] = useState(true);
   const prevChipRef = useRef<null | 'recommended' | number>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const modalDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const modalInputRef = useRef<HTMLInputElement>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Cart count sync ───────────────────────────────────────────────────────
@@ -212,20 +217,27 @@ export default function CourierShopPage() {
     const onPop = () => {
       if (detailDialog.isOpen) {
         setDetailDialog({ isOpen: false, productId: 0 });
+        return;
+      }
+      if (searchModalOpen) {
+        setSearchModalOpen(false);
+        setTempSearch('');
+        setModalSearchResults([]);
+        return;
       }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [detailDialog.isOpen]);
+  }, [detailDialog.isOpen, searchModalOpen]);
 
-  // ── Body scroll lock when dialog is open ─────────────────────────────────
+  // ── Body scroll lock when dialog or modal is open ────────────────────────
   useEffect(() => {
-    if (detailDialog.isOpen) {
+    if (detailDialog.isOpen || searchModalOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => { document.body.style.overflow = prev || ''; };
     }
-  }, [detailDialog.isOpen]);
+  }, [detailDialog.isOpen, searchModalOpen]);
 
   // ── Initial load: recommended + by-category in parallel ──────────────────
   useEffect(() => {
@@ -284,23 +296,31 @@ export default function CourierShopPage() {
     return () => { alive = false; };
   }, [show]);
 
-  // ── Search debounce ───────────────────────────────────────────────────────
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const q = e.target.value;
-    setSearchQuery(q);
+  // ── Shake animation for active search FAB ─────────────────────────────────
+  useEffect(() => {
+    if (!searchQuery) return;
+    const interval = setInterval(() => {
+      setShakeButton(true);
+      setTimeout(() => setShakeButton(false), 500);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [searchQuery]);
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+  // ── Modal search debounce ─────────────────────────────────────────────────
+  const handleTempSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value;
+    setTempSearch(q);
+
+    if (modalDebounceRef.current) clearTimeout(modalDebounceRef.current);
 
     if (q.trim() === '') {
-      setSearchResults([]);
-      setViewMode('search');
+      setModalSearchResults([]);
       return;
     }
 
-    setViewMode('search');
-    debounceRef.current = setTimeout(async () => {
+    modalDebounceRef.current = setTimeout(async () => {
       try {
-        setSearchLoading(true);
+        setModalSearchLoading(true);
         const res = await searchCourierProducts(q.trim());
         if (!res.ok) return;
         const data = await res.json();
@@ -309,32 +329,66 @@ export default function CourierShopPage() {
           : Array.isArray(data)
           ? data
           : [];
-        setSearchResults(arr.map(mapProduct));
+        setModalSearchResults(arr.map(mapProduct));
       } catch (e: any) {
-        safeErrorLog(e, 'CourierShopPage - search');
-        show(getSafeErrorMessage(e, '검색 중 오류가 발생했습니다.'), { variant: 'error' });
+        safeErrorLog(e, 'CourierShopPage - modalSearch');
       } finally {
-        setSearchLoading(false);
+        setModalSearchLoading(false);
       }
     }, 400);
   };
 
-  const clearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setViewMode('main');
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    searchInputRef.current?.focus();
+  const openSearchModal = () => {
+    setTempSearch(searchQuery);
+    setModalSearchResults([]);
+    setSearchModalOpen(true);
+    window.history.pushState({ modal: 'search' }, '');
+    setTimeout(() => modalInputRef.current?.focus(), 50);
   };
 
-  const openSearch = () => {
-    setSearchOpen(true);
+  const closeSearchModal = () => {
+    setSearchModalOpen(false);
+    setTempSearch('');
+    setModalSearchResults([]);
+    if (modalDebounceRef.current) clearTimeout(modalDebounceRef.current);
+  };
+
+  const applySearch = () => {
+    const q = tempSearch.trim();
+    setSearchQuery(q);
+    setSearchModalOpen(false);
+    setTempSearch('');
+    setModalSearchResults([]);
+    if (modalDebounceRef.current) clearTimeout(modalDebounceRef.current);
+
+    if (q === '') {
+      setSearchResults([]);
+      setViewMode('main');
+      return;
+    }
+
+    // Run the real search and switch to search view
     setViewMode('search');
-    setTimeout(() => searchInputRef.current?.focus(), 50);
+    setSearchLoading(true);
+    searchCourierProducts(q)
+      .then(async res => {
+        if (!res.ok) return;
+        const data = await res.json();
+        const arr = Array.isArray(data?.response)
+          ? data.response
+          : Array.isArray(data)
+          ? data
+          : [];
+        setSearchResults(arr.map(mapProduct));
+      })
+      .catch(e => {
+        safeErrorLog(e, 'CourierShopPage - applySearch');
+        show(getSafeErrorMessage(e, '검색 중 오류가 발생했습니다.'), { variant: 'error' });
+      })
+      .finally(() => setSearchLoading(false));
   };
 
-  const closeSearch = () => {
-    setSearchOpen(false);
+  const clearSearch = () => {
     setSearchQuery('');
     setSearchResults([]);
     setViewMode('main');
@@ -499,71 +553,43 @@ export default function CourierShopPage() {
             </div>
           </div>
         )}
-        {/* ── Search bar (slide-down, visible only when searchOpen) ── */}
-        {searchOpen && (
-          <div className="sticky top-14 z-40 w-full bg-white shadow-md border-b border-gray-100">
-            <div className="max-w-md mx-auto px-4 py-2.5">
-              <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-                <svg
-                  className="w-4 h-4 text-gray-400 flex-none"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-                  />
-                </svg>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  placeholder="상품 검색"
-                  className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={closeSearch}
-                  aria-label="검색 닫기"
-                  className="flex-none text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── FAB search button ── */}
-        {!searchOpen && (
-          <button
-            type="button"
-            onClick={openSearch}
-            aria-label="상품 검색"
-            className="fixed bottom-20 right-4 z-40 w-12 h-12 text-white rounded-full flex items-center justify-center active:opacity-90 transition"
-            style={{
-              backgroundColor: 'var(--color-primary-500)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-            }}
-          >
+        {/* ── FAB: search icon (no active search) or filter icon + 초기화 (active search) ── */}
+        <button
+          type="button"
+          onClick={searchQuery ? clearSearch : openSearchModal}
+          aria-label={searchQuery ? '검색 초기화' : '상품 검색'}
+          className={`fixed bottom-20 right-4 z-40 rounded-full flex items-center justify-center active:opacity-90 transition-all duration-200 ${shakeButton ? 'animate-shake' : ''}`}
+          style={{
+            backgroundColor: searchQuery ? '#fff' : 'var(--color-primary-500)',
+            color: searchQuery ? 'var(--color-primary-500)' : '#fff',
+            border: searchQuery ? '2px solid var(--color-primary-500)' : 'none',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            width: searchQuery ? 'auto' : '48px',
+            height: '48px',
+            paddingLeft: searchQuery ? '16px' : '0',
+            paddingRight: searchQuery ? '16px' : '0',
+            gap: searchQuery ? '6px' : '0',
+          }}
+        >
+          {searchQuery ? (
+            <>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
+              </svg>
+              <span className="text-sm font-bold">초기화</span>
+            </>
+          ) : (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
-          </button>
-        )}
+          )}
+        </button>
 
         {/* ── Sticky chip row ── */}
         {!loading && viewMode === 'main' && (
           <div
             className="sticky z-30 w-full bg-white shadow-sm border-b border-gray-100 pb-2 pt-2"
-            style={{ top: searchOpen ? '110px' : '56px' }}
+            style={{ top: '56px' }}
           >
             <div
               className="max-w-md mx-auto px-4 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden"
@@ -598,9 +624,24 @@ export default function CourierShopPage() {
           ════════════════════════════════════════════════════════════════ */}
           {viewMode === 'search' && (
             <>
-              <p className="text-xs text-gray-500 mb-3">
-                {searchLoading ? '검색 중...' : `검색 결과: ${searchResults.length}건`}
-              </p>
+              <div
+                className="flex items-center gap-2 mb-3 cursor-pointer"
+                onClick={openSearchModal}
+                role="button"
+                aria-label="검색 조건 수정"
+              >
+                <p className="text-xs text-gray-500">
+                  {searchLoading ? '검색 중...' : `검색 결과: ${searchResults.length}건`}
+                </p>
+                {searchQuery && (
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--color-primary-100)', color: 'var(--color-primary-700)' }}
+                  >
+                    "{searchQuery}" 검색 수정
+                  </span>
+                )}
+              </div>
 
               {searchLoading && <ListSkeleton count={4} />}
 
@@ -763,6 +804,156 @@ export default function CourierShopPage() {
             </>
           )}
         </div>
+
+        {/* ── Search Modal ── */}
+        {searchModalOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={closeSearchModal} />
+            <div className="relative z-10 w-full max-w-md bg-white rounded-xl shadow-xl border">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b">
+                <h2 className="text-lg font-semibold text-gray-800">상품 검색</h2>
+                <button
+                  onClick={closeSearchModal}
+                  className="h-8 w-8 grid place-items-center rounded-md hover:bg-gray-50"
+                  aria-label="검색창 닫기"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Search input */}
+              <div className="p-4">
+                <div className="relative">
+                  <input
+                    ref={modalInputRef}
+                    type="text"
+                    value={tempSearch}
+                    onChange={handleTempSearchChange}
+                    onKeyDown={e => { if (e.key === 'Enter') applySearch(); }}
+                    placeholder="상품명을 입력하세요"
+                    className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none text-sm bg-white"
+                    style={{ ['--tw-ring-color' as any]: 'var(--color-primary-500)' }}
+                    autoFocus
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                    </svg>
+                  </span>
+                  {tempSearch && (
+                    <button
+                      type="button"
+                      onClick={() => { setTempSearch(''); setModalSearchResults([]); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center"
+                      aria-label="검색어 지우기"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal search results preview */}
+              {tempSearch && (
+                <div className="px-4 pb-4">
+                  {modalSearchLoading && (
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg animate-pulse">
+                          <div className="w-12 h-12 bg-gray-200 rounded flex-shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3 bg-gray-200 rounded w-3/4" />
+                            <div className="h-3 bg-gray-200 rounded w-1/2" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!modalSearchLoading && modalSearchResults.length > 0 && (
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                      {modalSearchResults.map(product => (
+                        <div
+                          key={product.id}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={() => {
+                            setTempSearch(product.name);
+                            setModalSearchResults([]);
+                            // Apply immediately with this product's name
+                            const q = product.name;
+                            setSearchQuery(q);
+                            setSearchModalOpen(false);
+                            setTempSearch('');
+                            setModalSearchResults([]);
+                            setViewMode('search');
+                            setSearchLoading(true);
+                            searchCourierProducts(q)
+                              .then(async res => {
+                                if (!res.ok) return;
+                                const data = await res.json();
+                                const arr = Array.isArray(data?.response) ? data.response : Array.isArray(data) ? data : [];
+                                setSearchResults(arr.map(mapProduct));
+                              })
+                              .catch(e => safeErrorLog(e, 'CourierShopPage - modalProductClick'))
+                              .finally(() => setSearchLoading(false));
+                          }}
+                        >
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-12 h-12 rounded object-cover border flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-800 truncate">
+                              {(() => {
+                                const q = tempSearch.trim();
+                                if (!q) return product.name;
+                                const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                                const parts = product.name.split(regex);
+                                return parts.map((part, idx) =>
+                                  regex.test(part) ? <mark key={idx} className="bg-yellow-200 px-0.5 rounded">{part}</mark> : part
+                                );
+                              })()}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">{formatPrice(product.price)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!modalSearchLoading && modalSearchResults.length === 0 && (
+                    <div className="text-center text-gray-500 py-6">
+                      <div className="text-sm">
+                        <span className="font-medium" style={{ color: 'var(--color-primary-600)' }}>"{tempSearch}"</span> 상품이 존재하지 않습니다.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Footer buttons */}
+              <div className="flex gap-3 p-4 border-t bg-gray-50 rounded-b-xl">
+                <button
+                  onClick={closeSearchModal}
+                  className="flex-1 h-10 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={applySearch}
+                  className="flex-1 h-10 rounded-lg text-white font-medium transition-colors hover:opacity-90"
+                  style={{ backgroundColor: 'var(--color-primary-500)' }}
+                >
+                  검색 적용
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Product Detail Dialog ── */}
         {detailDialog.isOpen && (
