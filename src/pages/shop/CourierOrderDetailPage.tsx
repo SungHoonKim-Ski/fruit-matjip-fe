@@ -56,8 +56,8 @@ const CLAIM_STATUS_COLORS: Record<CourierClaimStatus, string> = {
 const STATUS_LABELS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: '결제대기',
   PAID: '결제완료',
-  PREPARING: '상품준비중',
-  SHIPPED: '발송완료',
+  ORDERING: '상품준비중',
+  ORDER_COMPLETED: '상품준비완료',
   IN_TRANSIT: '배송중',
   DELIVERED: '배송완료',
   CANCELED: '취소됨',
@@ -67,8 +67,8 @@ const STATUS_LABELS: Record<CourierOrderStatus, string> = {
 const STATUS_COLORS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: 'bg-gray-100 text-gray-600',
   PAID: 'bg-blue-100 text-blue-700',
-  PREPARING: 'bg-orange-100 text-orange-700',
-  SHIPPED: 'bg-purple-100 text-purple-700',
+  ORDERING: 'bg-orange-100 text-orange-700',
+  ORDER_COMPLETED: 'bg-purple-100 text-purple-700',
   IN_TRANSIT: 'bg-indigo-100 text-indigo-700',
   DELIVERED: 'bg-green-100 text-green-700',
   CANCELED: 'bg-red-100 text-red-600',
@@ -144,7 +144,7 @@ export default function CourierOrderDetailPage() {
     ? getTrackingUrl(order.courierCompany, order.trackingNumber)
     : null;
 
-  const canCancel = order.status === 'PAID' || order.status === 'PREPARING';
+  const canCancel = order.status === 'PAID' || order.status === 'ORDERING';
 
   const handleCancel = async () => {
     if (!order) return;
@@ -309,7 +309,7 @@ export default function CourierOrderDetailPage() {
         </section>
       )}
 
-      {/* 주문 취소 버튼 - PAID/PREPARING 상태에서만 노출 */}
+      {/* 주문 취소 버튼 - PAID/ORDERING 상태에서만 노출 */}
       {canCancel && (
         <section className="max-w-md mx-auto px-4 mt-3">
           <button

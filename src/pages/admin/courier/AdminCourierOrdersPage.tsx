@@ -31,8 +31,8 @@ const formatDate = (dateStr: string | null) => {
 const STATUS_LABELS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: '결제대기',
   PAID: '결제완료',
-  PREPARING: '준비중',
-  SHIPPED: '발송완료',
+  ORDERING: '발주중',
+  ORDER_COMPLETED: '발주완료',
   IN_TRANSIT: '배송중',
   DELIVERED: '배송완료',
   CANCELED: '취소',
@@ -42,8 +42,8 @@ const STATUS_LABELS: Record<CourierOrderStatus, string> = {
 const STATUS_COLORS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: 'bg-gray-100 text-gray-600 border-gray-300',
   PAID: 'bg-blue-100 text-blue-700 border-blue-300',
-  PREPARING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  SHIPPED: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+  ORDERING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  ORDER_COMPLETED: 'bg-indigo-100 text-indigo-700 border-indigo-300',
   IN_TRANSIT: 'bg-purple-100 text-purple-700 border-purple-300',
   DELIVERED: 'bg-green-100 text-green-700 border-green-300',
   CANCELED: 'bg-red-100 text-red-600 border-red-300',
@@ -53,8 +53,8 @@ const STATUS_COLORS: Record<CourierOrderStatus, string> = {
 const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '전체' },
   { value: 'PAID', label: '결제완료' },
-  { value: 'PREPARING', label: '준비중' },
-  { value: 'SHIPPED', label: '발송완료' },
+  { value: 'ORDERING', label: '발주중' },
+  { value: 'ORDER_COMPLETED', label: '발주완료' },
   { value: 'IN_TRANSIT', label: '배송중' },
   { value: 'DELIVERED', label: '배송완료' },
   { value: 'CANCELED', label: '취소' },
@@ -75,7 +75,6 @@ export default function AdminCourierOrdersPage() {
   const [filterProductId, setFilterProductId] = useState<number | undefined>(undefined);
   const [filterProducts, setFilterProducts] = useState<Array<{ id: number; name: string }>>([]);
   const [filterDownloading, setFilterDownloading] = useState(false);
-  const [waybillDownloadFilter, setWaybillDownloadFilter] = useState<boolean | undefined>(undefined);
 
   // 운송장 업로드
   const [uploadCourierCompany, setUploadCourierCompany] = useState<CourierCompany>('LOGEN');
@@ -108,7 +107,7 @@ export default function AdminCourierOrdersPage() {
       const blob = await downloadAdminCourierWaybillExcelByFilter(filterStartDate, filterEndDate, filterProductId);
       triggerDownload(blob, `waybill-filter-${filterStartDate}-${filterEndDate}.xlsx`);
       show('필터 Excel 다운로드 완료', { variant: 'success' });
-      fetchOrders(statusFilter, currentPage, waybillDownloadFilter);
+      fetchOrders(statusFilter, currentPage);
     } catch (err) {
       safeErrorLog(err, 'AdminCourierOrdersPage - filterDownload');
       show(getSafeErrorMessage(err, '필터 Excel 다운로드에 실패했습니다.'), { variant: 'error' });
@@ -129,7 +128,7 @@ export default function AdminCourierOrdersPage() {
       show(`${result.updatedCount}건 운송장 업로드 완료`, { variant: 'success' });
       setUploadFile(null);
       if (uploadInputRef.current) uploadInputRef.current.value = '';
-      fetchOrders(statusFilter, currentPage, waybillDownloadFilter);
+      fetchOrders(statusFilter, currentPage);
     } catch (err: any) {
       if (Array.isArray(err?.uploadErrors) && err.uploadErrors.length > 0) {
         setUploadErrors(err.uploadErrors);
@@ -143,10 +142,10 @@ export default function AdminCourierOrdersPage() {
     }
   };
 
-  const fetchOrders = useCallback(async (status?: string, page = 0, wbDownloaded?: boolean) => {
+  const fetchOrders = useCallback(async (status?: string, page = 0) => {
     try {
       setLoading(true);
-      const result = await getAdminCourierOrders(status || undefined, page, 50, wbDownloaded);
+      const result = await getAdminCourierOrders(status || undefined, page, 50);
       setOrders(result.orders);
       setTotalPages(result.totalPages);
       setTotalElements(result.totalElements);
@@ -162,16 +161,16 @@ export default function AdminCourierOrdersPage() {
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      fetchOrders(statusFilter, 0, waybillDownloadFilter);
+      fetchOrders(statusFilter, 0);
       return;
     }
-    fetchOrders(statusFilter, 0, waybillDownloadFilter);
+    fetchOrders(statusFilter, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, waybillDownloadFilter]);
+  }, [statusFilter]);
 
   const handlePageChange = (page: number) => {
     if (page < 0 || page >= totalPages) return;
-    fetchOrders(statusFilter, page, waybillDownloadFilter);
+    fetchOrders(statusFilter, page);
   };
 
   const triggerDownload = (blob: Blob, filename: string) => {
@@ -220,29 +219,6 @@ export default function AdminCourierOrdersPage() {
               className={`h-8 px-3 rounded-full text-sm font-medium border transition ${
                 statusFilter === opt.value
                   ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Waybill download filter */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-500 mr-1">운송장:</span>
-          {([
-            { value: undefined, label: '전체' },
-            { value: false, label: '미다운' },
-            { value: true, label: '다운완료' },
-          ] as { value: boolean | undefined; label: string }[]).map(opt => (
-            <button
-              key={String(opt.value)}
-              type="button"
-              onClick={() => setWaybillDownloadFilter(opt.value)}
-              className={`h-7 px-3 rounded-full text-xs font-medium border transition ${
-                waybillDownloadFilter === opt.value
-                  ? 'bg-green-600 text-white border-green-600'
                   : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
               }`}
             >
@@ -414,12 +390,7 @@ export default function AdminCourierOrdersPage() {
                         {formatPrice(order.totalAmount)}
                       </td>
                       <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
-                        <span className="flex items-center gap-1">
-                          {order.trackingNumber || '-'}
-                          {order.waybillDownloaded && (
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" title="운송장 다운완료" />
-                          )}
-                        </span>
+                        {order.trackingNumber || '-'}
                       </td>
                       <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {formatDate(order.paidAt)}

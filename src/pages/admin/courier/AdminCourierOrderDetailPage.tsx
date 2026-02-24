@@ -34,8 +34,8 @@ const formatDateTime = (dateStr: string | null) => {
 const STATUS_LABELS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: '결제대기',
   PAID: '결제완료',
-  PREPARING: '준비중',
-  SHIPPED: '발송완료',
+  ORDERING: '발주중',
+  ORDER_COMPLETED: '발주완료',
   IN_TRANSIT: '배송중',
   DELIVERED: '배송완료',
   CANCELED: '취소',
@@ -45,8 +45,8 @@ const STATUS_LABELS: Record<CourierOrderStatus, string> = {
 const STATUS_COLORS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: 'bg-gray-100 text-gray-600 border-gray-300',
   PAID: 'bg-blue-100 text-blue-700 border-blue-300',
-  PREPARING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-  SHIPPED: 'bg-indigo-100 text-indigo-700 border-indigo-300',
+  ORDERING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  ORDER_COMPLETED: 'bg-indigo-100 text-indigo-700 border-indigo-300',
   IN_TRANSIT: 'bg-purple-100 text-purple-700 border-purple-300',
   DELIVERED: 'bg-green-100 text-green-700 border-green-300',
   CANCELED: 'bg-red-100 text-red-600 border-red-300',
@@ -195,10 +195,10 @@ export default function AdminCourierOrderDetailPage() {
 
   // Determine which status transition buttons to show
   const canPrepare = order?.status === 'PAID';
-  const canShip = order?.status === 'PAID' || order?.status === 'PREPARING';
-  const canInTransit = order?.status === 'SHIPPED';
+  const canShip = order?.status === 'PAID' || order?.status === 'ORDERING';
+  const canInTransit = order?.status === 'ORDER_COMPLETED';
   const canDeliver = order?.status === 'IN_TRANSIT';
-  const canCancel = order?.status === 'PAID' || order?.status === 'PREPARING';
+  const canCancel = order?.status === 'PAID' || order?.status === 'ORDERING';
 
   const trackingUrl = order?.trackingNumber
     ? getTrackingUrl(order.courierCompany, order.trackingNumber)
@@ -402,11 +402,11 @@ export default function AdminCourierOrderDetailPage() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => handleStatusChange('PREPARING')}
+              onClick={() => handleStatusChange('ORDERING')}
               disabled={!canPrepare || actionLoading}
               className="h-9 px-4 rounded-lg bg-yellow-500 text-white text-sm font-medium hover:bg-yellow-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              준비중
+              발주중
             </button>
             <button
               type="button"

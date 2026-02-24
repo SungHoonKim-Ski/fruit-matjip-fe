@@ -65,8 +65,8 @@ const STATUS_COLORS: Record<CourierClaimStatus, string> = {
 const ORDER_STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: '결제대기',
   PAID: '결제완료',
-  PREPARING: '상품준비중',
-  SHIPPED: '발송완료',
+  ORDERING: '상품준비중',
+  ORDER_COMPLETED: '상품준비완료',
   IN_TRANSIT: '배송중',
   DELIVERED: '배송완료',
   CANCELED: '주문취소',
@@ -86,8 +86,8 @@ const RETURN_STATUS_COLORS: Record<string, string> = {
 };
 
 const ORDER_STATUS_CHANGE_OPTIONS = [
-  { value: 'PREPARING', label: '상품준비중' },
-  { value: 'SHIPPED', label: '발송완료' },
+  { value: 'ORDERING', label: '상품준비중' },
+  { value: 'ORDER_COMPLETED', label: '상품준비완료' },
   { value: 'IN_TRANSIT', label: '배송중' },
   { value: 'DELIVERED', label: '배송완료' },
   { value: 'CANCELED', label: '주문취소' },

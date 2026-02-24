@@ -1954,8 +1954,8 @@ export const updateAdminCourierCategoryProducts = async (categoryId: number, pro
 export type CourierOrderStatus =
   | 'PENDING_PAYMENT'
   | 'PAID'
-  | 'PREPARING'
-  | 'SHIPPED'
+  | 'ORDERING'
+  | 'ORDER_COMPLETED'
   | 'IN_TRANSIT'
   | 'DELIVERED'
   | 'CANCELED'
@@ -2241,8 +2241,8 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       totalAmount: Number(d.total_amount ?? d.totalAmount ?? 0),
       pointUsed: Number(d.point_used ?? d.pointUsed ?? 0),
       pgPaymentAmount: Number(d.pg_payment_amount ?? d.pgPaymentAmount ?? 0),
-      recipientName: String(d.recipient_name ?? d.recipientName ?? ''),
-      recipientPhone: String(d.recipient_phone ?? d.recipientPhone ?? ''),
+      recipientName: String(d.receiver_name ?? d.receiverName ?? d.recipient_name ?? d.recipientName ?? ''),
+      recipientPhone: String(d.receiver_phone ?? d.receiverPhone ?? d.recipient_phone ?? d.recipientPhone ?? ''),
       postalCode: String(d.postal_code ?? d.postalCode ?? ''),
       address1: String(d.address1 ?? ''),
       address2: String(d.address2 ?? ''),
@@ -2292,7 +2292,6 @@ export type AdminCourierOrderSummary = {
   itemCount: number;
   totalAmount: number;
   trackingNumber: string | null;
-  waybillDownloaded: boolean;
   paidAt: string | null;
   createdAt: string;
 };
@@ -2333,14 +2332,12 @@ export const getAdminCourierOrders = async (
   status?: string,
   page = 0,
   size = 50,
-  waybillDownloaded?: boolean,
 ): Promise<AdminCourierOrderListResponse> => {
   const key = 'getAdminCourierOrders';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
-    if (waybillDownloaded !== undefined) params.append('waybillDownloaded', String(waybillDownloaded));
     params.append('page', String(page));
     params.append('size', String(size));
     const res = await adminFetch(`/api/admin/courier/orders?${params.toString()}`, {}, true);
@@ -2360,7 +2357,6 @@ export const getAdminCourierOrders = async (
         itemCount: Number(o.total_quantity ?? o.totalQuantity ?? o.item_count ?? o.itemCount ?? 0),
         totalAmount: Number(o.total_amount ?? o.totalAmount ?? 0),
         trackingNumber: o.waybill_number ?? o.waybillNumber ?? o.tracking_number ?? o.trackingNumber ?? null,
-        waybillDownloaded: Boolean(o.waybill_downloaded ?? o.waybillDownloaded ?? false),
         paidAt: o.paid_at ?? o.paidAt ?? null,
         createdAt: String(o.created_at ?? o.createdAt ?? ''),
       })),

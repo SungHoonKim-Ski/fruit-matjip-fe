@@ -26,8 +26,8 @@ const formatDate = (dateStr: string) => {
 const STATUS_LABELS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: '결제대기',
   PAID: '결제완료',
-  PREPARING: '상품준비중',
-  SHIPPED: '발송완료',
+  ORDERING: '상품준비중',
+  ORDER_COMPLETED: '상품준비완료',
   IN_TRANSIT: '배송중',
   DELIVERED: '배송완료',
   CANCELED: '취소됨',
@@ -37,8 +37,8 @@ const STATUS_LABELS: Record<CourierOrderStatus, string> = {
 const STATUS_COLORS: Record<CourierOrderStatus, string> = {
   PENDING_PAYMENT: 'bg-gray-100 text-gray-600',
   PAID: 'bg-blue-100 text-blue-700',
-  PREPARING: 'bg-orange-100 text-orange-700',
-  SHIPPED: 'bg-purple-100 text-purple-700',
+  ORDERING: 'bg-orange-100 text-orange-700',
+  ORDER_COMPLETED: 'bg-purple-100 text-purple-700',
   IN_TRANSIT: 'bg-indigo-100 text-indigo-700',
   DELIVERED: 'bg-green-100 text-green-700',
   CANCELED: 'bg-red-100 text-red-600',
