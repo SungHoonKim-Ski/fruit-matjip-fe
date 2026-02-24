@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
+import CourierBottomNav from '../../components/shop/CourierBottomNav';
 import { getCart, getBuyNowItem, clearBuyNow, CartItem } from '../../utils/courierCart';
 import {
   getCourierShippingFee,
@@ -41,11 +42,8 @@ export default function CourierCheckoutPage() {
   const [shippingLoading, setShippingLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFallbackPcUrl, setPaymentFallbackPcUrl] = useState<string | null>(null);
-  const [bottomExpanded, setBottomExpanded] = useState(false);
 
   const idempotencyKeyRef = useRef<string | null>(null);
-  const dragStartY = useRef(0);
-  const isDragging = useRef(false);
   const buildIdempotencyKey = () => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
       return crypto.randomUUID();
@@ -244,7 +242,7 @@ export default function CourierCheckoutPage() {
   if (items.length === 0) return null;
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-56">
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-20">
 
       {/* Order items summary */}
       <section className="max-w-md mx-auto px-4 mt-3">
@@ -391,86 +389,67 @@ export default function CourierCheckoutPage() {
         </div>
       </section>
 
-      {/* Bottom Sheet */}
-      <div
-        className="fixed left-0 right-0 bottom-0 z-30 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out"
-      >
-        {/* Drag handle */}
-        <div
-          className="flex justify-center pt-3 pb-1 cursor-grab"
-          onTouchStart={(e) => { dragStartY.current = e.touches[0].clientY; isDragging.current = true; }}
-          onTouchEnd={(e) => {
-            if (!isDragging.current) return;
-            isDragging.current = false;
-            const diff = e.changedTouches[0].clientY - dragStartY.current;
-            if (diff > 40) setBottomExpanded(false);
-            if (diff < -40) setBottomExpanded(true);
-          }}
-          onClick={() => setBottomExpanded(prev => !prev)}
-        >
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+      {/* 결제 수단 */}
+      <section className="max-w-md mx-auto px-4 mt-3">
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-base font-semibold text-gray-800 mb-3">결제 수단</h2>
+          <div className="flex gap-2">
+            <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-orange-500 rounded-lg px-3 py-2.5">
+              <input type="radio" checked readOnly className="accent-orange-500" />
+              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
+                카카오페이
+              </span>
+            </label>
+            <button
+              type="button"
+              onClick={() => show('네이버페이는 추후 구현 예정입니다.', { variant: 'info' })}
+              className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2.5 opacity-60 hover:opacity-80 transition"
+            >
+              <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
+                style={{ backgroundColor: '#03C75A', color: '#fff' }}>
+                네이버페이
+              </span>
+            </button>
+          </div>
         </div>
+      </section>
 
-        <div className="max-w-md mx-auto px-4 pb-4">
-          {/* Expandable details */}
-          <div className={`overflow-hidden transition-all duration-300 ease-out ${bottomExpanded ? 'max-h-96 opacity-100 mb-3' : 'max-h-0 opacity-0'}`}>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>상품 합계</span>
-                <span>{formatPrice(productTotal)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>배송비</span>
-                <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
-              </div>
+      {/* 결제 요약 + 결제 버튼 */}
+      <section className="max-w-md mx-auto px-4 mt-3">
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>상품 합계</span>
+              <span>{formatPrice(productTotal)}</span>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <span className="text-sm font-medium text-gray-700">결제 수단</span>
-              <div className="flex gap-2 mt-2">
-                <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-orange-500 rounded-lg px-3 py-2.5">
-                  <input type="radio" checked readOnly className="accent-orange-500" />
-                  <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
-                    style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
-                    카카오페이
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => show('네이버페이는 추후 구현 예정입니다.', { variant: 'info' })}
-                  className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2.5 opacity-60 hover:opacity-80 transition"
-                >
-                  <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                  <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
-                    style={{ backgroundColor: '#03C75A', color: '#fff' }}>
-                    네이버페이
-                  </span>
-                </button>
-              </div>
+            <div className="flex justify-between text-gray-600">
+              <span>배송비</span>
+              <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
             </div>
-            <div className="flex justify-between font-bold text-gray-900 text-base mt-3 pt-3 border-t border-gray-100">
+            <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2 mt-2">
               <span>총 결제 금액</span>
               <span className="text-orange-500">{formatPrice(totalPayment)}</span>
             </div>
-            {!canSubmit && !submitting && submitBlockers.length > 0 && (
-              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 space-y-1">
-                {submitBlockers.map((reason, idx) => (
-                  <div key={`${reason}-${idx}`}>&#8226; {reason}</div>
-                ))}
-              </div>
-            )}
           </div>
-
-          {/* Always visible: button */}
+          {!canSubmit && !submitting && submitBlockers.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 space-y-1">
+              {submitBlockers.map((reason, idx) => (
+                <div key={`${reason}-${idx}`}>&#8226; {reason}</div>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="mt-4 w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? '결제 준비 중...' : `${formatPrice(totalPayment)} 결제하기`}
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Mobile payment fallback modal */}
       {paymentFallbackPcUrl && (
@@ -504,6 +483,7 @@ export default function CourierCheckoutPage() {
           </div>
         </div>
       )}
+      <CourierBottomNav />
     </main>
   );
 }
