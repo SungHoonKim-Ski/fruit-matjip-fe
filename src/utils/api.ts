@@ -2495,7 +2495,7 @@ export const downloadAdminCourierWaybillExcelByFilter = async (
 // 배송 추적 URL 생성
 export function getTrackingUrl(courierCompany: string | null, trackingNumber: string): string {
   if (courierCompany === 'HANJIN') {
-    return `https://www.hanjin.com/kor/CMS/DeliveryMg498/tracking.do?type=TEL&value=${trackingNumber}`;
+    return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${trackingNumber}`;
   }
   return `https://www.ilogen.com/web/personal/trace/${trackingNumber}`;
 }
