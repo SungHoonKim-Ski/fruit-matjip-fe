@@ -66,6 +66,7 @@ export default function AdminCourierCreateProductPage() {
   // Shipping fee templates
   const [shippingFeeTemplates, setShippingFeeTemplates] = useState<ShippingFeeTemplateResponse[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [combinedShippingFee, setCombinedShippingFee] = useState<string>('');
 
   // Option groups
   const [optionGroups, setOptionGroups] = useState<OptionGroupForm[]>([]);
@@ -288,6 +289,7 @@ export default function AdminCourierCreateProductPage() {
       if (form.description.trim()) payload.description = form.description.trim();
       if (selectedCategoryIds.length > 0) payload.category_ids = selectedCategoryIds;
       if (selectedTemplateId != null) payload.shipping_fee_template_id = selectedTemplateId;
+      payload.combined_shipping_fee = combinedShippingFee.trim() === '' ? null : Number(combinedShippingFee);
       if (optionGroupsPayload.length > 0) payload.option_groups = optionGroupsPayload;
 
       const res = await createAdminCourierProduct(payload);
@@ -379,6 +381,21 @@ export default function AdminCourierCreateProductPage() {
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
+        </div>
+
+        {/* Combined shipping fee */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">합배송 금액 (선택)</label>
+          <input
+            type="number"
+            value={combinedShippingFee}
+            onChange={e => setCombinedShippingFee(e.target.value)}
+            className="w-full border px-3 py-2 rounded"
+            placeholder="미입력 시 기본 배송비 적용"
+            min={0}
+            step={100}
+          />
+          <p className="text-xs text-gray-500">합배송 시 해당 금액이 배송비로 적용됩니다</p>
         </div>
 
         {/* Categories */}

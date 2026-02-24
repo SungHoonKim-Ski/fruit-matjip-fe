@@ -7,6 +7,7 @@ import {
   approveAdminCourierClaim,
   rejectAdminCourierClaim,
   updateClaimOrderStatus,
+  updateClaimReturnStatus,
   type AdminCourierClaimSummary,
   type CourierClaimStatus,
   type CourierClaimType,
@@ -72,6 +73,18 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   FAILED: '결제실패',
 };
 
+const RETURN_STATUS_LABELS: Record<string, string> = {
+  NONE: '-',
+  COLLECTING: '회수중',
+  COLLECTED: '회수완료',
+};
+
+const RETURN_STATUS_COLORS: Record<string, string> = {
+  NONE: '',
+  COLLECTING: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  COLLECTED: 'bg-green-100 text-green-700 border-green-300',
+};
+
 const ORDER_STATUS_CHANGE_OPTIONS = [
   { value: 'PREPARING', label: '상품준비중' },
   { value: 'SHIPPED', label: '발송완료' },
@@ -118,6 +131,8 @@ export default function AdminCourierClaimsPage() {
   const [modalClaim, setModalClaim] = useState<AdminCourierClaimSummary | null>(null);
   const [adminNote, setAdminNote] = useState('');
   const [refundAmount, setRefundAmount] = useState('');
+  const [pointAmount, setPointAmount] = useState('');
+  const [returnRequired, setReturnRequired] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
   const isInitialMount = useRef(true);
@@ -158,6 +173,8 @@ export default function AdminCourierClaimsPage() {
     setModalMode(mode);
     setAdminNote('');
     setRefundAmount('');
+    setPointAmount('');
+    setReturnRequired(false);
   };
 
   const closeModal = () => {
@@ -165,6 +182,8 @@ export default function AdminCourierClaimsPage() {
     setModalClaim(null);
     setAdminNote('');
     setRefundAmount('');
+    setPointAmount('');
+    setReturnRequired(false);
   };
 
   const handleApprove = async () => {
@@ -179,6 +198,8 @@ export default function AdminCourierClaimsPage() {
         action: 'REFUND',
         adminNote: adminNote.trim(),
         refundAmount: refundAmount ? Number(refundAmount) : undefined,
+        pointAmount: pointAmount ? Number(pointAmount) : undefined,
+        returnRequired: returnRequired || undefined,
       });
       show('클레임이 승인(환불) 처리되었습니다.', { variant: 'success' });
       closeModal();
@@ -227,6 +248,17 @@ export default function AdminCourierClaimsPage() {
       show(getSafeErrorMessage(err, '주문 상태 변경에 실패했습니다.'), { variant: 'error' });
     } finally {
       setOrderStatusSubmitting(null);
+    }
+  };
+
+  const handleReturnStatusChange = async (claim: AdminCourierClaimSummary, newStatus: string) => {
+    try {
+      await updateClaimReturnStatus(claim.id, newStatus);
+      show('회수 상태가 변경되었습니다.', { variant: 'success' });
+      fetchClaims(statusFilter, currentPage);
+    } catch (err) {
+      safeErrorLog(err, 'AdminCourierClaimsPage - updateReturnStatus');
+      show(getSafeErrorMessage(err, '회수 상태 변경에 실패했습니다.'), { variant: 'error' });
     }
   };
 
@@ -327,6 +359,7 @@ export default function AdminCourierClaimsPage() {
                     <th className="px-3 py-3 text-left whitespace-nowrap">접수일</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">처리일</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">주문상태</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">회수</th>
                     <th className="px-3 py-3 text-center whitespace-nowrap">처리</th>
                   </tr>
                 </thead>
@@ -371,6 +404,15 @@ export default function AdminCourierClaimsPage() {
                             <span className="text-xs text-gray-400">-</span>
                           )}
                         </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {claim.returnStatus && claim.returnStatus !== 'NONE' ? (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${RETURN_STATUS_COLORS[claim.returnStatus] || ''}`}>
+                              {RETURN_STATUS_LABELS[claim.returnStatus] || claim.returnStatus}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
                           {canTakeAction(claim.status) && (
                             <div className="flex items-center justify-center gap-1">
@@ -395,7 +437,7 @@ export default function AdminCourierClaimsPage() {
                       {/* Expanded detail row */}
                       {expandedId === claim.id && (
                         <tr className="bg-gray-50">
-                          <td colSpan={9} className="px-4 py-4">
+                          <td colSpan={10} className="px-4 py-4">
                             <div className="space-y-2 text-sm">
                               <div className="flex gap-2">
                                 <span className="text-gray-500 w-20 flex-shrink-0">사유</span>
@@ -419,6 +461,29 @@ export default function AdminCourierClaimsPage() {
                                 <div className="flex gap-2">
                                   <span className="text-gray-500 w-20 flex-shrink-0">환불 금액</span>
                                   <span className="text-gray-800 font-medium">{formatPrice(claim.refundAmount)}</span>
+                                </div>
+                              )}
+                              {claim.pointAmount != null && claim.pointAmount > 0 && (
+                                <div className="flex gap-2">
+                                  <span className="text-gray-500 w-20 flex-shrink-0">포인트 발행</span>
+                                  <span className="text-gray-800 font-medium">{formatPrice(claim.pointAmount)}</span>
+                                </div>
+                              )}
+                              {claim.returnStatus && claim.returnStatus !== 'NONE' && (
+                                <div className="flex gap-2 items-center">
+                                  <span className="text-gray-500 w-20 flex-shrink-0">회수 상태</span>
+                                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${RETURN_STATUS_COLORS[claim.returnStatus] || ''}`}>
+                                    {RETURN_STATUS_LABELS[claim.returnStatus] || claim.returnStatus}
+                                  </span>
+                                  {claim.returnStatus === 'COLLECTING' && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); handleReturnStatusChange(claim, 'COLLECTED'); }}
+                                      className="ml-2 h-7 px-2 rounded text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition"
+                                    >
+                                      회수완료
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               <div className="flex gap-2">
@@ -552,6 +617,37 @@ export default function AdminCourierClaimsPage() {
                   placeholder="미입력 시 전액 환불"
                   className="w-full h-10 border border-gray-300 rounded-lg px-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
                 />
+              </div>
+            )}
+
+            {/* Point amount (approve only) */}
+            {modalMode === 'approve' && (
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  포인트 발행 금액 (선택)
+                </label>
+                <input
+                  type="number"
+                  value={pointAmount}
+                  onChange={e => setPointAmount(e.target.value)}
+                  placeholder="미입력 시 포인트 미발행"
+                  className="w-full h-10 border border-gray-300 rounded-lg px-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                />
+              </div>
+            )}
+
+            {/* Return required checkbox (approve only) */}
+            {modalMode === 'approve' && (
+              <div className="mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={returnRequired}
+                    onChange={e => setReturnRequired(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+                  />
+                  <span className="text-sm text-gray-700">회수 필요 (반품 회수)</span>
+                </label>
               </div>
             )}
 

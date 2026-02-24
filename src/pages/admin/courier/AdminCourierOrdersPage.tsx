@@ -7,8 +7,11 @@ import {
   getAdminCourierOrders,
   downloadAdminCourierWaybillExcelByFilter,
   getAdminCourierProducts,
+  uploadTracking,
   type AdminCourierOrderSummary,
   type CourierOrderStatus,
+  type CourierCompany,
+  type TrackingUploadError,
 } from '../../../utils/api';
 
 const formatPrice = (price: number) =>
@@ -74,6 +77,13 @@ export default function AdminCourierOrdersPage() {
   const [filterDownloading, setFilterDownloading] = useState(false);
   const [waybillDownloadFilter, setWaybillDownloadFilter] = useState<boolean | undefined>(undefined);
 
+  // 운송장 업로드
+  const [uploadCourierCompany, setUploadCourierCompany] = useState<CourierCompany>('LOGEN');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<TrackingUploadError[]>([]);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+
   const isInitialMount = useRef(true);
 
   useEffect(() => {
@@ -104,6 +114,32 @@ export default function AdminCourierOrdersPage() {
       show(getSafeErrorMessage(err, '필터 Excel 다운로드에 실패했습니다.'), { variant: 'error' });
     } finally {
       setFilterDownloading(false);
+    }
+  };
+
+  const handleUploadTracking = async () => {
+    if (!uploadFile) {
+      show('업로드할 파일을 선택해주세요.', { variant: 'error' });
+      return;
+    }
+    try {
+      setUploading(true);
+      setUploadErrors([]);
+      const result = await uploadTracking(uploadFile, uploadCourierCompany);
+      show(`${result.updatedCount}건 운송장 업로드 완료`, { variant: 'success' });
+      setUploadFile(null);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+      fetchOrders(statusFilter, currentPage, waybillDownloadFilter);
+    } catch (err: any) {
+      if (Array.isArray(err?.uploadErrors) && err.uploadErrors.length > 0) {
+        setUploadErrors(err.uploadErrors);
+        show(err.message || '일부 행에서 오류가 발생했습니다.', { variant: 'error' });
+      } else {
+        safeErrorLog(err, 'AdminCourierOrdersPage - uploadTracking');
+        show(getSafeErrorMessage(err, '운송장 업로드에 실패했습니다.'), { variant: 'error' });
+      }
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -259,6 +295,69 @@ export default function AdminCourierOrdersPage() {
               {filterDownloading ? '다운로드 중...' : 'Excel 다운로드'}
             </button>
           </div>
+        </div>
+
+        {/* 운송장 Excel 업로드 */}
+        <div className="mb-4 bg-white rounded-lg shadow p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">운송장 Excel 업로드</h3>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">택배사</label>
+              <select
+                value={uploadCourierCompany}
+                onChange={e => setUploadCourierCompany(e.target.value as CourierCompany)}
+                className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[100px]"
+              >
+                <option value="LOGEN">로젠</option>
+                <option value="HANJIN">한진</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">파일 선택</label>
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                className="h-9 text-sm file:mr-3 file:py-1.5 file:px-3 file:border-0 file:rounded file:bg-gray-100 file:text-gray-700 file:text-xs file:font-medium hover:file:bg-gray-200 cursor-pointer"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleUploadTracking}
+              disabled={uploading || !uploadFile}
+              className="h-9 px-4 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? '업로드 중...' : '업로드'}
+            </button>
+          </div>
+          {uploadErrors.length > 0 && (
+            <div className="mt-3 border border-red-200 rounded-lg overflow-hidden">
+              <div className="bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                업로드 오류 ({uploadErrors.length}건)
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-gray-50 text-gray-600">
+                      <th className="px-3 py-2 text-left whitespace-nowrap">행</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">주문번호</th>
+                      <th className="px-3 py-2 text-left">사유</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadErrors.map((err, idx) => (
+                      <tr key={idx} className="border-b last:border-0">
+                        <td className="px-3 py-2 text-gray-500">{err.row}</td>
+                        <td className="px-3 py-2 font-mono text-gray-700">{err.displayCode || '-'}</td>
+                        <td className="px-3 py-2 text-red-600">{err.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Loading */}

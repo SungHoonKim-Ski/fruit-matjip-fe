@@ -1986,6 +1986,7 @@ export type CourierOrderReadyRequest = {
   deliveryMemo: string;
   pgProvider?: string;
   idempotencyKey: string;
+  pointUsed?: number;
 };
 
 export type CourierOrderReadyResponse = {
@@ -2022,6 +2023,8 @@ export type CourierOrderDetailResponse = {
   shippingFee: number;
   remoteAreaFee: number;
   totalAmount: number;
+  pointUsed: number;
+  pgPaymentAmount: number;
   recipientName: string;
   recipientPhone: string;
   postalCode: string;
@@ -2128,6 +2131,7 @@ export const createCourierOrder = async (request: CourierOrderReadyRequest): Pro
         shipping_memo: request.deliveryMemo,
         pg_provider: request.pgProvider || 'KAKAOPAY',
         idempotency_key: request.idempotencyKey,
+        point_used: request.pointUsed,
       }),
     });
     if (!res.ok) {
@@ -2235,6 +2239,8 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       shippingFee: Number(d.shipping_fee ?? d.shippingFee ?? 0),
       remoteAreaFee: Number(d.remote_area_fee ?? d.remoteAreaFee ?? 0),
       totalAmount: Number(d.total_amount ?? d.totalAmount ?? 0),
+      pointUsed: Number(d.point_used ?? d.pointUsed ?? 0),
+      pgPaymentAmount: Number(d.pg_payment_amount ?? d.pgPaymentAmount ?? 0),
       recipientName: String(d.recipient_name ?? d.recipientName ?? ''),
       recipientPhone: String(d.recipient_phone ?? d.recipientPhone ?? ''),
       postalCode: String(d.postal_code ?? d.postalCode ?? ''),
@@ -2247,6 +2253,22 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
       createdAt: String(d.created_at ?? d.createdAt ?? ''),
     };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 사용자 주문 취소 (결제 후)
+export const cancelCourierOrder = async (displayCode: string): Promise<void> => {
+  const key = 'cancelCourierOrder';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await apiFetch(`/api/auth/courier/orders/${encodeURIComponent(displayCode)}/cancel`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || '주문 취소에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
@@ -2470,6 +2492,60 @@ export const downloadAdminCourierWaybillExcelByFilter = async (
   return res.blob();
 };
 
+// 배송 추적 URL 생성
+export function getTrackingUrl(courierCompany: string | null, trackingNumber: string): string {
+  if (courierCompany === 'HANJIN') {
+    return `https://www.hanjin.com/kor/CMS/DeliveryMg498/tracking.do?type=TEL&value=${trackingNumber}`;
+  }
+  return `https://www.ilogen.com/web/personal/trace/${trackingNumber}`;
+}
+
+// ===== Courier Tracking Upload API =====
+
+export type CourierCompany = 'HANJIN' | 'LOGEN';
+
+export type TrackingUploadResponse = {
+  updatedCount: number;
+};
+
+export type TrackingUploadError = {
+  row: number;
+  displayCode: string;
+  reason: string;
+};
+
+export type TrackingUploadErrorResponse = {
+  message: string;
+  errors: TrackingUploadError[];
+};
+
+// 운송장 엑셀 업로드
+export const uploadTracking = async (file: File, courierCompany: CourierCompany): Promise<TrackingUploadResponse> => {
+  const key = 'uploadTracking';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('courierCompany', courierCompany);
+    const res = await fetch(`${API_BASE}/api/admin/courier/orders/upload-tracking`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const err: TrackingUploadErrorResponse = {
+        message: data.message || '운송장 업로드에 실패했습니다.',
+        errors: Array.isArray(data.errors) ? data.errors : [],
+      };
+      throw Object.assign(new Error(err.message), { uploadErrors: err.errors });
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return { updatedCount: Number(data.updated_count ?? data.updatedCount ?? 0) };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 // ===== Courier Claim APIs =====
 
 export type CourierClaimType = 'QUALITY_ISSUE' | 'CHANGE_OF_MIND';
@@ -2559,6 +2635,8 @@ export type AdminCourierClaimSummary = {
   adminNote: string | null;
   action: string | null;
   refundAmount: number | null;
+  pointAmount: number | null;
+  returnStatus: string | null;
   createdAt: string;
   resolvedAt: string | null;
   orderStatus: string | null;
@@ -2580,6 +2658,8 @@ export type AdminCourierClaimDetailResponse = {
   adminNote: string | null;
   action: string | null;
   refundAmount: number | null;
+  pointAmount: number | null;
+  returnStatus: string | null;
   courierOrderItemId: number | null;
   productName: string | null;
   customerName: string;
@@ -2619,6 +2699,8 @@ export const getAdminCourierClaims = async (
         adminNote: c.admin_note ?? c.adminNote ?? null,
         action: c.action ?? null,
         refundAmount: c.refund_amount ?? c.refundAmount ?? null,
+        pointAmount: c.point_amount ?? c.pointAmount ?? null,
+        returnStatus: c.return_status ?? c.returnStatus ?? null,
         createdAt: String(c.created_at ?? c.createdAt ?? ''),
         resolvedAt: c.resolved_at ?? c.resolvedAt ?? null,
         orderStatus: c.order_status ?? c.orderStatus ?? null,
@@ -2648,6 +2730,8 @@ export const getAdminCourierClaim = async (id: number): Promise<AdminCourierClai
       adminNote: c.admin_note ?? c.adminNote ?? null,
       action: c.action ?? null,
       refundAmount: c.refund_amount ?? c.refundAmount ?? null,
+      pointAmount: c.point_amount ?? c.pointAmount ?? null,
+      returnStatus: c.return_status ?? c.returnStatus ?? null,
       courierOrderItemId: c.courier_order_item_id ?? c.courierOrderItemId ?? null,
       productName: c.product_name ?? c.productName ?? null,
       customerName: String(c.customer_name ?? c.customerName ?? ''),
@@ -2660,21 +2744,26 @@ export const getAdminCourierClaim = async (id: number): Promise<AdminCourierClai
 
 // 관리자 클레임 승인
 export const approveAdminCourierClaim = async (id: number, data: {
-  action: 'REFUND' | 'RESHIP';
+  action: string;
   adminNote: string;
   refundAmount?: number;
+  pointAmount?: number;
+  returnRequired?: boolean;
 }) => {
   const key = 'approveAdminCourierClaim';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
+    const body: Record<string, unknown> = {
+      action: data.action,
+      admin_note: data.adminNote,
+      refund_amount: data.refundAmount ?? null,
+    };
+    if (data.pointAmount !== undefined) body.point_amount = data.pointAmount;
+    if (data.returnRequired !== undefined) body.return_required = data.returnRequired;
     const res = await adminFetch(`/api/admin/courier/claims/${id}/approve`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: data.action,
-        admin_note: data.adminNote,
-        refund_amount: data.refundAmount ?? null,
-      }),
+      body: JSON.stringify(body),
     }, true);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -2723,6 +2812,25 @@ export const updateClaimOrderStatus = async (claimId: number, orderStatus: strin
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
+// 관리자 클레임 회수 상태 변경
+export const updateClaimReturnStatus = async (claimId: number, returnStatus: string) => {
+  const key = 'updateClaimReturnStatus';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/claims/${claimId}/return-status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ return_status: returnStatus }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '회수 상태 변경에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 // ===== Admin Courier Config APIs =====
 
 export type AdminCourierConfigResponse = {
@@ -2730,8 +2838,6 @@ export type AdminCourierConfigResponse = {
   enabled: boolean;
   islandSurcharge: number;
   baseShippingFee: number;
-  combinedShippingEnabled: boolean;
-  combinedShippingMaxQuantity: number;
   noticeText: string | null;
   senderName: string | null;
   senderPhone: string | null;
@@ -2746,8 +2852,6 @@ const parseAdminCourierConfig = (d: any): AdminCourierConfigResponse => ({
   enabled: Boolean(d.enabled),
   islandSurcharge: Number(d.island_surcharge ?? d.islandSurcharge ?? 0),
   baseShippingFee: Number(d.base_shipping_fee ?? d.baseShippingFee ?? 3000),
-  combinedShippingEnabled: Boolean(d.combined_shipping_enabled ?? d.combinedShippingEnabled ?? false),
-  combinedShippingMaxQuantity: Number(d.combined_shipping_max_quantity ?? d.combinedShippingMaxQuantity ?? 1),
   noticeText: d.notice_text ?? d.noticeText ?? null,
   senderName: d.sender_name ?? d.senderName ?? null,
   senderPhone: d.sender_phone ?? d.senderPhone ?? null,
@@ -2761,8 +2865,6 @@ const toSnakeCourierConfig = (data: Partial<AdminCourierConfigResponse>) => ({
   enabled: data.enabled,
   island_surcharge: data.islandSurcharge,
   base_shipping_fee: data.baseShippingFee,
-  combined_shipping_enabled: data.combinedShippingEnabled,
-  combined_shipping_max_quantity: data.combinedShippingMaxQuantity,
   notice_text: data.noticeText,
   sender_name: data.senderName,
   sender_phone: data.senderPhone,
@@ -2897,5 +2999,193 @@ export const deleteAdminCourierShippingFeeTemplate = async (id: number): Promise
     }, true);
     if (!res.ok) throw new Error('배송 정책 삭제에 실패했습니다.');
     resetApiRetryCount(key);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// ===== Point System APIs =====
+
+export type PointTransactionType = 'EARN_CS' | 'EARN_ADMIN' | 'USE_COURIER' | 'USE_STORE' | 'CANCEL_EARN' | 'CANCEL_USE';
+
+export type PointTransactionResponse = {
+  id: number;
+  type: PointTransactionType;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  createdAt: string;
+};
+
+export type PointBalanceResponse = {
+  balance: number;
+  recentHistory: PointTransactionResponse[];
+};
+
+export type PointHistoryResponse = {
+  transactions: PointTransactionResponse[];
+  totalPages: number;
+  totalElements: number;
+  currentPage: number;
+};
+
+export type AdminPointUserResponse = {
+  uid: string;
+  name: string;
+  pointBalance: number;
+};
+
+export type AdminPointBulkIssueResponse = {
+  successCount: number;
+  failCount: number;
+  totalAmount: number;
+};
+
+export const getPointBalance = async (): Promise<PointBalanceResponse> => {
+  const key = 'getPointBalance';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 잠시 후 다시 시도해주세요.');
+  try {
+    const res = await userFetch('/api/auth/points');
+    if (!res.ok) throw new Error('포인트 잔액 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      balance: Number(data.balance ?? 0),
+      recentHistory: (data.recentHistory ?? data.recent_history ?? []).map((t: any) => ({
+        id: Number(t.id ?? 0),
+        type: String(t.type ?? '') as PointTransactionType,
+        amount: Number(t.amount ?? 0),
+        balanceAfter: Number(t.balanceAfter ?? t.balance_after ?? 0),
+        description: String(t.description ?? ''),
+        createdAt: String(t.createdAt ?? t.created_at ?? ''),
+      })),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getPointHistory = async (page = 0, size = 20): Promise<PointHistoryResponse> => {
+  const key = 'getPointHistory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 잠시 후 다시 시도해주세요.');
+  try {
+    const res = await userFetch(`/api/auth/points/history?page=${page}&size=${size}`);
+    if (!res.ok) throw new Error('포인트 내역 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      transactions: (data.transactions ?? data.content ?? []).map((t: any) => ({
+        id: Number(t.id ?? 0),
+        type: String(t.type ?? '') as PointTransactionType,
+        amount: Number(t.amount ?? 0),
+        balanceAfter: Number(t.balanceAfter ?? t.balance_after ?? 0),
+        description: String(t.description ?? ''),
+        createdAt: String(t.createdAt ?? t.created_at ?? ''),
+      })),
+      totalPages: Number(data.totalPages ?? data.total_pages ?? 1),
+      totalElements: Number(data.totalElements ?? data.total_elements ?? 0),
+      currentPage: Number(data.currentPage ?? data.current_page ?? data.number ?? page),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getAdminPointUsers = async (keyword = ''): Promise<AdminPointUserResponse[]> => {
+  const key = 'getAdminPointUsers';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const params = new URLSearchParams();
+    if (keyword) params.append('keyword', keyword);
+    const res = await adminFetch(`/api/admin/points/users?${params.toString()}`, {}, true);
+    if (!res.ok) throw new Error('사용자 목록 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    const list = Array.isArray(data.users ?? data.content ?? data) ? (data.users ?? data.content ?? data) : [];
+    return list.map((u: any) => ({
+      uid: String(u.uid ?? ''),
+      name: String(u.name ?? ''),
+      pointBalance: Number(u.pointBalance ?? u.point_balance ?? 0),
+    }));
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const getAdminPointUserHistory = async (uid: string, page = 0, size = 20): Promise<PointHistoryResponse> => {
+  const key = 'getAdminPointUserHistory';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/points/users/${uid}/history?page=${page}&size=${size}`, {}, true);
+    if (!res.ok) throw new Error('사용자 포인트 내역 조회에 실패했습니다.');
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      transactions: (data.transactions ?? data.content ?? []).map((t: any) => ({
+        id: Number(t.id ?? 0),
+        type: String(t.type ?? '') as PointTransactionType,
+        amount: Number(t.amount ?? 0),
+        balanceAfter: Number(t.balanceAfter ?? t.balance_after ?? 0),
+        description: String(t.description ?? ''),
+        createdAt: String(t.createdAt ?? t.created_at ?? ''),
+      })),
+      totalPages: Number(data.totalPages ?? data.total_pages ?? 1),
+      totalElements: Number(data.totalElements ?? data.total_elements ?? 0),
+      currentPage: Number(data.currentPage ?? data.current_page ?? data.number ?? page),
+    };
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const issueAdminPoints = async (uid: string, amount: number, description: string): Promise<void> => {
+  const key = 'issueAdminPoints';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/points/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, amount, description }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '포인트 적립에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const deductAdminPoints = async (uid: string, amount: number, description: string): Promise<void> => {
+  const key = 'deductAdminPoints';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/points/deduct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, amount, description }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '포인트 차감에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const bulkIssueAdminPoints = async (
+  uids: string[],
+  allUsers: boolean,
+  amount: number,
+  description: string,
+): Promise<AdminPointBulkIssueResponse> => {
+  const key = 'bulkIssueAdminPoints';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/points/bulk-issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uids, allUsers, amount, description }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '일괄 포인트 지급에 실패했습니다.');
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    return {
+      successCount: Number(data.successCount ?? data.success_count ?? 0),
+      failCount: Number(data.failCount ?? data.fail_count ?? 0),
+      totalAmount: Number(data.totalAmount ?? data.total_amount ?? 0),
+    };
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };

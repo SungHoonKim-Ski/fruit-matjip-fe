@@ -47,6 +47,7 @@ import AdminCourierClaimsPage from './pages/admin/courier/AdminCourierClaimsPage
 import AdminCourierConfigPage from './pages/admin/courier/AdminCourierConfigPage';
 import AdminCourierProductOrderPage from './pages/admin/courier/AdminCourierProductOrderPage';
 import AdminCourierCategoryPage from './pages/admin/courier/AdminCourierCategoryPage';
+import AdminPointPage from './pages/admin/AdminPointPage';
 
 /** query params를 보존하면서 redirect (OAuth callback용) */
 function RedirectWithSearch({ to }: { to: string }) {
@@ -135,6 +136,7 @@ export default function App() {
         <Route path="/admin/courier/claims" element={<AdminCourierClaimsPage />} />
         <Route path="/admin/courier/config" element={<AdminCourierConfigPage />} />
         <Route path="/admin/courier/categories" element={<AdminCourierCategoryPage />} />
+        <Route path="/admin/courier/points" element={<AdminPointPage />} />
       </Route>
 
       {/* 하위호환: /admin/courier 이외의 /admin/* → /admin/shop/login */}

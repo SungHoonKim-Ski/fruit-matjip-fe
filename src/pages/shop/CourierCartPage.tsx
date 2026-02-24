@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCart, updateQuantity, removeFromCart, CartItem, SelectedOption } from '../../utils/courierCart';
 import { getCourierShippingFee, type ShippingFeeResponse } from '../../utils/api';
@@ -29,9 +29,6 @@ export default function CourierCartPage() {
   const [shippingFee, setShippingFee] = useState<ShippingFeeResponse | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [bottomExpanded, setBottomExpanded] = useState(false);
-  const dragStartY = useRef(0);
-  const isDragging = useRef(false);
 
   const refresh = useCallback(() => {
     setItems(getCart());
@@ -223,7 +220,7 @@ export default function CourierCartPage() {
         </>
       )}
 
-      <main className="bg-[#f6f6f6] min-h-screen pt-16 pb-40">
+      <main className="bg-[#f6f6f6] min-h-screen pt-16 pb-24">
 
         <section className="max-w-md mx-auto px-4 mt-3">
           <div className="space-y-2">
@@ -313,56 +310,31 @@ export default function CourierCartPage() {
           </div>
         </section>
 
-        {/* Bottom Sheet */}
-        <div
-          className="fixed left-0 right-0 bottom-16 z-30 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out"
-        >
-          {/* Drag handle */}
-          <div
-            className="flex justify-center pt-3 pb-1 cursor-grab"
-            onTouchStart={(e) => { dragStartY.current = e.touches[0].clientY; isDragging.current = true; }}
-            onTouchEnd={(e) => {
-              if (!isDragging.current) return;
-              isDragging.current = false;
-              const diff = e.changedTouches[0].clientY - dragStartY.current;
-              if (diff > 40) setBottomExpanded(false);
-              if (diff < -40) setBottomExpanded(true);
-            }}
-            onClick={() => setBottomExpanded(prev => !prev)}
-          >
-            <div className="w-10 h-1 bg-gray-300 rounded-full" />
-          </div>
-
-          <div className="max-w-md mx-auto px-4 pb-4">
-            {/* Expandable details */}
-            <div className={`overflow-hidden transition-all duration-300 ease-out ${bottomExpanded ? 'max-h-40 opacity-100 mb-3' : 'max-h-0 opacity-0'}`}>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">총 {items.length}종 {totalQuantity}개</span>
-                  <span className="text-sm text-gray-700">{formatPrice(totalPrice)}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>배송비 (예상)</span>
-                  <span>{shippingLoading ? '계산 중...' : shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
-                </div>
-              </div>
+        {/* 결제 요약 */}
+        <section className="max-w-md mx-auto px-4 mt-4">
+          <div className="bg-white rounded-lg shadow p-4 space-y-2">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>총 {items.length}종 {totalQuantity}개</span>
+              <span>{formatPrice(totalPrice)}</span>
             </div>
-
-            {/* Always visible: total + button */}
-            <div className="flex items-center justify-between font-bold text-gray-900 text-base mb-3">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>배송비 (예상)</span>
+              <span>{shippingLoading ? '계산 중...' : shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
+            </div>
+            <div className="border-t pt-2 flex items-center justify-between font-bold text-gray-900 text-base">
               <span>결제 예상액</span>
               <span style={{ color: 'var(--color-primary-700)' }}>{formatPrice(totalPrice + (shippingFee?.totalFee ?? 0))}</span>
             </div>
             <button
               type="button"
               onClick={handleCheckout}
-              className="w-full h-12 rounded-lg text-white font-semibold text-sm transition"
+              className="w-full h-12 rounded-lg text-white font-semibold text-sm transition mt-2"
               style={{ backgroundColor: 'var(--color-primary-500)' }}
             >
               주문하기
             </button>
           </div>
-        </div>
+        </section>
 
         {/* Delete confirmation dialog */}
         {deleteDialog.isOpen && (

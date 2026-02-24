@@ -8,6 +8,7 @@ import {
   getCourierShippingFee,
   createCourierOrder,
   getCourierInfo,
+  getPointBalance,
   type ShippingFeeResponse,
 } from '../../utils/api';
 
@@ -42,6 +43,9 @@ export default function CourierCheckoutPage() {
   const [shippingLoading, setShippingLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentFallbackPcUrl, setPaymentFallbackPcUrl] = useState<string | null>(null);
+  const [pointBalance, setPointBalance] = useState(0);
+  const [pointInput, setPointInput] = useState('');
+  const [pointUsed, setPointUsed] = useState(0);
 
   const idempotencyKeyRef = useRef<string | null>(null);
   const buildIdempotencyKey = () => {
@@ -102,6 +106,20 @@ export default function CourierCheckoutPage() {
     }
   };
 
+  // Fetch point balance on mount
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getPointBalance();
+        if (alive) setPointBalance(res.balance);
+      } catch {
+        // 포인트 조회 실패는 무시
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
   // Pre-fill saved courier receiver info on mount
   useEffect(() => {
     let alive = true;
@@ -145,9 +163,22 @@ export default function CourierCheckoutPage() {
   };
 
   const totalPayment = useMemo(() => {
-    if (!shippingFee) return productTotal;
-    return productTotal + shippingFee.totalFee;
-  }, [productTotal, shippingFee]);
+    if (!shippingFee) return productTotal - pointUsed;
+    return productTotal + shippingFee.totalFee - pointUsed;
+  }, [productTotal, shippingFee, pointUsed]);
+
+  const handlePointChange = (value: string) => {
+    setPointInput(value);
+    const num = Number(value) || 0;
+    const maxUsable = Math.min(pointBalance, shippingFee ? productTotal + shippingFee.totalFee : productTotal);
+    setPointUsed(Math.min(Math.max(0, num), maxUsable));
+  };
+
+  const handleUseAllPoints = () => {
+    const maxUsable = Math.min(pointBalance, shippingFee ? productTotal + shippingFee.totalFee : productTotal);
+    setPointInput(String(maxUsable));
+    setPointUsed(maxUsable);
+  };
 
   const canSubmit = useMemo(() => {
     return (
@@ -203,6 +234,7 @@ export default function CourierCheckoutPage() {
         address2: address2.trim(),
         deliveryMemo: deliveryMemo.trim(),
         idempotencyKey,
+        pointUsed: pointUsed > 0 ? pointUsed : undefined,
       });
 
       if (result.orderCode) {
@@ -210,6 +242,13 @@ export default function CourierCheckoutPage() {
         if (isBuyNow) {
           localStorage.setItem('courierBuyNowOrder', 'true');
         }
+      }
+
+      // 전액 포인트 결제 — PG 미호출, 바로 주문 완료
+      if (totalPayment <= 0) {
+        show('포인트 결제가 완료되었습니다.', { variant: 'success' });
+        nav(`/shop/orders/${result.orderCode}`, { replace: true });
+        return;
       }
 
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -389,6 +428,39 @@ export default function CourierCheckoutPage() {
         </div>
       </section>
 
+      {/* 포인트 사용 */}
+      {pointBalance > 0 && (
+        <section className="max-w-md mx-auto px-4 mt-3">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h2 className="text-base font-semibold text-gray-800 mb-3">포인트 사용</h2>
+            <div className="text-sm text-gray-600 mb-2">
+              보유 포인트: <span className="font-semibold text-orange-500">{pointBalance.toLocaleString()}P</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={pointInput}
+                onChange={e => handlePointChange(e.target.value)}
+                placeholder="사용할 포인트"
+                className="flex-1 h-10 border rounded-lg px-3 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleUseAllPoints}
+                className="h-10 px-4 rounded-lg border bg-orange-50 text-orange-600 text-sm font-medium hover:bg-orange-100 transition"
+              >
+                전액 사용
+              </button>
+            </div>
+            {pointUsed > 0 && (
+              <div className="mt-2 text-sm text-orange-600 font-medium">
+                -{pointUsed.toLocaleString()}P 적용
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* 결제 수단 */}
       <section className="max-w-md mx-auto px-4 mt-3">
         <div className="bg-white rounded-lg shadow p-4">
@@ -428,6 +500,12 @@ export default function CourierCheckoutPage() {
               <span>배송비</span>
               <span>{shippingFee ? formatPrice(shippingFee.totalFee) : '-'}</span>
             </div>
+            {pointUsed > 0 && (
+              <div className="flex justify-between text-orange-600">
+                <span>포인트 할인</span>
+                <span>-{formatPrice(pointUsed)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 text-base border-t pt-2 mt-2">
               <span>총 결제 금액</span>
               <span className="text-orange-500">{formatPrice(totalPayment)}</span>
@@ -446,7 +524,12 @@ export default function CourierCheckoutPage() {
             disabled={!canSubmit}
             className="mt-4 w-full h-12 rounded-lg bg-orange-500 text-white font-semibold text-sm hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? '결제 준비 중...' : `${formatPrice(totalPayment)} 결제하기`}
+            {submitting
+              ? '결제 준비 중...'
+              : totalPayment <= 0
+                ? '포인트 결제하기'
+                : `${formatPrice(totalPayment)} 결제하기`
+            }
           </button>
         </div>
       </section>

@@ -9,6 +9,7 @@ import {
   shipAdminCourierOrder,
   cancelAdminCourierOrder,
   downloadAdminCourierWaybillExcel,
+  getTrackingUrl,
   type AdminCourierOrderDetailResponse,
   type CourierOrderStatus,
 } from '../../../utils/api';
@@ -200,7 +201,7 @@ export default function AdminCourierOrderDetailPage() {
   const canCancel = order?.status === 'PAID' || order?.status === 'PREPARING';
 
   const trackingUrl = order?.trackingNumber
-    ? `https://www.ilogen.com/web/personal/trace/${order.trackingNumber}`
+    ? getTrackingUrl(order.courierCompany, order.trackingNumber)
     : null;
 
   if (loading) {
@@ -388,7 +389,7 @@ export default function AdminCourierOrderDetailPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  로젠 배송 추적
+                  {order.courierCompany === 'HANJIN' ? '한진' : '로젠'} 배송 추적
                 </a>
               )}
             </div>

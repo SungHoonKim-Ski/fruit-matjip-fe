@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getCourierProduct } from '../../utils/api';
+import { getCourierProduct, getCourierConfig, type CourierConfigResponse } from '../../utils/api';
 import { addToCart, setBuyNowItem, SelectedOption } from '../../utils/courierCart';
 import { theme } from '../../brand';
 
@@ -56,6 +56,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
   const { show } = useSnackbar();
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [courierConfig, setCourierConfig] = useState<CourierConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Map<number, number>>(new Map());
@@ -79,13 +80,17 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
         setSelectedOptions(new Map());
         setShowOrderSheet(false);
         setSheetAnimating(false);
-        const res = await getCourierProduct(productId);
+        const [res, configData] = await Promise.all([
+          getCourierProduct(productId),
+          getCourierConfig().catch(() => null),
+        ]);
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) return;
           throw new Error('상품 정보를 불러오지 못했습니다.');
         }
         const raw = await res.json();
         const data = raw?.response ?? raw;
+        if (alive && configData) setCourierConfig(configData);
         if (alive) {
           const rawGroups = data.option_groups ?? data.optionGroups;
           const optionGroups: OptionGroup[] = Array.isArray(rawGroups)
@@ -318,6 +323,17 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
               <div className="bg-white px-4 py-4 mt-1">
                 <h1 className="text-lg font-bold text-gray-900 leading-tight">{product.name}</h1>
                 <div className="mt-2 text-xl font-bold" style={{ color: 'var(--color-primary-700)' }}>{formatPrice(product.price)}</div>
+                {courierConfig && (
+                  <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+                    <div>
+                      배송비 {courierConfig.shippingBaseFee.toLocaleString()}원
+                      {courierConfig.freeShippingThreshold != null && ` | ${courierConfig.freeShippingThreshold.toLocaleString()}원 이상 무료배송`}
+                    </div>
+                    {courierConfig.remoteAreaExtraFee > 0 && (
+                      <div>도서산간 추가 {courierConfig.remoteAreaExtraFee.toLocaleString()}원</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Description */}

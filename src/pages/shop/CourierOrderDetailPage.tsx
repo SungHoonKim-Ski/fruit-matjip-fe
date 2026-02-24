@@ -6,6 +6,8 @@ import CourierBottomNav from '../../components/shop/CourierBottomNav';
 import {
   getCourierOrder,
   getCourierClaims,
+  cancelCourierOrder,
+  getTrackingUrl,
   type CourierOrderDetailResponse,
   type CourierOrderStatus,
   type CourierClaimSummary,
@@ -81,6 +83,8 @@ export default function CourierOrderDetailPage() {
   const [order, setOrder] = useState<CourierOrderDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<CourierClaimSummary[]>([]);
+  const [cancelModal, setCancelModal] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   useEffect(() => {
     if (!code) return;
@@ -137,8 +141,26 @@ export default function CourierOrderDetailPage() {
   }
 
   const trackingUrl = order.trackingNumber
-    ? `https://www.ilogen.com/web/personal/trace/${order.trackingNumber}`
+    ? getTrackingUrl(order.courierCompany, order.trackingNumber)
     : null;
+
+  const canCancel = order.status === 'PAID' || order.status === 'PREPARING';
+
+  const handleCancel = async () => {
+    if (!order) return;
+    try {
+      setCanceling(true);
+      await cancelCourierOrder(order.displayCode);
+      show('주문이 취소되었습니다.', { variant: 'success' });
+      setCancelModal(false);
+      nav('/shop/orders');
+    } catch (e) {
+      safeErrorLog(e, 'CourierOrderDetailPage - cancel');
+      show(getSafeErrorMessage(e, '주문 취소에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setCanceling(false);
+    }
+  };
 
   return (
     <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-24">
@@ -287,6 +309,19 @@ export default function CourierOrderDetailPage() {
         </section>
       )}
 
+      {/* 주문 취소 버튼 - PAID/PREPARING 상태에서만 노출 */}
+      {canCancel && (
+        <section className="max-w-md mx-auto px-4 mt-3">
+          <button
+            type="button"
+            onClick={() => setCancelModal(true)}
+            className="w-full h-11 rounded-lg border border-red-300 bg-white text-sm text-red-600 hover:bg-red-50 transition font-medium"
+          >
+            주문 취소
+          </button>
+        </section>
+      )}
+
       {/* CS claim button - available after payment */}
       {!['PENDING_PAYMENT', 'CANCELED', 'FAILED'].includes(order.status) && (
         <section className="max-w-md mx-auto px-4 mt-3">
@@ -344,6 +379,37 @@ export default function CourierOrderDetailPage() {
         </section>
       )}
       <CourierBottomNav />
+
+      {/* 주문 취소 확인 모달 */}
+      {cancelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">주문 취소</h3>
+            <p className="text-sm text-gray-600 mb-1">
+              주문번호 <span className="font-mono font-medium">{order.displayCode}</span>
+            </p>
+            <p className="text-sm text-red-600 mb-6">정말 취소하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setCancelModal(false)}
+                disabled={canceling}
+                className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={canceling}
+                className="flex-1 h-11 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50"
+              >
+                {canceling ? '처리중...' : '주문 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

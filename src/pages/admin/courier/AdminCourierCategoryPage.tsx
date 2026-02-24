@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
 import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
@@ -200,14 +201,15 @@ function CourierProductDialog({ title, allProducts, initialSelectedIds, onClose,
 
 interface SortableItemProps {
   item: CategoryItem;
-  products: CourierProduct[];
+  productCount: number;
   onDelete: (item: CategoryItem) => void;
   onEdit: (item: CategoryItem) => void;
   onManageProducts: (item: CategoryItem) => void;
+  onGoToProducts: (item: CategoryItem) => void;
   deleting: number | null;
 }
 
-function SortableItem({ item, products, onDelete, onEdit, onManageProducts, deleting }: SortableItemProps) {
+function SortableItem({ item, productCount, onDelete, onEdit, onManageProducts, onGoToProducts, deleting }: SortableItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -220,47 +222,42 @@ function SortableItem({ item, products, onDelete, onEdit, onManageProducts, dele
       style={style}
       className="mb-2 text-sm bg-gray-50 border rounded px-3 py-2.5"
     >
-      <div className="flex items-center">
-        <div {...attributes} {...listeners} className="cursor-move mr-3 text-gray-400 hover:text-gray-600 px-1">
+      <div className="flex items-center gap-1.5">
+        <div {...attributes} {...listeners} className="cursor-move mr-1 text-gray-400 hover:text-gray-600 px-1">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
           </svg>
         </div>
         <span className="flex-1 font-medium text-gray-800">{item.name}</span>
-        <div className="flex gap-1.5 ml-auto">
-          <button
-            onClick={() => onManageProducts(item)}
-            className="text-[11px] font-bold px-2.5 py-1 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100 transition-colors"
-          >
-            상품관리
-          </button>
-          <button
-            onClick={() => onEdit(item)}
-            className="text-[11px] font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-colors"
-          >
-            수정
-          </button>
-          <button
-            onClick={() => onDelete(item)}
-            disabled={deleting === item.id}
-            className="text-[11px] font-bold px-2.5 py-1 rounded bg-red-50 text-red-600 hover:bg-red-200 border border-red-100 disabled:opacity-50 transition-colors"
-          >
-            {deleting === item.id ? '...' : '삭제'}
-          </button>
-        </div>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-200 text-gray-600">
+          {productCount}개
+        </span>
+        <button
+          onClick={() => onGoToProducts(item)}
+          className="text-[11px] font-bold px-2.5 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition-colors"
+        >
+          상품 관리
+        </button>
+        <button
+          onClick={() => onManageProducts(item)}
+          className="text-[11px] font-bold px-2.5 py-1 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100 transition-colors"
+        >
+          연결
+        </button>
+        <button
+          onClick={() => onEdit(item)}
+          className="text-[11px] font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 transition-colors"
+        >
+          수정
+        </button>
+        <button
+          onClick={() => onDelete(item)}
+          disabled={deleting === item.id}
+          className="text-[11px] font-bold px-2.5 py-1 rounded bg-red-50 text-red-600 hover:bg-red-200 border border-red-100 disabled:opacity-50 transition-colors"
+        >
+          {deleting === item.id ? '...' : '삭제'}
+        </button>
       </div>
-      {products.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5 pl-8">
-          {products.map(p => (
-            <span key={p.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700 border border-orange-200">
-              {p.name}
-            </span>
-          ))}
-        </div>
-      )}
-      {products.length === 0 && (
-        <div className="mt-1 pl-8 text-[11px] text-gray-400">연결된 상품 없음</div>
-      )}
     </li>
   );
 }
@@ -269,6 +266,7 @@ function SortableItem({ item, products, onDelete, onEdit, onManageProducts, dele
 
 export default function AdminCourierCategoryPage() {
   const { show } = useSnackbar();
+  const navigate = useNavigate();
 
   // Categories
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -547,40 +545,31 @@ export default function AdminCourierCategoryPage() {
                 <ul>
                   {/* 추천 상품: FE static 항목 — 수정/삭제/드래그 불가, 상품관리만 가능 */}
                   <li className="mb-2 text-sm bg-orange-50 border border-orange-200 rounded px-3 py-2.5">
-                    <div className="flex items-center">
-                      <div className="mr-3 text-orange-300 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="mr-1 text-orange-300 px-1">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                         </svg>
                       </div>
                       <span className="flex-1 font-medium text-orange-700">추천 상품</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-200 text-orange-700">
+                        {recommendedProducts.length}개
+                      </span>
                       <button
                         onClick={openRecommendedDialog}
                         disabled={!productsLoaded}
                         className="text-[11px] font-bold px-2.5 py-1 rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
                       >
-                        상품관리
+                        연결
                       </button>
                     </div>
-                    {recommendedProducts.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 pl-8">
-                        {recommendedProducts.map(p => (
-                          <span key={p.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-100 text-orange-700 border border-orange-200">
-                            {p.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {recommendedProducts.length === 0 && (
-                      <div className="mt-1 pl-8 text-[11px] text-orange-400">연결된 상품 없음</div>
-                    )}
                   </li>
 
                   {categories.map(item => (
                     <SortableItem
                       key={item.id}
                       item={item}
-                      products={categoryProductsMap[item.id] ?? []}
+                      productCount={(categoryProductsMap[item.id] ?? []).length}
                       onDelete={handleDelete}
                       onEdit={i => {
                         setEditingItem(i);
@@ -588,6 +577,7 @@ export default function AdminCourierCategoryPage() {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       onManageProducts={openCategoryDialog}
+                      onGoToProducts={i => navigate(`/admin/courier/products?category=${i.id}`)}
                       deleting={deleting}
                     />
                   ))}
