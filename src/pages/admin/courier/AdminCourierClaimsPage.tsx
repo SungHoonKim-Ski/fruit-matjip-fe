@@ -6,6 +6,7 @@ import {
   getAdminCourierClaims,
   approveAdminCourierClaim,
   rejectAdminCourierClaim,
+  updateClaimOrderStatus,
   type AdminCourierClaimSummary,
   type CourierClaimStatus,
   type CourierClaimType,
@@ -60,6 +61,25 @@ const STATUS_COLORS: Record<CourierClaimStatus, string> = {
   RESOLVED: 'bg-gray-100 text-gray-600 border-gray-300',
 };
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: '결제대기',
+  PAID: '결제완료',
+  PREPARING: '상품준비중',
+  SHIPPED: '발송완료',
+  IN_TRANSIT: '배송중',
+  DELIVERED: '배송완료',
+  CANCELED: '주문취소',
+  FAILED: '결제실패',
+};
+
+const ORDER_STATUS_CHANGE_OPTIONS = [
+  { value: 'PREPARING', label: '상품준비중' },
+  { value: 'SHIPPED', label: '발송완료' },
+  { value: 'IN_TRANSIT', label: '배송중' },
+  { value: 'DELIVERED', label: '배송완료' },
+  { value: 'CANCELED', label: '주문취소' },
+];
+
 const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '전체' },
   { value: 'REQUESTED', label: '접수' },
@@ -67,6 +87,12 @@ const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'APPROVED', label: '승인' },
   { value: 'REJECTED', label: '거부' },
   { value: 'RESOLVED', label: '처리완료' },
+];
+
+const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '전체' },
+  { value: 'QUALITY_ISSUE', label: '품질문제' },
+  { value: 'CHANGE_OF_MIND', label: '단순변심' },
 ];
 
 type ModalMode = 'approve' | 'reject' | null;
@@ -77,12 +103,17 @@ export default function AdminCourierClaimsPage() {
   const [claims, setClaims] = useState<AdminCourierClaimSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
 
   // Detail expand
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Order status change per expanded row
+  const [orderStatusSelections, setOrderStatusSelections] = useState<Record<number, string>>({});
+  const [orderStatusSubmitting, setOrderStatusSubmitting] = useState<number | null>(null);
 
   // Action modal
   const [modalMode, setModalMode] = useState<ModalMode>(null);
@@ -182,6 +213,25 @@ export default function AdminCourierClaimsPage() {
     }
   };
 
+  const handleOrderStatusChange = async (claim: AdminCourierClaimSummary) => {
+    const selectedStatus = orderStatusSelections[claim.id];
+    if (!selectedStatus) {
+      show('변경할 상태를 선택해주세요.', { variant: 'error' });
+      return;
+    }
+    try {
+      setOrderStatusSubmitting(claim.id);
+      await updateClaimOrderStatus(claim.id, selectedStatus);
+      show('주문 상태가 변경되었습니다.', { variant: 'success' });
+      fetchClaims(statusFilter, currentPage);
+    } catch (err) {
+      safeErrorLog(err, 'AdminCourierClaimsPage - updateClaimOrderStatus');
+      show(getSafeErrorMessage(err, '주문 상태 변경에 실패했습니다.'), { variant: 'error' });
+    } finally {
+      setOrderStatusSubmitting(null);
+    }
+  };
+
   const renderPageButtons = () => {
     const pages: number[] = [];
     const maxVisible = 5;
@@ -199,6 +249,8 @@ export default function AdminCourierClaimsPage() {
   const canTakeAction = (status: CourierClaimStatus) =>
     status === 'REQUESTED' || status === 'IN_REVIEW';
 
+  const filteredClaims = claims.filter(c => !typeFilter || c.claimType === typeFilter);
+
   return (
     <main className="bg-gray-50 min-h-screen px-4 sm:px-6 lg:px-8 py-6">
       <div className="max-w-5xl mx-auto">
@@ -213,7 +265,7 @@ export default function AdminCourierClaimsPage() {
         </div>
 
         {/* Status filter */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
           {STATUS_FILTER_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -230,6 +282,24 @@ export default function AdminCourierClaimsPage() {
           ))}
         </div>
 
+        {/* Claim type filter */}
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          {TYPE_FILTER_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setTypeFilter(opt.value)}
+              className={`h-8 px-3 rounded-full text-sm font-medium border transition ${
+                typeFilter === opt.value
+                  ? 'bg-blue-500 text-white border-blue-500'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-20">
@@ -238,14 +308,14 @@ export default function AdminCourierClaimsPage() {
         )}
 
         {/* Empty */}
-        {!loading && claims.length === 0 && (
+        {!loading && filteredClaims.length === 0 && (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
             클레임이 없습니다.
           </div>
         )}
 
         {/* Claims table */}
-        {!loading && claims.length > 0 && (
+        {!loading && filteredClaims.length > 0 && (
           <>
             <div className="bg-white rounded-lg shadow overflow-x-auto">
               <table className="w-full text-sm">
@@ -258,11 +328,12 @@ export default function AdminCourierClaimsPage() {
                     <th className="px-3 py-3 text-left whitespace-nowrap">상태</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">접수일</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">처리일</th>
+                    <th className="px-3 py-3 text-left whitespace-nowrap">주문상태</th>
                     <th className="px-3 py-3 text-center whitespace-nowrap">처리</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {claims.map(claim => (
+                  {filteredClaims.map(claim => (
                     <React.Fragment key={claim.id}>
                       <tr
                         className="border-b hover:bg-gray-50 cursor-pointer transition"
@@ -293,6 +364,15 @@ export default function AdminCourierClaimsPage() {
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                           {formatDate(claim.resolvedAt)}
                         </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {claim.orderStatus ? (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border bg-indigo-50 text-indigo-700 border-indigo-200">
+                              {ORDER_STATUS_LABELS[claim.orderStatus] || claim.orderStatus}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
                           {canTakeAction(claim.status) && (
                             <div className="flex items-center justify-center gap-1">
@@ -317,7 +397,7 @@ export default function AdminCourierClaimsPage() {
                       {/* Expanded detail row */}
                       {expandedId === claim.id && (
                         <tr className="bg-gray-50">
-                          <td colSpan={8} className="px-4 py-4">
+                          <td colSpan={9} className="px-4 py-4">
                             <div className="space-y-2 text-sm">
                               <div className="flex gap-2">
                                 <span className="text-gray-500 w-20 flex-shrink-0">사유</span>
@@ -353,6 +433,32 @@ export default function AdminCourierClaimsPage() {
                                   <span className="text-gray-800">{formatDateTime(claim.resolvedAt)}</span>
                                 </div>
                               )}
+
+                              {/* Order status change */}
+                              <div className="pt-2 border-t border-gray-200">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500 w-20 flex-shrink-0">주문 상태 변경</span>
+                                  <select
+                                    value={orderStatusSelections[claim.id] ?? ''}
+                                    onChange={e => setOrderStatusSelections(prev => ({ ...prev, [claim.id]: e.target.value }))}
+                                    className="h-8 border border-gray-300 rounded px-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <option value="">상태 선택</option>
+                                    {ORDER_STATUS_CHANGE_OPTIONS.map(opt => (
+                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); handleOrderStatusChange(claim); }}
+                                    disabled={orderStatusSubmitting === claim.id || !orderStatusSelections[claim.id]}
+                                    className="h-8 px-3 rounded text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {orderStatusSubmitting === claim.id ? '변경 중...' : '상태 변경'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </td>
                         </tr>

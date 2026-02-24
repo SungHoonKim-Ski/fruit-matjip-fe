@@ -2557,6 +2557,7 @@ export type AdminCourierClaimSummary = {
   refundAmount: number | null;
   createdAt: string;
   resolvedAt: string | null;
+  orderStatus: string | null;
 };
 
 export type AdminCourierClaimListResponse = {
@@ -2606,16 +2607,17 @@ export const getAdminCourierClaims = async (
     return {
       claims: raw.map((c: any) => ({
         id: Number(c.id ?? 0),
-        displayCode: String(c.display_code ?? c.displayCode ?? ''),
+        displayCode: String(c.order_display_code ?? c.display_code ?? c.displayCode ?? ''),
         productName: String(c.product_name ?? c.productName ?? ''),
         claimType: String(c.claim_type ?? c.claimType ?? 'QUALITY_ISSUE') as CourierClaimType,
-        status: String(c.status ?? 'REQUESTED') as CourierClaimStatus,
+        status: String(c.claim_status ?? c.status ?? 'REQUESTED') as CourierClaimStatus,
         reason: String(c.reason ?? ''),
         adminNote: c.admin_note ?? c.adminNote ?? null,
         action: c.action ?? null,
         refundAmount: c.refund_amount ?? c.refundAmount ?? null,
         createdAt: String(c.created_at ?? c.createdAt ?? ''),
         resolvedAt: c.resolved_at ?? c.resolvedAt ?? null,
+        orderStatus: c.order_status ?? c.orderStatus ?? null,
       })),
       totalPages: Number(data.total_pages ?? data.totalPages ?? 1),
       totalElements: Number(data.total_elements ?? data.totalElements ?? 0),
@@ -2692,6 +2694,25 @@ export const rejectAdminCourierClaim = async (id: number, adminNote: string) => 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || '클레임 거부에 실패했습니다.');
+    }
+    resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+// 관리자 클레임 주문 상태 변경
+export const updateClaimOrderStatus = async (claimId: number, orderStatus: string) => {
+  const key = 'updateClaimOrderStatus';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch(`/api/admin/courier/claims/${claimId}/order-status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_status: orderStatus }),
+    }, true);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || '주문 상태 변경에 실패했습니다.');
     }
     resetApiRetryCount(key);
     return res;
