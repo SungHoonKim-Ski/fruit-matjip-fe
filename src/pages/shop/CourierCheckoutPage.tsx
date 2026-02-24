@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import CourierBottomNav from '../../components/shop/CourierBottomNav';
 import { getCart, getBuyNowItem, clearBuyNow, CartItem } from '../../utils/courierCart';
 import {
   getCourierShippingFee,
@@ -245,7 +244,7 @@ export default function CourierCheckoutPage() {
   if (items.length === 0) return null;
 
   return (
-    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-80">
+    <main className="bg-[#f6f6f6] min-h-screen pt-4 pb-56">
 
       {/* Order items summary */}
       <section className="max-w-md mx-auto px-4 mt-3">
@@ -394,7 +393,7 @@ export default function CourierCheckoutPage() {
 
       {/* Bottom Sheet */}
       <div
-        className="fixed left-0 right-0 bottom-16 z-30 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out"
+        className="fixed left-0 right-0 bottom-0 z-30 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.15)] transition-all duration-300 ease-out"
       >
         {/* Drag handle */}
         <div
@@ -505,7 +504,6 @@ export default function CourierCheckoutPage() {
           </div>
         </div>
       )}
-      <CourierBottomNav />
     </main>
   );
 }
