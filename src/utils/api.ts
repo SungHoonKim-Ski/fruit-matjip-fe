@@ -2730,6 +2730,8 @@ export type AdminCourierConfigResponse = {
   enabled: boolean;
   islandSurcharge: number;
   baseShippingFee: number;
+  combinedShippingEnabled: boolean;
+  combinedShippingMaxQuantity: number;
   noticeText: string | null;
   senderName: string | null;
   senderPhone: string | null;
@@ -2744,6 +2746,8 @@ const parseAdminCourierConfig = (d: any): AdminCourierConfigResponse => ({
   enabled: Boolean(d.enabled),
   islandSurcharge: Number(d.island_surcharge ?? d.islandSurcharge ?? 0),
   baseShippingFee: Number(d.base_shipping_fee ?? d.baseShippingFee ?? 3000),
+  combinedShippingEnabled: Boolean(d.combined_shipping_enabled ?? d.combinedShippingEnabled ?? false),
+  combinedShippingMaxQuantity: Number(d.combined_shipping_max_quantity ?? d.combinedShippingMaxQuantity ?? 1),
   noticeText: d.notice_text ?? d.noticeText ?? null,
   senderName: d.sender_name ?? d.senderName ?? null,
   senderPhone: d.sender_phone ?? d.senderPhone ?? null,
@@ -2757,6 +2761,8 @@ const toSnakeCourierConfig = (data: Partial<AdminCourierConfigResponse>) => ({
   enabled: data.enabled,
   island_surcharge: data.islandSurcharge,
   base_shipping_fee: data.baseShippingFee,
+  combined_shipping_enabled: data.combinedShippingEnabled,
+  combined_shipping_max_quantity: data.combinedShippingMaxQuantity,
   notice_text: data.noticeText,
   sender_name: data.senderName,
   sender_phone: data.senderPhone,

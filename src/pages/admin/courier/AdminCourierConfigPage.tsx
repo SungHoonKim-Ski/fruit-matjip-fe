@@ -18,6 +18,8 @@ const DEFAULT_CONFIG: AdminCourierConfigResponse = {
   enabled: false,
   islandSurcharge: 0,
   baseShippingFee: 3000,
+  combinedShippingEnabled: false,
+  combinedShippingMaxQuantity: 1,
   noticeText: '',
   senderName: '',
   senderPhone: '',
@@ -270,6 +272,47 @@ export default function AdminCourierConfigPage() {
             min={0}
             step={100}
           />
+        </div>
+
+        {/* 합배송 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm font-medium">합배송</label>
+              <p className="text-xs text-gray-500">여러 상품을 묶어 배송비를 절감합니다.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfig(prev => ({ ...prev, combinedShippingEnabled: !prev.combinedShippingEnabled }))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                config.combinedShippingEnabled ? 'bg-orange-500' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  config.combinedShippingEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          {config.combinedShippingEnabled && (
+            <div className="pl-0">
+              <label className="block text-xs text-gray-500 mb-1">합배송 최대 수량</label>
+              <p className="text-xs text-gray-400 mb-1">이 수량까지 1건의 배송비만 부과됩니다.</p>
+              <input
+                type="number"
+                value={config.combinedShippingMaxQuantity}
+                onChange={e => {
+                  const num = Math.max(1, Math.floor(Number(e.target.value)));
+                  if (!Number.isFinite(num)) return;
+                  setConfig(prev => ({ ...prev, combinedShippingMaxQuantity: num }));
+                }}
+                className="w-full border px-3 py-2 rounded"
+                min={1}
+                step={1}
+              />
+            </div>
+          )}
         </div>
 
         {/* 공지사항 */}
