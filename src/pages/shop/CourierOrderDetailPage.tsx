@@ -8,6 +8,7 @@ import {
   getCourierClaims,
   cancelCourierOrder,
   getTrackingUrl,
+  getCourierCompanyLabel,
   type CourierOrderDetailResponse,
   type CourierOrderStatus,
   type CourierClaimSummary,
@@ -262,7 +263,7 @@ export default function CourierOrderDetailPage() {
       </section>
 
       {/* Shipping/tracking info */}
-      {(order.courierCompany || order.trackingNumber || order.shippedAt || order.deliveredAt) && (
+      {(order.trackingNumber || order.shippedAt || order.deliveredAt) && (
         <section className="max-w-md mx-auto px-4 mt-3">
           <div className="bg-white rounded-lg shadow p-4">
             <h2 className="text-base font-semibold text-gray-800 mb-3">배송 정보</h2>
@@ -270,7 +271,7 @@ export default function CourierOrderDetailPage() {
               {order.courierCompany && (
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-20 flex-shrink-0">택배사</span>
-                  <span>{order.courierCompany}</span>
+                  <span>{getCourierCompanyLabel(order.courierCompany)}</span>
                 </div>
               )}
               {order.trackingNumber && (

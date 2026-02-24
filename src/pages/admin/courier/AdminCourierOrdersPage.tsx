@@ -8,6 +8,7 @@ import {
   downloadAdminCourierWaybillExcelByFilter,
   getAdminCourierProducts,
   uploadTracking,
+  COURIER_COMPANY_LABELS,
   type AdminCourierOrderSummary,
   type CourierOrderStatus,
   type CourierCompany,
@@ -70,8 +71,13 @@ export default function AdminCourierOrdersPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [filterEndDate, setFilterEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [filterStatus, setFilterStatus] = useState<string>('PAID');
   const [filterProductId, setFilterProductId] = useState<number | undefined>(undefined);
   const [filterProducts, setFilterProducts] = useState<Array<{ id: number; name: string }>>([]);
   const [filterDownloading, setFilterDownloading] = useState(false);
@@ -104,7 +110,7 @@ export default function AdminCourierOrdersPage() {
     }
     try {
       setFilterDownloading(true);
-      const blob = await downloadAdminCourierWaybillExcelByFilter(filterStartDate, filterEndDate, filterProductId);
+      const blob = await downloadAdminCourierWaybillExcelByFilter(filterStartDate, filterEndDate, filterProductId, filterStatus || undefined);
       triggerDownload(blob, `waybill-filter-${filterStartDate}-${filterEndDate}.xlsx`);
       show('필터 Excel 다운로드 완료', { variant: 'success' });
       fetchOrders(statusFilter, currentPage);
@@ -250,6 +256,21 @@ export default function AdminCourierOrdersPage() {
               />
             </div>
             <div>
+              <label className="block text-xs text-gray-500 mb-1">상태</label>
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[100px]"
+              >
+                <option value="">전체</option>
+                <option value="PAID">결제완료</option>
+                <option value="ORDERING">발주중</option>
+                <option value="ORDER_COMPLETED">발주완료</option>
+                <option value="IN_TRANSIT">배송중</option>
+                <option value="DELIVERED">배송완료</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs text-gray-500 mb-1">상품</label>
               <select
                 value={filterProductId ?? ''}
@@ -284,8 +305,9 @@ export default function AdminCourierOrdersPage() {
                 onChange={e => setUploadCourierCompany(e.target.value as CourierCompany)}
                 className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[100px]"
               >
-                <option value="LOGEN">로젠</option>
-                <option value="HANJIN">한진</option>
+                {(Object.entries(COURIER_COMPANY_LABELS) as [CourierCompany, string][]).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
               </select>
             </div>
             <div>

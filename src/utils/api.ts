@@ -2207,9 +2207,9 @@ export const getCourierOrders = async (year?: number, month?: number): Promise<C
         courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
         productName: String(i.product_name ?? i.productName ?? ''),
         imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
-        unitPrice: Number(i.unit_price ?? i.unitPrice ?? 0),
+        unitPrice: Number(i.product_price ?? i.productPrice ?? i.unit_price ?? i.unitPrice ?? 0),
         quantity: Number(i.quantity ?? 0),
-        subtotal: Number(i.subtotal ?? 0),
+        subtotal: Number(i.amount ?? i.subtotal ?? 0),
       })) : [],
     }));
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -2231,13 +2231,13 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
         courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
         productName: String(i.product_name ?? i.productName ?? ''),
         imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
-        unitPrice: Number(i.unit_price ?? i.unitPrice ?? 0),
+        unitPrice: Number(i.product_price ?? i.productPrice ?? i.unit_price ?? i.unitPrice ?? 0),
         quantity: Number(i.quantity ?? 0),
-        subtotal: Number(i.subtotal ?? 0),
+        subtotal: Number(i.amount ?? i.subtotal ?? 0),
       })) : [],
-      productTotal: Number(d.product_total ?? d.productTotal ?? 0),
+      productTotal: Number(d.product_amount ?? d.productAmount ?? d.product_total ?? d.productTotal ?? 0),
       shippingFee: Number(d.shipping_fee ?? d.shippingFee ?? 0),
-      remoteAreaFee: Number(d.remote_area_fee ?? d.remoteAreaFee ?? 0),
+      remoteAreaFee: Number(d.island_surcharge ?? d.islandSurcharge ?? d.remote_area_fee ?? d.remoteAreaFee ?? 0),
       totalAmount: Number(d.total_amount ?? d.totalAmount ?? 0),
       pointUsed: Number(d.point_used ?? d.pointUsed ?? 0),
       pgPaymentAmount: Number(d.pg_payment_amount ?? d.pgPaymentAmount ?? 0),
@@ -2246,9 +2246,9 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       postalCode: String(d.postal_code ?? d.postalCode ?? ''),
       address1: String(d.address1 ?? ''),
       address2: String(d.address2 ?? ''),
-      deliveryMemo: String(d.delivery_memo ?? d.deliveryMemo ?? ''),
+      deliveryMemo: String(d.shipping_memo ?? d.shippingMemo ?? d.delivery_memo ?? d.deliveryMemo ?? ''),
       courierCompany: d.courier_company ?? d.courierCompany ?? null,
-      trackingNumber: d.tracking_number ?? d.trackingNumber ?? null,
+      trackingNumber: d.waybill_number ?? d.waybillNumber ?? d.tracking_number ?? d.trackingNumber ?? null,
       shippedAt: d.shipped_at ?? d.shippedAt ?? null,
       deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
       createdAt: String(d.created_at ?? d.createdAt ?? ''),
@@ -2475,9 +2475,11 @@ export const downloadAdminCourierWaybillExcelByFilter = async (
   startDate: string,
   endDate: string,
   productId?: number,
+  status?: string,
 ): Promise<Blob> => {
   const body: Record<string, any> = { start_date: startDate, end_date: endDate };
   if (productId != null) body.product_id = productId;
+  if (status) body.status = status;
   const res = await fetch(`${API_BASE}/api/admin/courier/orders/waybill/excel/filter`, {
     method: 'POST',
     credentials: 'include',
@@ -2499,6 +2501,15 @@ export function getTrackingUrl(courierCompany: string | null, trackingNumber: st
 // ===== Courier Tracking Upload API =====
 
 export type CourierCompany = 'HANJIN' | 'LOGEN';
+
+export const COURIER_COMPANY_LABELS: Record<CourierCompany, string> = {
+  LOGEN: '로젠택배',
+  HANJIN: '한진택배',
+};
+
+export function getCourierCompanyLabel(company: string | null): string {
+  return COURIER_COMPANY_LABELS[company as CourierCompany] ?? company ?? '';
+}
 
 export type TrackingUploadResponse = {
   updatedCount: number;
@@ -2833,7 +2844,6 @@ export type AdminCourierConfigResponse = {
   id: number;
   enabled: boolean;
   islandSurcharge: number;
-  baseShippingFee: number;
   noticeText: string | null;
   senderName: string | null;
   senderPhone: string | null;
@@ -2847,7 +2857,6 @@ const parseAdminCourierConfig = (d: any): AdminCourierConfigResponse => ({
   id: Number(d.id),
   enabled: Boolean(d.enabled),
   islandSurcharge: Number(d.island_surcharge ?? d.islandSurcharge ?? 0),
-  baseShippingFee: Number(d.base_shipping_fee ?? d.baseShippingFee ?? 3000),
   noticeText: d.notice_text ?? d.noticeText ?? null,
   senderName: d.sender_name ?? d.senderName ?? null,
   senderPhone: d.sender_phone ?? d.senderPhone ?? null,
@@ -2860,7 +2869,6 @@ const toSnakeCourierConfig = (data: Partial<AdminCourierConfigResponse>) => ({
   id: data.id,
   enabled: data.enabled,
   island_surcharge: data.islandSurcharge,
-  base_shipping_fee: data.baseShippingFee,
   notice_text: data.noticeText,
   sender_name: data.senderName,
   sender_phone: data.senderPhone,
@@ -2905,98 +2913,6 @@ export const updateAdminCourierConfig = async (data: Partial<AdminCourierConfigR
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-
-// ===== Shipping Fee Template APIs =====
-
-export type ShippingFeeTemplateResponse = {
-  id: number;
-  name: string;
-  baseFee: number;
-  perQuantityFee: number | null;
-  freeShippingMinAmount: number | null;
-  sortOrder: number;
-};
-
-export type ShippingFeeTemplateListResponse = {
-  templates: ShippingFeeTemplateResponse[];
-};
-
-const parseShippingFeeTemplate = (d: any): ShippingFeeTemplateResponse => ({
-  id: Number(d.id),
-  name: String(d.name ?? ''),
-  baseFee: Number(d.base_fee ?? d.baseFee ?? 0),
-  perQuantityFee: d.per_quantity_fee ?? d.perQuantityFee ?? null,
-  freeShippingMinAmount: d.free_shipping_min_amount ?? d.freeShippingMinAmount ?? null,
-  sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
-});
-
-const toSnakeTemplate = (data: Omit<ShippingFeeTemplateResponse, 'id'>) => ({
-  name: data.name,
-  base_fee: data.baseFee,
-  per_quantity_fee: data.perQuantityFee,
-  free_shipping_min_amount: data.freeShippingMinAmount,
-  sort_order: data.sortOrder,
-});
-
-export const getAdminCourierShippingFeeTemplates = async (): Promise<ShippingFeeTemplateListResponse> => {
-  const key = 'getAdminCourierShippingFeeTemplates';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch('/api/admin/courier/shipping-fee-templates', {}, true);
-    if (!res.ok) throw new Error('배송 정책 조회에 실패했습니다.');
-    resetApiRetryCount(key);
-    const raw = await res.json();
-    const d = raw?.response ?? raw;
-    const list = Array.isArray(d?.templates) ? d.templates : (Array.isArray(d) ? d : []);
-    return { templates: list.map(parseShippingFeeTemplate) };
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
-
-export const createAdminCourierShippingFeeTemplate = async (data: Omit<ShippingFeeTemplateResponse, 'id'>): Promise<ShippingFeeTemplateResponse> => {
-  const key = 'createAdminCourierShippingFeeTemplate';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch('/api/admin/courier/shipping-fee-templates', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(toSnakeTemplate(data)),
-    }, true);
-    if (!res.ok) throw new Error('배송 정책 생성에 실패했습니다.');
-    resetApiRetryCount(key);
-    const raw = await res.json();
-    const d = raw?.response ?? raw;
-    return parseShippingFeeTemplate(d);
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
-
-export const updateAdminCourierShippingFeeTemplate = async (id: number, data: Omit<ShippingFeeTemplateResponse, 'id'>): Promise<ShippingFeeTemplateResponse> => {
-  const key = 'updateAdminCourierShippingFeeTemplate';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch(`/api/admin/courier/shipping-fee-templates/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(toSnakeTemplate(data)),
-    }, true);
-    if (!res.ok) throw new Error('배송 정책 수정에 실패했습니다.');
-    resetApiRetryCount(key);
-    const raw = await res.json();
-    const d = raw?.response ?? raw;
-    return parseShippingFeeTemplate(d);
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
-
-export const deleteAdminCourierShippingFeeTemplate = async (id: number): Promise<void> => {
-  const key = 'deleteAdminCourierShippingFeeTemplate';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch(`/api/admin/courier/shipping-fee-templates/${id}`, {
-      method: 'DELETE',
-    }, true);
-    if (!res.ok) throw new Error('배송 정책 삭제에 실패했습니다.');
-    resetApiRetryCount(key);
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
 
 // ===== Point System APIs =====
 

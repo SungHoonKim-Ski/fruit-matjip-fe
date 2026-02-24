@@ -10,6 +10,7 @@ import {
   cancelAdminCourierOrder,
   downloadAdminCourierWaybillExcel,
   getTrackingUrl,
+  getCourierCompanyLabel,
   type AdminCourierOrderDetailResponse,
   type CourierOrderStatus,
 } from '../../../utils/api';
@@ -351,14 +352,14 @@ export default function AdminCourierOrderDetailPage() {
         </div>
 
         {/* Shipping info */}
-        {(order.courierCompany || order.trackingNumber || order.shippedAt || order.deliveredAt) && (
+        {(order.trackingNumber || order.shippedAt || order.deliveredAt) && (
           <div className="bg-white rounded-lg shadow p-5">
             <h2 className="text-base font-semibold text-gray-800 mb-3">배송 정보</h2>
             <div className="space-y-2 text-sm text-gray-700">
               {order.courierCompany && (
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-20 flex-shrink-0">택배사</span>
-                  <span>{order.courierCompany}</span>
+                  <span>{getCourierCompanyLabel(order.courierCompany)}</span>
                 </div>
               )}
               {order.trackingNumber && (
@@ -389,7 +390,7 @@ export default function AdminCourierOrderDetailPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                  {order.courierCompany === 'HANJIN' ? '한진' : '로젠'} 배송 추적
+                  {getCourierCompanyLabel(order.courierCompany)} 배송 추적
                 </a>
               )}
             </div>
