@@ -194,7 +194,7 @@ export default function AdminCourierOrderDetailPage() {
 
   // Determine which status transition buttons to show
   const canPrepare = order?.status === 'PAID';
-  const canShip = order?.status === 'PREPARING';
+  const canShip = order?.status === 'PAID' || order?.status === 'PREPARING';
   const canInTransit = order?.status === 'SHIPPED';
   const canDeliver = order?.status === 'IN_TRANSIT';
   const canCancel = order?.status === 'PAID' || order?.status === 'PREPARING';
