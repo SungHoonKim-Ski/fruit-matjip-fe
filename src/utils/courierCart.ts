@@ -27,6 +27,7 @@ export const getCart = (): CartItem[] => {
 
 const saveCart = (items: CartItem[]) => {
   localStorage.setItem(CART_KEY, JSON.stringify(items));
+  window.dispatchEvent(new Event('courier-cart-changed'));
 };
 
 const getCartKey = (item: Pick<CartItem, 'courierProductId' | 'selectedOptions'>): string => {
@@ -75,6 +76,7 @@ export const removeFromCart = (courierProductId: number, selectedOptions?: Selec
 
 export const clearCart = () => {
   localStorage.removeItem(CART_KEY);
+  window.dispatchEvent(new Event('courier-cart-changed'));
 };
 
 export const getCartTotalQuantity = (): number => {

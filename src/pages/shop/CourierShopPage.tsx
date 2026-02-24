@@ -90,37 +90,6 @@ function ProductCard({ product, onClick }: { product: CourierProduct; onClick: (
   );
 }
 
-// ── Compact product card for horizontal scroll ───────────────────────────────
-function CompactProductCard({ product, onClick }: { product: CourierProduct; onClick: () => void }) {
-  return (
-    <div
-      className="flex-none w-28 cursor-pointer active:scale-[0.97] transition-transform"
-      onClick={onClick}
-      role="button"
-      aria-label={`${product.name} 상세 보기`}
-    >
-      <div className="relative w-28 h-28">
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          className={`w-28 h-28 object-cover rounded-lg border${product.soldOut ? ' opacity-40' : ''}`}
-          style={{ borderColor: 'var(--color-primary-500)' }}
-          loading="lazy"
-        />
-        {product.soldOut && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg">
-            <span className="text-white font-bold text-xs bg-black/60 px-2 py-0.5 rounded-full">품절</span>
-          </div>
-        )}
-      </div>
-      <h3 className="text-xs font-medium text-gray-800 leading-tight line-clamp-2 mt-1.5">{product.name}</h3>
-      <div className="text-xs font-bold mt-0.5" style={{ color: 'var(--color-primary-700)' }}>
-        {formatPrice(product.price)}
-      </div>
-    </div>
-  );
-}
-
 // ── List skeleton ─────────────────────────────────────────────────────────────
 function ListSkeleton({ count = 4 }: { count?: number }) {
   return (
@@ -206,9 +175,11 @@ export default function CourierShopPage() {
     const update = () => setCartCount(getCartTotalQuantity());
     window.addEventListener('storage', update);
     window.addEventListener('focus', update);
+    window.addEventListener('courier-cart-changed', update);
     return () => {
       window.removeEventListener('storage', update);
       window.removeEventListener('focus', update);
+      window.removeEventListener('courier-cart-changed', update);
     };
   }, []);
 
@@ -698,9 +669,9 @@ export default function CourierShopPage() {
                   {/* ── Chip content below sticky row ── */}
                   {selectedChip !== null ? (
                     /* ── Infinite scroll for selected chip ── */
-                    <>
+                    <section className="mb-4 bg-white rounded-xl shadow-sm p-4">
                       {/* Selected category header */}
-                      <div className="flex items-center justify-between mb-3 mt-1">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <h2 className="text-base font-bold text-gray-800">{selectedCategoryName}</h2>
                           <span className="text-xs text-gray-400 font-normal">{selectedProducts.length}개</span>
@@ -736,22 +707,27 @@ export default function CourierShopPage() {
                       ) : (
                         <EmptyState />
                       )}
-                    </>
+                    </section>
                   ) : (
                     /* ── Section view (default) ── */
                     <>
-                      {/* Recommended section — horizontal scroll */}
+                      {/* Recommended section */}
                       {recommendedProducts.length > 0 && (
                         <section className="mb-4 bg-white rounded-xl shadow-sm p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h2 className="text-base font-bold text-gray-800">추천</h2>
+                            <button
+                              type="button"
+                              onClick={() => handleChipSelect('recommended')}
+                              className="text-xs font-medium transition"
+                              style={{ color: 'var(--color-primary-500)' }}
+                            >
+                              더보기 &gt;
+                            </button>
                           </div>
-                          <div
-                            className="flex gap-3 overflow-x-auto [&::-webkit-scrollbar]:hidden"
-                            style={{ scrollbarWidth: 'none' }}
-                          >
-                            {recommendedProducts.map(product => (
-                              <CompactProductCard
+                          <div className="grid grid-cols-2 gap-3">
+                            {recommendedProducts.slice(0, 4).map(product => (
+                              <ProductCard
                                 key={product.id}
                                 product={product}
                                 onClick={() => openDetail(product.id)}
@@ -770,16 +746,14 @@ export default function CourierShopPage() {
                           >
                             <div className="flex items-center justify-between mb-3">
                               <h2 className="text-base font-bold text-gray-800">{group.categoryName}</h2>
-                              {group.products.length > 4 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleChipSelect(group.categoryId)}
-                                  className="text-xs font-medium transition"
-                                  style={{ color: 'var(--color-primary-500)' }}
-                                >
-                                  더보기 &gt;
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleChipSelect(group.categoryId)}
+                                className="text-xs font-medium transition"
+                                style={{ color: 'var(--color-primary-500)' }}
+                              >
+                                더보기 &gt;
+                              </button>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               {group.products.slice(0, 4).map(product => (

@@ -19,9 +19,11 @@ export default function CourierBottomNav() {
     const update = () => setCartCount(getCartTotalQuantity());
     window.addEventListener('storage', update);
     window.addEventListener('focus', update);
+    window.addEventListener('courier-cart-changed', update);
     return () => {
       window.removeEventListener('storage', update);
       window.removeEventListener('focus', update);
+      window.removeEventListener('courier-cart-changed', update);
     };
   }, []);
 
