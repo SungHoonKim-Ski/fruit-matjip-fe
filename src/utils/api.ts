@@ -2270,6 +2270,7 @@ export type AdminCourierOrderSummary = {
   itemCount: number;
   totalAmount: number;
   trackingNumber: string | null;
+  waybillDownloaded: boolean;
   paidAt: string | null;
   createdAt: string;
 };
@@ -2310,12 +2311,14 @@ export const getAdminCourierOrders = async (
   status?: string,
   page = 0,
   size = 50,
+  waybillDownloaded?: boolean,
 ): Promise<AdminCourierOrderListResponse> => {
   const key = 'getAdminCourierOrders';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
+    if (waybillDownloaded !== undefined) params.append('waybillDownloaded', String(waybillDownloaded));
     params.append('page', String(page));
     params.append('size', String(size));
     const res = await adminFetch(`/api/admin/courier/orders?${params.toString()}`, {}, true);
@@ -2335,6 +2338,7 @@ export const getAdminCourierOrders = async (
         itemCount: Number(o.total_quantity ?? o.totalQuantity ?? o.item_count ?? o.itemCount ?? 0),
         totalAmount: Number(o.total_amount ?? o.totalAmount ?? 0),
         trackingNumber: o.waybill_number ?? o.waybillNumber ?? o.tracking_number ?? o.trackingNumber ?? null,
+        waybillDownloaded: Boolean(o.waybill_downloaded ?? o.waybillDownloaded ?? false),
         paidAt: o.paid_at ?? o.paidAt ?? null,
         createdAt: String(o.created_at ?? o.createdAt ?? ''),
       })),
