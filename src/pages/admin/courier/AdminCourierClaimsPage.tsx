@@ -83,8 +83,6 @@ const ORDER_STATUS_CHANGE_OPTIONS = [
 const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '전체' },
   { value: 'REQUESTED', label: '접수' },
-  { value: 'IN_REVIEW', label: '검토중' },
-  { value: 'APPROVED', label: '승인' },
   { value: 'REJECTED', label: '거부' },
   { value: 'RESOLVED', label: '처리완료' },
 ];
