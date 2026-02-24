@@ -5,14 +5,11 @@ import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
 import {
   getAdminCourierConfig,
   updateAdminCourierConfig,
-  getAdminCourierShippingFeePolicies,
-  updateAdminCourierShippingFeePolicies,
   getAdminCourierShippingFeeTemplates,
   createAdminCourierShippingFeeTemplate,
   updateAdminCourierShippingFeeTemplate,
   deleteAdminCourierShippingFeeTemplate,
   AdminCourierConfigResponse,
-  ShippingFeePolicyResponse,
   ShippingFeeTemplateResponse,
 } from '../../../utils/api';
 
@@ -20,20 +17,13 @@ const DEFAULT_CONFIG: AdminCourierConfigResponse = {
   id: 0,
   enabled: false,
   islandSurcharge: 0,
+  baseShippingFee: 3000,
   noticeText: '',
   senderName: '',
   senderPhone: '',
   senderPhone2: '',
   senderAddress: '',
   senderDetailAddress: '',
-};
-
-const DEFAULT_POLICY: ShippingFeePolicyResponse = {
-  id: null,
-  minQuantity: 0,
-  maxQuantity: 0,
-  fee: 0,
-  sortOrder: 0,
 };
 
 const DEFAULT_TEMPLATE_FORM = {
@@ -55,10 +45,6 @@ export default function AdminCourierConfigPage() {
   const [config, setConfig] = useState<AdminCourierConfigResponse>(DEFAULT_CONFIG);
   const [configLoading, setConfigLoading] = useState(true);
   const [configSaving, setConfigSaving] = useState(false);
-
-  const [policies, setPolicies] = useState<ShippingFeePolicyResponse[]>([]);
-  const [policiesLoading, setPoliciesLoading] = useState(true);
-  const [policiesSaving, setPoliciesSaving] = useState(false);
 
   const [templates, setTemplates] = useState<ShippingFeeTemplateResponse[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(true);
@@ -91,18 +77,6 @@ export default function AdminCourierConfigPage() {
         if (alive) show(getSafeErrorMessage(err, '택배 설정을 불러오지 못했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setConfigLoading(false);
-      }
-    })();
-
-    (async () => {
-      try {
-        const data = await getAdminCourierShippingFeePolicies();
-        if (alive) setPolicies(data.policies ?? []);
-      } catch (err) {
-        safeErrorLog(err, 'AdminCourierConfigPage - loadPolicies');
-        if (alive) show(getSafeErrorMessage(err, '배송비 정책을 불러오지 못했습니다.'), { variant: 'error' });
-      } finally {
-        if (alive) setPoliciesLoading(false);
       }
     })();
 
@@ -141,37 +115,6 @@ export default function AdminCourierConfigPage() {
     } finally {
       setConfigSaving(false);
     }
-  };
-
-  const handlePolicySave = async () => {
-    setPoliciesSaving(true);
-    try {
-      const data = await updateAdminCourierShippingFeePolicies(policies);
-      setPolicies(data.policies ?? []);
-      show('배송비 정책이 저장되었습니다.', { variant: 'success' });
-    } catch (err) {
-      safeErrorLog(err, 'AdminCourierConfigPage - savePolicies');
-      show(getSafeErrorMessage(err, '배송비 정책 저장에 실패했습니다.'), { variant: 'error' });
-    } finally {
-      setPoliciesSaving(false);
-    }
-  };
-
-  const addPolicy = () => {
-    setPolicies(prev => [
-      ...prev,
-      { ...DEFAULT_POLICY, sortOrder: prev.length },
-    ]);
-  };
-
-  const removePolicy = (index: number) => {
-    setPolicies(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const updatePolicy = (index: number, field: keyof ShippingFeePolicyResponse, value: unknown) => {
-    setPolicies(prev =>
-      prev.map((p, i) => i === index ? { ...p, [field]: value } : p)
-    );
   };
 
   const buildTemplatePayload = (form: TemplateForm): Omit<ShippingFeeTemplateResponse, 'id'> => ({
@@ -254,7 +197,7 @@ export default function AdminCourierConfigPage() {
     }
   };
 
-  if (configLoading || policiesLoading || templatesLoading) {
+  if (configLoading || templatesLoading) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 pt-6 pb-24 flex items-center justify-center">
         <p className="text-gray-500">불러오는 중...</p>
@@ -304,6 +247,24 @@ export default function AdminCourierConfigPage() {
               const num = Number(e.target.value);
               if (!Number.isFinite(num) || num < 0) return;
               setConfig(prev => ({ ...prev, islandSurcharge: num }));
+            }}
+            className="w-full border px-3 py-2 rounded"
+            min={0}
+            step={100}
+          />
+        </div>
+
+        {/* 기본 배송비 */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium">기본 배송비 (원)</label>
+          <p className="text-xs text-gray-500">배송 정책이 지정되지 않은 상품에 수량 × 기본 배송비가 적용됩니다.</p>
+          <input
+            type="number"
+            value={config.baseShippingFee}
+            onChange={e => {
+              const num = Number(e.target.value);
+              if (!Number.isFinite(num) || num < 0) return;
+              setConfig(prev => ({ ...prev, baseShippingFee: num }));
             }}
             className="w-full border px-3 py-2 rounded"
             min={0}
@@ -458,85 +419,6 @@ export default function AdminCourierConfigPage() {
         >
           + 정책 추가
         </button>
-      </section>
-
-      {/* 수량별 배송비 */}
-      <section className="max-w-lg mx-auto p-6 bg-white rounded shadow space-y-4">
-        <div>
-          <h2 className="text-lg font-bold">수량별 배송비</h2>
-          <p className="text-sm text-gray-500 mt-1">주문 수량 구간에 따라 자동 적용되는 배송비입니다. 배송 정책이 지정되지 않은 상품에 적용됩니다.</p>
-        </div>
-
-        <div className="space-y-3">
-          {policies.length === 0 && (
-            <div className="text-center text-gray-400 py-6 border rounded-lg">
-              등록된 수량별 배송비가 없습니다.
-            </div>
-          )}
-          {policies.map((policy, index) => (
-            <div key={index} className="border rounded-lg p-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">최소 수량</label>
-                  <input
-                    type="number"
-                    value={policy.minQuantity}
-                    onChange={e => updatePolicy(index, 'minQuantity', Number(e.target.value))}
-                    className="w-full border px-3 py-2 rounded text-sm"
-                    min={0}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">최대 수량</label>
-                  <input
-                    type="number"
-                    value={policy.maxQuantity}
-                    onChange={e => updatePolicy(index, 'maxQuantity', Number(e.target.value))}
-                    className="w-full border px-3 py-2 rounded text-sm"
-                    min={0}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">배송비 (원)</label>
-                  <input
-                    type="number"
-                    value={policy.fee}
-                    onChange={e => updatePolicy(index, 'fee', Number(e.target.value))}
-                    className="w-full border px-3 py-2 rounded text-sm"
-                    min={0} step={100}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={() => removePolicy(index)}
-                    className="h-[38px] px-3 rounded bg-red-500 hover:bg-red-600 text-white text-xs font-medium w-full"
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={addPolicy}
-            className="flex-1 border border-orange-500 text-orange-500 py-2 rounded hover:bg-orange-50 font-medium text-sm"
-          >
-            + 구간 추가
-          </button>
-          <button
-            type="button"
-            onClick={handlePolicySave}
-            disabled={policiesSaving}
-            className="flex-1 bg-orange-500 text-white py-2 rounded hover:bg-orange-600 disabled:bg-gray-300 font-medium text-sm"
-          >
-            {policiesSaving ? '저장 중...' : '저장'}
-          </button>
-        </div>
       </section>
 
       {/* 배송 정책 모달 */}

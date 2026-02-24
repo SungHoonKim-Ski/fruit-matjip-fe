@@ -2729,6 +2729,7 @@ export type AdminCourierConfigResponse = {
   id: number;
   enabled: boolean;
   islandSurcharge: number;
+  baseShippingFee: number;
   noticeText: string | null;
   senderName: string | null;
   senderPhone: string | null;
@@ -2737,22 +2738,12 @@ export type AdminCourierConfigResponse = {
   senderDetailAddress: string | null;
 };
 
-export type ShippingFeePolicyResponse = {
-  id: number | null;
-  minQuantity: number;
-  maxQuantity: number;
-  fee: number;
-  sortOrder: number;
-};
-
-export type ShippingFeePolicyListResponse = {
-  policies: ShippingFeePolicyResponse[];
-};
 
 const parseAdminCourierConfig = (d: any): AdminCourierConfigResponse => ({
   id: Number(d.id),
   enabled: Boolean(d.enabled),
   islandSurcharge: Number(d.island_surcharge ?? d.islandSurcharge ?? 0),
+  baseShippingFee: Number(d.base_shipping_fee ?? d.baseShippingFee ?? 3000),
   noticeText: d.notice_text ?? d.noticeText ?? null,
   senderName: d.sender_name ?? d.senderName ?? null,
   senderPhone: d.sender_phone ?? d.senderPhone ?? null,
@@ -2765,6 +2756,7 @@ const toSnakeCourierConfig = (data: Partial<AdminCourierConfigResponse>) => ({
   id: data.id,
   enabled: data.enabled,
   island_surcharge: data.islandSurcharge,
+  base_shipping_fee: data.baseShippingFee,
   notice_text: data.noticeText,
   sender_name: data.senderName,
   sender_phone: data.senderPhone,
@@ -2809,59 +2801,6 @@ export const updateAdminCourierConfig = async (data: Partial<AdminCourierConfigR
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-const parseShippingFeePolicy = (d: any): ShippingFeePolicyResponse => ({
-  id: d.id ?? null,
-  minQuantity: Number(d.min_quantity ?? d.minQuantity ?? 0),
-  maxQuantity: Number(d.max_quantity ?? d.maxQuantity ?? 0),
-  fee: Number(d.fee ?? 0),
-  sortOrder: Number(d.sort_order ?? d.sortOrder ?? 0),
-});
-
-const toSnakePolicy = (p: ShippingFeePolicyResponse) => ({
-  id: p.id,
-  min_quantity: p.minQuantity,
-  max_quantity: p.maxQuantity,
-  fee: p.fee,
-  sort_order: p.sortOrder,
-});
-
-export const getAdminCourierShippingFeePolicies = async (): Promise<ShippingFeePolicyListResponse> => {
-  const key = 'getAdminCourierShippingFeePolicies';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch('/api/admin/courier/shipping-fee-policies', {}, true);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || '배송비 정책 조회에 실패했습니다.');
-    }
-    resetApiRetryCount(key);
-    const raw = await res.json();
-    const d = raw?.response ?? raw;
-    const list = Array.isArray(d?.policies) ? d.policies : (Array.isArray(d) ? d : []);
-    return { policies: list.map(parseShippingFeePolicy) };
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
-
-export const updateAdminCourierShippingFeePolicies = async (policies: ShippingFeePolicyResponse[]): Promise<ShippingFeePolicyListResponse> => {
-  const key = 'updateAdminCourierShippingFeePolicies';
-  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
-  try {
-    const res = await adminFetch('/api/admin/courier/shipping-fee-policies', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(policies.map(toSnakePolicy)),
-    }, true);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || '배송비 정책 저장에 실패했습니다.');
-    }
-    resetApiRetryCount(key);
-    const raw = await res.json();
-    const d = raw?.response ?? raw;
-    const list = Array.isArray(d?.policies) ? d.policies : (Array.isArray(d) ? d : []);
-    return { policies: list.map(parseShippingFeePolicy) };
-  } catch (e) { incrementApiRetryCount(key); throw e; }
-};
 
 // ===== Shipping Fee Template APIs =====
 
