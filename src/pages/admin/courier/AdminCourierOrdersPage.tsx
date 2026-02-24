@@ -1,12 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
 import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
 import {
   getAdminCourierOrders,
-  downloadAdminCourierWaybillExcel,
-  downloadAdminCourierWaybillExcelBulk,
   downloadAdminCourierWaybillExcelByFilter,
   getAdminCourierProducts,
   type AdminCourierOrderSummary,
@@ -69,15 +67,11 @@ export default function AdminCourierOrdersPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [downloading, setDownloading] = useState(false);
-
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterProductId, setFilterProductId] = useState<number | undefined>(undefined);
   const [filterProducts, setFilterProducts] = useState<Array<{ id: number; name: string }>>([]);
   const [filterDownloading, setFilterDownloading] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
 
   const isInitialMount = useRef(true);
 
@@ -119,7 +113,6 @@ export default function AdminCourierOrdersPage() {
       setTotalPages(result.totalPages);
       setTotalElements(result.totalElements);
       setCurrentPage(result.currentPage);
-      setSelectedIds(new Set());
     } catch (e) {
       safeErrorLog(e, 'AdminCourierOrdersPage - fetchOrders');
       show(getSafeErrorMessage(e, '주문 목록을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -143,23 +136,6 @@ export default function AdminCourierOrdersPage() {
     fetchOrders(statusFilter, page);
   };
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === orders.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(orders.map(o => o.id)));
-    }
-  };
-
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -167,39 +143,6 @@ export default function AdminCourierOrdersPage() {
     a.download = filename;
     a.click();
     window.URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadSingle = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      setDownloading(true);
-      const blob = await downloadAdminCourierWaybillExcel(id);
-      triggerDownload(blob, `waybill-${id}-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      show('Excel 다운로드 완료', { variant: 'success' });
-    } catch (err) {
-      safeErrorLog(err, 'AdminCourierOrdersPage - downloadSingle');
-      show(getSafeErrorMessage(err, 'Excel 다운로드에 실패했습니다.'), { variant: 'error' });
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const handleDownloadBulk = async () => {
-    if (selectedIds.size === 0) {
-      show('다운로드할 주문을 선택해주세요.', { variant: 'error' });
-      return;
-    }
-    try {
-      setDownloading(true);
-      const blob = await downloadAdminCourierWaybillExcelBulk(Array.from(selectedIds));
-      triggerDownload(blob, `waybill-bulk-${new Date().toISOString().slice(0, 10)}.xlsx`);
-      show('Excel 다운로드 완료', { variant: 'success' });
-    } catch (err) {
-      safeErrorLog(err, 'AdminCourierOrdersPage - downloadBulk');
-      show(getSafeErrorMessage(err, 'Excel 다운로드에 실패했습니다.'), { variant: 'error' });
-    } finally {
-      setDownloading(false);
-    }
   };
 
   const renderPageButtons = () => {
@@ -226,17 +169,7 @@ export default function AdminCourierOrdersPage() {
               <p className="text-sm text-gray-500 mt-1">총 {totalElements}건</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleDownloadBulk}
-              disabled={selectedIds.size === 0 || downloading}
-              className="h-9 px-4 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {downloading ? '다운로드 중...' : `운송장 Excel (${selectedIds.size}건)`}
-            </button>
-            <AdminCourierHeader />
-          </div>
+          <AdminCourierHeader />
         </div>
 
         {/* Status filter */}
@@ -257,63 +190,50 @@ export default function AdminCourierOrdersPage() {
           ))}
         </div>
 
-        {/* Filter section */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => setFilterOpen(prev => !prev)}
-            className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800 font-medium"
-          >
-            <svg className={`w-4 h-4 transition-transform ${filterOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-            </svg>
-            기간/상품별 Excel 다운로드
-          </button>
-          {filterOpen && (
-            <div className="mt-2 bg-white rounded-lg shadow p-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">시작일</label>
-                  <input
-                    type="date"
-                    value={filterStartDate}
-                    onChange={e => setFilterStartDate(e.target.value)}
-                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">종료일</label>
-                  <input
-                    type="date"
-                    value={filterEndDate}
-                    onChange={e => setFilterEndDate(e.target.value)}
-                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">상품</label>
-                  <select
-                    value={filterProductId ?? ''}
-                    onChange={e => setFilterProductId(e.target.value ? Number(e.target.value) : undefined)}
-                    className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[140px]"
-                  >
-                    <option value="">전체 상품</option>
-                    {filterProducts.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleFilterDownload}
-                  disabled={filterDownloading || !filterStartDate || !filterEndDate}
-                  className="h-9 px-4 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {filterDownloading ? '다운로드 중...' : '필터 Excel 다운로드'}
-                </button>
-              </div>
+        {/* 운송장 Excel 다운로드 */}
+        <div className="mb-4 bg-white rounded-lg shadow p-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">운송장 Excel 다운로드</h3>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">시작일</label>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={e => setFilterStartDate(e.target.value)}
+                className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">종료일</label>
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={e => setFilterEndDate(e.target.value)}
+                className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">상품</label>
+              <select
+                value={filterProductId ?? ''}
+                onChange={e => setFilterProductId(e.target.value ? Number(e.target.value) : undefined)}
+                className="h-9 px-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 min-w-[140px]"
+              >
+                <option value="">전체 상품</option>
+                {filterProducts.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleFilterDownload}
+              disabled={filterDownloading || !filterStartDate || !filterEndDate}
+              className="h-9 px-4 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {filterDownloading ? '다운로드 중...' : 'Excel 다운로드'}
+            </button>
+          </div>
         </div>
 
         {/* Loading */}
@@ -337,14 +257,6 @@ export default function AdminCourierOrdersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-gray-50 text-gray-600">
-                    <th className="px-3 py-3 text-left w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.size === orders.length && orders.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded border-gray-300"
-                      />
-                    </th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">주문번호</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">상태</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">수령인</th>
@@ -354,7 +266,6 @@ export default function AdminCourierOrdersPage() {
                     <th className="px-3 py-3 text-left whitespace-nowrap">운송장</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">결제일</th>
                     <th className="px-3 py-3 text-left whitespace-nowrap">주문일</th>
-                    <th className="px-3 py-3 text-center whitespace-nowrap">Excel</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -364,14 +275,6 @@ export default function AdminCourierOrdersPage() {
                       className="border-b hover:bg-gray-50 cursor-pointer transition"
                       onClick={() => navigate(`/admin/courier/orders/${order.id}`)}
                     >
-                      <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(order.id)}
-                          onChange={() => toggleSelect(order.id)}
-                          className="rounded border-gray-300"
-                        />
-                      </td>
                       <td className="px-3 py-3 font-mono text-xs text-gray-700 whitespace-nowrap">
                         {order.displayCode}
                       </td>
@@ -394,19 +297,6 @@ export default function AdminCourierOrdersPage() {
                       </td>
                       <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                         {formatDate(order.createdAt)}
-                      </td>
-                      <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDownloadSingle(order.id, e)}
-                          disabled={downloading}
-                          className="text-green-600 hover:text-green-800 disabled:opacity-50"
-                          title="운송장 Excel 다운로드"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </button>
                       </td>
                     </tr>
                   ))}
