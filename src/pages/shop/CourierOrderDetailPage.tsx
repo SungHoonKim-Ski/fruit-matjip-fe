@@ -286,6 +286,17 @@ export default function CourierOrderDetailPage() {
                   <span>{formatDateTime(order.shippedAt)}</span>
                 </div>
               )}
+              {order.trackingLocation && (
+                <div className="flex gap-2">
+                  <span className="text-gray-500 w-20 flex-shrink-0">현재 위치</span>
+                  <div>
+                    <span>{order.trackingLocation}</span>
+                    {order.trackingUpdatedAt && (
+                      <span className="text-xs text-gray-400 ml-2">{formatDateTime(order.trackingUpdatedAt)}</span>
+                    )}
+                  </div>
+                </div>
+              )}
               {order.deliveredAt && (
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-20 flex-shrink-0">배송완료</span>

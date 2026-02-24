@@ -2035,6 +2035,8 @@ export type CourierOrderDetailResponse = {
   trackingNumber: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  trackingLocation: string | null;
+  trackingUpdatedAt: string | null;
   createdAt: string;
 };
 
@@ -2251,6 +2253,8 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       trackingNumber: d.waybill_number ?? d.waybillNumber ?? d.tracking_number ?? d.trackingNumber ?? null,
       shippedAt: d.shipped_at ?? d.shippedAt ?? null,
       deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
+      trackingLocation: d.tracking_location ?? d.trackingLocation ?? null,
+      trackingUpdatedAt: d.tracking_updated_at ?? d.trackingUpdatedAt ?? null,
       createdAt: String(d.created_at ?? d.createdAt ?? ''),
     };
   } catch (e) { incrementApiRetryCount(key); throw e; }
@@ -2324,6 +2328,8 @@ export type AdminCourierOrderDetailResponse = {
   paidAt: string | null;
   shippedAt: string | null;
   deliveredAt: string | null;
+  trackingLocation: string | null;
+  trackingUpdatedAt: string | null;
   createdAt: string;
 };
 
@@ -2404,6 +2410,8 @@ export const getAdminCourierOrder = async (id: number): Promise<AdminCourierOrde
       paidAt: d.paid_at ?? d.paidAt ?? null,
       shippedAt: d.shipped_at ?? d.shippedAt ?? null,
       deliveredAt: d.delivered_at ?? d.deliveredAt ?? null,
+      trackingLocation: d.tracking_location ?? d.trackingLocation ?? null,
+      trackingUpdatedAt: d.tracking_updated_at ?? d.trackingUpdatedAt ?? null,
       createdAt: String(d.created_at ?? d.createdAt ?? ''),
     };
   } catch (e) { incrementApiRetryCount(key); throw e; }
