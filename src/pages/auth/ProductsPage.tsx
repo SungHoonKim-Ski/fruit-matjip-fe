@@ -1468,27 +1468,54 @@ export default function ReservePage() {
               </div>
             </div>
 
-            {/* 날짜별 검색 결과 미리보기 */}
-            {tempSearch && !selectedDateForProducts && (
+            {/* 날짜별 검색 결과 */}
+            {tempSearch && (
               <div className="px-4 pb-4">
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
                   {availableDates.map(date => {
-                    const count = getFilteredCountByDate(date, tempSearch);
-                    if (count === 0) return null;
+                    const products = getFilteredProductsForDate(date, tempSearch);
+                    if (products.length === 0) return null;
 
                     return (
-                      <div
-                        key={date}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => {
-                          setSelectedDateForProducts(date);
-                        }}
-                      >
-                        <div className="text-sm font-medium text-gray-800">
-                          {prettyKdate(date)}
+                      <div key={date}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-semibold text-gray-800">
+                            {prettyKdate(date)}
+                          </div>
+                          <div className="text-xs text-orange-600 font-medium">
+                            {products.length}개 상품
+                          </div>
                         </div>
-                        <div className="text-sm text-orange-600 font-semibold">
-                          {count}개 상품
+                        <div className="space-y-2">
+                          {products.map(product => (
+                            <div
+                              key={product.id}
+                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => {
+                                setSearch(product.name);
+                                setActiveDate(product.sellDate);
+                                setSearchModalOpen(false);
+                                setSelectedDateForProducts(null);
+                              }}
+                            >
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="w-12 h-12 rounded object-cover border"
+                              />
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-gray-800">
+                                  {highlightSearchTerm(product.name, tempSearch)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {product.price.toLocaleString()}원
+                                </div>
+                              </div>
+                              {product.stock > 0 && product.stock <= 20 && (
+                                <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">마감임박</span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
@@ -1503,55 +1530,6 @@ export default function ReservePage() {
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* 선택된 날짜의 상품 목록 */}
-            {selectedDateForProducts && (
-              <div className="px-4 pb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-medium text-gray-700">
-                    {prettyKdate(selectedDateForProducts)} 상품 목록
-                  </div>
-                  <button
-                    onClick={() => setSelectedDateForProducts(null)}
-                    className="text-sm text-gray-500 hover:text-gray-700"
-                  >
-                    ← 뒤로
-                  </button>
-                </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {getFilteredProductsForDate(selectedDateForProducts, tempSearch).map(product => (
-                    <div
-                      key={product.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => {
-                        // 해당 상품의 이름으로 정확한 검색 적용
-                        setSearch(product.name);
-                        setActiveDate(product.sellDate);
-                        setSearchModalOpen(false);
-                        setSelectedDateForProducts(null);
-                      }}
-                    >
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-12 h-12 rounded object-cover border"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-800">
-                          {highlightSearchTerm(product.name, tempSearch)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {product.price.toLocaleString()}원
-                        </div>
-                      </div>
-                      {product.stock > 0 && product.stock <= 20 && (
-                        <span className="text-[10px] bg-red-100 text-red-600 border border-red-300 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">마감임박</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 
