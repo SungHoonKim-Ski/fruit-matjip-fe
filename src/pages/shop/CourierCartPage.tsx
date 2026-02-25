@@ -113,7 +113,7 @@ export default function CourierCartPage() {
               </button>
             </div>
             <div className="flex-1 flex justify-center">
-              <button onClick={() => nav('/shop')} className="hover:opacity-80" aria-label="메인으로 이동">
+              <button onClick={() => nav('/shop/products')} className="hover:opacity-80" aria-label="메인으로 이동">
                 <img src={logoText} alt={theme.displayName} className="h-8 object-contain" />
               </button>
             </div>
@@ -134,7 +134,7 @@ export default function CourierCartPage() {
               </div>
               <nav className="mt-2 space-y-2 text-sm">
                 <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
-                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
+                <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop/products'); }}>택배 주문</button>
               </nav>
               <div className="mt-6 text-xs text-gray-400 space-y-1">
                 <p className="font-semibold text-gray-500">{theme.displayName}</p>
@@ -157,7 +157,7 @@ export default function CourierCartPage() {
             <p className="text-sm text-gray-400 mt-1">마음에 드는 상품을 담아보세요</p>
             <button
               type="button"
-              onClick={() => nav('/shop')}
+              onClick={() => nav('/shop/products')}
               className="mt-6 h-11 px-6 rounded-lg text-white font-medium text-sm transition"
               style={{ backgroundColor: 'var(--color-primary-500)' }}
             >
@@ -185,7 +185,7 @@ export default function CourierCartPage() {
             </button>
           </div>
           <div className="flex-1 flex justify-center">
-            <button onClick={() => nav('/shop')} className="hover:opacity-80" aria-label="메인으로 이동">
+            <button onClick={() => nav('/shop/products')} className="hover:opacity-80" aria-label="메인으로 이동">
               <img src={logoText} alt={theme.displayName} className="h-8 object-contain" />
             </button>
           </div>
@@ -206,7 +206,7 @@ export default function CourierCartPage() {
             </div>
             <nav className="mt-2 space-y-2 text-sm">
               <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/store/products'); }}>매장 예약</button>
-              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop'); }}>택배 주문</button>
+              <button className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50" onClick={() => { setDrawerOpen(false); nav('/shop/products'); }}>택배 주문</button>
             </nav>
             <div className="mt-6 text-xs text-gray-400 space-y-1">
               <p className="font-semibold text-gray-500">{theme.displayName}</p>

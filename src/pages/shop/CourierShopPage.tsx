@@ -570,7 +570,7 @@ export default function CourierShopPage() {
               </button>
               <button
                 className="block w-full text-left h-10 rounded border px-3 flex items-center hover:bg-gray-50"
-                onClick={() => { setDrawerOpen(false); nav('/shop'); }}
+                onClick={() => { setDrawerOpen(false); nav('/shop/products'); }}
               >
                 택배 주문
               </button>

@@ -147,7 +147,7 @@ export default function CourierOrdersPage() {
             <p className="text-gray-500 font-medium">{year}년 {month}월 주문 내역이 없습니다</p>
             <button
               type="button"
-              onClick={() => nav('/shop')}
+              onClick={() => nav('/shop/products')}
               className="mt-6 h-11 px-6 rounded-lg bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 transition"
             >
               쇼핑하기

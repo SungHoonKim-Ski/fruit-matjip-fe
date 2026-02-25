@@ -108,7 +108,7 @@ export default function App() {
       <Route path="/privacy" element={<Navigate to="/store/privacy" replace />} />
       <Route path="/refund" element={<Navigate to="/store/refund" replace />} />
       {/* ===== /shop — 택배 쇼핑몰 ===== */}
-      <Route path="/shop" element={<CourierShopPage />} />
+      <Route path="/shop/products" element={<CourierShopPage />} />
       <Route path="/shop/cart" element={<CourierCartPage />} />
       <Route path="/shop/checkout" element={<CourierCheckoutPage />} />
       <Route path="/shop/orders" element={<CourierOrdersPage />} />

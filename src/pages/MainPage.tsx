@@ -309,7 +309,7 @@ export default function MainPage() {
               매장 예약
             </button>
             <button
-              onClick={() => nav('/shop')}
+              onClick={() => nav('/shop/products')}
               className="w-full py-4 rounded-xl text-lg font-semibold border-2 shadow-md hover:shadow-lg transition"
               style={{ borderColor: 'var(--color-primary-500)', color: 'var(--color-primary-500)' }}
             >

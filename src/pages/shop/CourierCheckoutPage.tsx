@@ -58,7 +58,7 @@ export default function CourierCheckoutPage() {
   // Redirect to shop if cart is empty
   useEffect(() => {
     if (items.length === 0) {
-      nav('/shop', { replace: true });
+      nav('/shop/products', { replace: true });
     }
   }, [items, nav]);
 

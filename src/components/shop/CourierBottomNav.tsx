@@ -30,7 +30,7 @@ export default function CourierBottomNav() {
   const goTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
   const items = [
-    { label: '홈', path: '/shop', icon: '🏠', exact: true },
+    { label: '홈', path: '/shop/products', icon: '🏠', exact: true },
     { label: '장바구니', path: '/shop/cart', icon: '🛒', exact: false },
     { label: '주문내역', path: '/shop/orders', icon: '📋', exact: false },
   ];
