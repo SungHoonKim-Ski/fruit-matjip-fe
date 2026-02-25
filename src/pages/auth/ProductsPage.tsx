@@ -943,7 +943,7 @@ export default function ReservePage() {
           <div className="flex-1 flex flex-col items-center leading-tight">
             <button
               type="button"
-              onClick={() => nav('/store/products')}
+              onClick={() => nav('/')}
               className="hover:opacity-80"
               aria-label="메인으로 이동"
             >
@@ -1332,25 +1332,28 @@ export default function ReservePage() {
       {/* FAB 통합 검색/필터 초기화 버튼 */}
       <button
         onClick={search ? clearSearch : handleOpenSearchModalClick}
-        className={`fixed bottom-[64px] right-4 z-30 bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
-          } ${shakeButton ? 'animate-shake' : ''}`}
+        className={`fixed bottom-[64px] right-4 z-30 bg-white rounded-full shadow-lg border-2 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 ${shakeButton ? 'animate-shake' : ''}`}
+        style={{
+          borderColor: 'var(--color-primary-500)',
+          width: search ? 'auto' : '48px',
+          height: '48px',
+          paddingLeft: search ? '16px' : '0',
+          paddingRight: search ? '16px' : '0',
+          gap: search ? '6px' : '0',
+        }}
         aria-label={search ? "필터 초기화" : "상품 검색"}
       >
         {search ? (
-          // 필터 초기화 아이콘 (필터)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
             <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
-          // 검색 아이콘 (돋보기)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
         )}
-        <span className="text-sm font-bold text-gray-900">
-          {search ? '초기화' : ''}
-        </span>
+        {search && <span className="text-sm font-bold text-gray-900">초기화</span>}
       </button>
 
       {/* 상품 상세 Dialog */}

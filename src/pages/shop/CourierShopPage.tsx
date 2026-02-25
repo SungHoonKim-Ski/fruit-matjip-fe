@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../components/snackbar';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
@@ -7,10 +7,12 @@ import {
   searchCourierProducts,
   getCourierProductsByCategory,
   getCourierConfig,
+  getUserMe,
+  modifyName,
+  checkNameExists,
 } from '../../utils/api';
 import CourierBottomNav from '../../components/shop/CourierBottomNav';
 import { theme, logoText } from '../../brand';
-import { getCartTotalQuantity } from '../../utils/courierCart';
 import Footer from '../../components/Footer';
 import CourierProductDetailPage from './CourierProductDetailPage';
 
@@ -142,7 +144,6 @@ export default function CourierShopPage() {
   const { show } = useSnackbar();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(() => getCartTotalQuantity());
   const [detailDialog, setDetailDialog] = useState<{ isOpen: boolean; productId: number }>({ isOpen: false, productId: 0 });
 
   const [viewMode, setViewMode] = useState<ViewMode>('main');
@@ -161,6 +162,16 @@ export default function CourierShopPage() {
   const [modalSearchResults, setModalSearchResults] = useState<CourierProduct[]>([]);
   const [modalSearchLoading, setModalSearchLoading] = useState(false);
 
+  // ── Nickname state ────────────────────────────────────────────────────
+  const [nickname, setNickname] = useState<string>(() => {
+    const saved = localStorage.getItem('nickname');
+    return saved && saved.trim() ? saved : '신규 고객';
+  });
+  const [nickModalOpen, setNickModalOpen] = useState(false);
+  const [draftNick, setDraftNick] = useState(() => (nickname === '신규 고객' ? '' : nickname));
+  const [savingNick, setSavingNick] = useState(false);
+  const nickInputRef = useRef<HTMLInputElement>(null);
+
   // ── Fade transition state ──────────────────────────────────────────────────
   const [contentVisible, setContentVisible] = useState(true);
   const prevChipRef = useRef<null | 'recommended' | number>(null);
@@ -169,19 +180,6 @@ export default function CourierShopPage() {
   const modalDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modalInputRef = useRef<HTMLInputElement>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  // ── Cart count sync ───────────────────────────────────────────────────────
-  useEffect(() => {
-    const update = () => setCartCount(getCartTotalQuantity());
-    window.addEventListener('storage', update);
-    window.addEventListener('focus', update);
-    window.addEventListener('courier-cart-changed', update);
-    return () => {
-      window.removeEventListener('storage', update);
-      window.removeEventListener('focus', update);
-      window.removeEventListener('courier-cart-changed', update);
-    };
-  }, []);
 
   // ── Popstate handling for dialog ──────────────────────────────────────────
   useEffect(() => {
@@ -196,19 +194,23 @@ export default function CourierShopPage() {
         setModalSearchResults([]);
         return;
       }
+      if (nickModalOpen) {
+        setNickModalOpen(false);
+        return;
+      }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [detailDialog.isOpen, searchModalOpen]);
+  }, [detailDialog.isOpen, searchModalOpen, nickModalOpen]);
 
   // ── Body scroll lock when dialog or modal is open ────────────────────────
   useEffect(() => {
-    if (detailDialog.isOpen || searchModalOpen) {
+    if (detailDialog.isOpen || searchModalOpen || nickModalOpen) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => { document.body.style.overflow = prev || ''; };
     }
-  }, [detailDialog.isOpen, searchModalOpen]);
+  }, [detailDialog.isOpen, searchModalOpen, nickModalOpen]);
 
   // ── Initial load: recommended + by-category in parallel ──────────────────
   useEffect(() => {
@@ -216,16 +218,31 @@ export default function CourierShopPage() {
     (async () => {
       try {
         setLoading(true);
-        const [recRes, catRes, configData] = await Promise.all([
+        const [recRes, catRes, configData, meData] = await Promise.all([
           getRecommendedCourierProducts(8),
           getCourierProductsByCategory(),
           getCourierConfig().catch(() => null),
+          getUserMe().catch(() => null),
         ]);
 
         if (!alive) return;
 
         if (configData?.noticeText) {
           setNoticeText(configData.noticeText);
+        }
+
+        // Nickname sync
+        if (meData) {
+          if (meData.nickname && meData.nickname.trim()) {
+            localStorage.setItem('nickname', meData.nickname);
+            setNickname(meData.nickname);
+          }
+          if (!meData.changeName) {
+            // Force nickname change modal
+            setNickModalOpen(true);
+            setDraftNick('');
+            setNickname('신규 고객');
+          }
         }
 
         // Recommended
@@ -424,6 +441,77 @@ export default function CourierShopPage() {
     window.history.pushState({ modal: 'courierProduct', productId }, '');
   };
 
+  // ── Nickname modal ──────────────────────────────────────────────────
+  const openNickModal = useCallback(() => {
+    setDraftNick(nickname === '신규 고객' ? '' : nickname);
+    setNickModalOpen(true);
+    window.history.pushState({ modal: 'nickname' }, '');
+  }, [nickname]);
+
+  useEffect(() => {
+    if (nickModalOpen) {
+      setTimeout(() => nickInputRef.current?.focus(), 0);
+    }
+  }, [nickModalOpen]);
+
+  const checkNicknameUnique = async (value: string) => {
+    try {
+      const res = await checkNameExists(value);
+      if (!res.ok) throw new Error('중복 검사 실패');
+      const data = await res.json();
+      return Boolean(data);
+    } catch (e: any) {
+      safeErrorLog(e, 'CourierShopPage - checkNicknameUnique');
+      show(getSafeErrorMessage(e, '닉네임 중복 확인 중 오류가 발생했습니다.'), { variant: 'error' });
+      return false;
+    }
+  };
+
+  const saveNickname = async () => {
+    const value = draftNick.trim();
+    if (!value) {
+      show('닉네임을 입력해주세요.', { variant: 'error' });
+      return;
+    }
+    const allowed = /^[A-Za-z0-9가-힣]+$/;
+    if (!allowed.test(value)) {
+      show('닉네임은 숫자와 한글/영문만 사용할 수 있어요.', { variant: 'info' });
+      return;
+    }
+    if (value.length < 3 || value.length > 10) {
+      show('닉네임은 3~10자로 입력해주세요.', { variant: 'error' });
+      return;
+    }
+    if (value === nickname) {
+      setNickModalOpen(false);
+      return;
+    }
+    try {
+      setSavingNick(true);
+      const unique = await checkNicknameUnique(value);
+      if (!unique) {
+        show('이미 사용 중인 닉네임입니다.', { variant: 'error' });
+        return;
+      }
+      const res = await modifyName(value);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('닉네임 변경 API 응답:', res.status, errorText);
+        throw new Error(`닉네임 저장 실패: ${res.status} ${res.statusText}`);
+      }
+      setNickname(value);
+      localStorage.setItem('nickname', value);
+      show('닉네임이 변경되었습니다.');
+      setNickModalOpen(false);
+      setTimeout(() => setNickname(value), 100);
+    } catch (e: any) {
+      safeErrorLog(e, 'CourierShopPage - saveNickname');
+      show(getSafeErrorMessage(e, '닉네임 변경 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setSavingNick(false);
+    }
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -444,30 +532,15 @@ export default function CourierShopPage() {
           </div>
           {/* Center: logo */}
           <div className="flex-1 flex justify-center">
-            <button onClick={() => nav('/shop')} className="hover:opacity-80" aria-label="메인으로 이동">
+            <button onClick={() => nav('/')} className="hover:opacity-80" aria-label="메인으로 이동">
               <img src={logoText} alt={theme.displayName} className="h-8 object-contain" />
             </button>
           </div>
-          {/* Right: cart icon with badge */}
+          {/* Right: nickname */}
           <div className="flex-1 flex justify-end">
-            <button
-              onClick={() => nav('/shop/cart')}
-              className="relative h-10 w-10 grid place-items-center rounded-md hover:bg-gray-50"
-              aria-label="장바구니"
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <path d="M16 10a4 4 0 01-8 0" />
-              </svg>
-              {cartCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1"
-                  style={{ backgroundColor: 'var(--color-primary-500)' }}
-                >
-                  {cartCount > 99 ? '99+' : cartCount}
-                </span>
-              )}
+            <button onClick={openNickModal} className="text-right leading-tight text-sm" title="닉네임 변경">
+              <div className="font-medium text-gray-800">{nickname}님</div>
+              <div className="text-gray-500 text-xs">안녕하세요</div>
             </button>
           </div>
         </div>
@@ -529,12 +602,9 @@ export default function CourierShopPage() {
           type="button"
           onClick={searchQuery ? clearSearch : openSearchModal}
           aria-label={searchQuery ? '검색 초기화' : '상품 검색'}
-          className={`fixed bottom-20 right-4 z-40 rounded-full flex items-center justify-center active:opacity-90 transition-all duration-200 ${shakeButton ? 'animate-shake' : ''}`}
+          className={`fixed bottom-[64px] right-4 z-30 bg-white rounded-full shadow-lg border-2 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 ${shakeButton ? 'animate-shake' : ''}`}
           style={{
-            backgroundColor: searchQuery ? '#fff' : 'var(--color-primary-500)',
-            color: searchQuery ? 'var(--color-primary-500)' : '#fff',
-            border: searchQuery ? '2px solid var(--color-primary-500)' : 'none',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            borderColor: 'var(--color-primary-500)',
             width: searchQuery ? 'auto' : '48px',
             height: '48px',
             paddingLeft: searchQuery ? '16px' : '0',
@@ -543,17 +613,16 @@ export default function CourierShopPage() {
           }}
         >
           {searchQuery ? (
-            <>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
-              </svg>
-              <span className="text-sm font-bold">초기화</span>
-            </>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
+              <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
+            </svg>
           ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
             </svg>
           )}
+          {searchQuery && <span className="text-sm font-bold text-gray-900">초기화</span>}
         </button>
 
         {/* ── Sticky chip row ── */}
@@ -923,6 +992,49 @@ export default function CourierShopPage() {
                   style={{ backgroundColor: 'var(--color-primary-500)' }}
                 >
                   검색 적용
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Nickname Modal ── */}
+        {nickModalOpen && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center p-4"
+            onKeyDown={e => { if (e.key === 'Escape') setNickModalOpen(false); }}
+            aria-modal="true"
+            role="dialog"
+          >
+            <div className="absolute inset-0 bg-black/40" onClick={() => setNickModalOpen(false)} />
+            <div className="relative z-10 w-full max-w-sm bg-white rounded-xl shadow-xl border p-5">
+              <h2 className="text-base font-semibold text-gray-800">닉네임 변경(최소 3자, 최대 10자)</h2>
+              <p className="text-sm text-gray-500 mt-1">중복된 닉네임은 사용 불가능합니다.</p>
+              <div className="mt-4">
+                <input
+                  ref={nickInputRef}
+                  value={draftNick}
+                  onChange={e => setDraftNick(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveNickname(); }}
+                  className="w-full h-10 border rounded px-3"
+                  placeholder="닉네임"
+                  maxLength={10}
+                />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setNickModalOpen(false)}
+                  className="h-10 px-4 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={saveNickname}
+                  disabled={savingNick}
+                  className="h-10 px-4 rounded text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary-500)' }}
+                >
+                  {savingNick ? '저장 중…' : '저장'}
                 </button>
               </div>
             </div>
