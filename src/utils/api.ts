@@ -53,6 +53,81 @@ const shouldRetry = (method: string, errorOrResponse: unknown): boolean => {
 
 // === 토큰 유틸 ===
 const getAccessToken = () => localStorage.getItem('access');
+const ADMIN_CSRF_ENDPOINT = '/api/admin/csrf';
+const ADMIN_CSRF_HEADER = 'X-XSRF-TOKEN';
+const ADMIN_CSRF_EXCLUDED_PATHS = new Set([
+  '/api/admin/login',
+  '/api/admin/logout',
+  ADMIN_CSRF_ENDPOINT,
+]);
+
+let adminCsrfToken: string | null = null;
+let adminCsrfTokenPromise: Promise<string | null> | null = null;
+
+const isMutatingMethod = (method = 'GET') => !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+
+const shouldAttachAdminCsrf = (url: string, method: string) => {
+  const path = url.split('?')[0];
+  return isMutatingMethod(method) && !ADMIN_CSRF_EXCLUDED_PATHS.has(path);
+};
+
+const hasAdminCsrfHeader = (headers: Record<string, string>) =>
+  Object.keys(headers).some((key) => key.toLowerCase() === ADMIN_CSRF_HEADER.toLowerCase());
+
+const toHeaderRecord = (headers?: HeadersInit): Record<string, string> => {
+  if (!headers) return {};
+  if (headers instanceof Headers) {
+    const record: Record<string, string> = {};
+    headers.forEach((value, key) => { record[key] = value; });
+    return record;
+  }
+  if (Array.isArray(headers)) {
+    return headers.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {} as Record<string, string>);
+  }
+  return { ...headers };
+};
+
+const extractCsrfToken = async (response: Response): Promise<string | null> => {
+  try {
+    const body = await response.json() as { token?: string };
+    if (typeof body.token === 'string' && body.token.trim() !== '') {
+      return body.token;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const fetchAdminCsrfToken = async (forceRefresh = false): Promise<string | null> => {
+  if (!forceRefresh && adminCsrfToken) return adminCsrfToken;
+  if (!forceRefresh && adminCsrfTokenPromise) return adminCsrfTokenPromise;
+
+  adminCsrfTokenPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}${ADMIN_CSRF_ENDPOINT}`, {
+        method: 'GET',
+        headers: { 'X-Request-Id': crypto.randomUUID() },
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        if (response.status === 401) adminCsrfToken = null;
+        return null;
+      }
+      const token = await extractCsrfToken(response);
+      adminCsrfToken = token;
+      return token;
+    } catch (error) {
+      safeErrorLog(error);
+      return null;
+    } finally {
+      adminCsrfTokenPromise = null;
+    }
+  })();
+
+  return adminCsrfTokenPromise;
+};
 
 // === 공통 에러 메시지 저장 ===
 const pushUiError = (message: string, type: 'error' | 'admin' | 'user' = 'error') => {
@@ -209,15 +284,43 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
   let attempt = 0;
   while (attempt <= MAX_RETRY_PER_API) {
     try {
-      const response = await fetch(`${API_BASE}${url}`, {
+      const requestHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Request-Id': crypto.randomUUID(),
+        ...toHeaderRecord(options.headers),
+      };
+      const needsCsrf = shouldAttachAdminCsrf(url, method);
+      const hasCsrfHeader = hasAdminCsrfHeader(requestHeaders);
+
+      if (needsCsrf && !hasCsrfHeader) {
+        const token = await fetchAdminCsrfToken();
+        if (token) {
+          requestHeaders[ADMIN_CSRF_HEADER] = token;
+        }
+      }
+
+      const requestWithHeaders = (headers: Record<string, string>) => fetch(`${API_BASE}${url}`, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Request-Id': crypto.randomUUID(),
-          ...(options.headers as Record<string, string> | undefined),
-        },
+        headers,
         credentials: 'include',
       });
+
+      let response = await requestWithHeaders(requestHeaders);
+
+      if (needsCsrf && response.status === 403 && !hasCsrfHeader) {
+        const refreshedToken = await fetchAdminCsrfToken(true);
+        if (refreshedToken) {
+          const retriedHeaders = { ...requestHeaders, [ADMIN_CSRF_HEADER]: refreshedToken };
+          response = await requestWithHeaders(retriedHeaders);
+        }
+      }
+
+      if (response.status === 401) {
+        adminCsrfToken = null;
+      }
+      if (response.ok && (url === '/api/admin/login' || url === '/api/admin/logout')) {
+        adminCsrfToken = null;
+      }
 
       // Admin: 401/403 처리
       if (autoRedirect && (response.status === 401 || response.status === 403)) {
