@@ -23,6 +23,8 @@ yarn-debug.log*
 yarn-error.log*
 
 /public/images/*
+!/public/images/kakaopay.png
+!/public/images/naverpay.svg
 
 ### OMC ###
 .omc/
