@@ -213,6 +213,7 @@ export const adminFetch = async (url: string, options: RequestInit = {}, autoRed
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          'X-Request-Id': crypto.randomUUID(),
           ...(options.headers as Record<string, string> | undefined),
         },
         credentials: 'include',
@@ -262,6 +263,7 @@ export const userFetch = async (url: string, options: RequestInit = {}, autoRedi
 
   const baseHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Request-Id': crypto.randomUUID(),
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) baseHeaders.Authorization = `Bearer ${token}`;
