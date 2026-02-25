@@ -262,61 +262,122 @@ export default function CourierOrderDetailPage() {
         </div>
       </section>
 
-      {/* Shipping/tracking info */}
-      {(order.trackingNumber || order.shippedAt || order.deliveredAt) && (
+      {/* 배송 현황 */}
+      {['PAID', 'ORDERING', 'ORDER_COMPLETED', 'IN_TRANSIT', 'DELIVERED'].includes(order.status) && (
         <section className="max-w-md mx-auto px-4 mt-3">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-base font-semibold text-gray-800 mb-3">배송 정보</h2>
-            <div className="space-y-2 text-sm text-gray-700">
-              {order.courierCompany && (
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-20 flex-shrink-0">택배사</span>
-                  <span>{getCourierCompanyLabel(order.courierCompany)}</span>
-                </div>
-              )}
-              {order.trackingNumber && (
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-20 flex-shrink-0">운송장번호</span>
-                  <span>{order.trackingNumber}</span>
-                </div>
-              )}
-              {order.shippedAt && (
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-20 flex-shrink-0">발송일</span>
-                  <span>{formatDateTime(order.shippedAt)}</span>
-                </div>
-              )}
-              {order.trackingLocation && (
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-20 flex-shrink-0">현재 위치</span>
-                  <div>
-                    <span>{order.trackingLocation}</span>
-                    {order.trackingUpdatedAt && (
-                      <span className="text-xs text-gray-400 ml-2">{formatDateTime(order.trackingUpdatedAt)}</span>
-                    )}
+            <h2 className="text-base font-semibold text-gray-800 mb-4">배송 현황</h2>
+
+            {(() => {
+              const steps = [
+                { key: 'PAID', label: '결제완료' },
+                { key: 'ORDERING', label: '상품준비중' },
+                { key: 'ORDER_COMPLETED', label: '상품준비완료' },
+                { key: 'IN_TRANSIT', label: '배송중' },
+                { key: 'DELIVERED', label: '배송완료' },
+              ];
+              const currentIdx = steps.findIndex(s => s.key === order.status);
+
+              return (
+                <div className="relative">
+                  {/* Connecting lines */}
+                  <div className="absolute top-3 left-[10%] right-[10%] flex">
+                    {steps.slice(0, -1).map((step, i) => (
+                      <div
+                        key={`line-${step.key}`}
+                        className="flex-1 h-0.5"
+                        style={{ backgroundColor: i < currentIdx ? 'var(--color-primary-500)' : '#e5e7eb' }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Step circles + labels */}
+                  <div className="relative flex justify-between">
+                    {steps.map((step, i) => {
+                      const isCompleted = i < currentIdx;
+                      const isCurrent = i === currentIdx;
+
+                      return (
+                        <div key={step.key} className="flex flex-col items-center" style={{ width: '20%' }}>
+                          <div className="relative flex items-center justify-center">
+                            {isCurrent && (
+                              <span
+                                className="absolute w-10 h-10 rounded-full opacity-20 animate-ping"
+                                style={{ backgroundColor: 'var(--color-primary-400)' }}
+                              />
+                            )}
+                            <div
+                              className="w-6 h-6 rounded-full border-2 flex items-center justify-center relative z-10"
+                              style={{
+                                borderColor: isCompleted || isCurrent ? 'var(--color-primary-500)' : '#d1d5db',
+                                backgroundColor: isCompleted || isCurrent ? 'var(--color-primary-500)' : '#fff',
+                              }}
+                            >
+                              {isCompleted && (
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {isCurrent && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <span
+                            className="text-[10px] mt-1.5 text-center leading-tight font-medium"
+                            style={{ color: isCompleted || isCurrent ? 'var(--color-primary-700)' : '#9ca3af' }}
+                          >
+                            {step.label}
+                          </span>
+                          {step.key === 'IN_TRANSIT' && isCurrent && order.trackingLocation && (
+                            <div className="mt-1 text-center">
+                              <div className="text-[10px] font-medium text-gray-700">{order.trackingLocation}</div>
+                              {order.trackingUpdatedAt && (
+                                <div className="text-[9px] text-gray-400">{formatDateTime(order.trackingUpdatedAt)}</div>
+                              )}
+                            </div>
+                          )}
+                          {step.key === 'DELIVERED' && isCurrent && order.deliveredAt && (
+                            <div className="mt-1 text-center">
+                              <div className="text-[9px] text-gray-400">{formatDateTime(order.deliveredAt)}</div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              )}
-              {order.deliveredAt && (
-                <div className="flex gap-2">
-                  <span className="text-gray-500 w-20 flex-shrink-0">배송완료</span>
-                  <span>{formatDateTime(order.deliveredAt)}</span>
-                </div>
-              )}
-              {trackingUrl && (
-                <a
-                  href={trackingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  배송 추적하기
-                </a>
-              )}
-            </div>
+              );
+            })()}
+
+            {/* Tracking details below progress bar */}
+            {(order.trackingNumber || order.courierCompany) && (
+              <div className="mt-4 pt-3 border-t space-y-2 text-sm text-gray-700">
+                {order.courierCompany && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-500 w-20 flex-shrink-0">택배사</span>
+                    <span>{getCourierCompanyLabel(order.courierCompany)}</span>
+                  </div>
+                )}
+                {order.trackingNumber && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-500 w-20 flex-shrink-0">운송장번호</span>
+                    <span>{order.trackingNumber}</span>
+                  </div>
+                )}
+                {trackingUrl && (
+                  <a
+                    href={trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    배송 추적하기
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </section>
       )}
