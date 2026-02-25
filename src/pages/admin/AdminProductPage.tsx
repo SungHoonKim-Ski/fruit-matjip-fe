@@ -242,6 +242,34 @@ export default function AdminProductPage() {
     return products.filter(p => p.name.toLowerCase().includes(query));
   };
 
+  // 날짜별 필터링된 상품 목록 (검색 모달용)
+  const getFilteredProductsForDate = (sellDate: string, searchQuery: string) => {
+    const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
+
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(kstNow);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(kstNow);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+    if (sellDate === '과거 상품') {
+      return filteredProducts.filter(p => {
+        const d = p.sellDate || '미설정';
+        return d !== '미설정' && d < sevenDaysAgoStr && d >= thirtyDaysAgoStr;
+      });
+    }
+    if (sellDate === '과거 상품+') {
+      return filteredProducts.filter(p => {
+        const d = p.sellDate || '미설정';
+        return d !== '미설정' && d < thirtyDaysAgoStr;
+      });
+    }
+    return filteredProducts.filter(p => (p.sellDate || '미설정') === sellDate);
+  };
+
   // 날짜별 필터링된 상품 개수 (검색 모달용)
   const getFilteredCountByDate = (sellDate: string, searchQuery: string) => {
     const filteredProducts = getFilteredProductsByTempSearch(searchQuery);
@@ -735,26 +763,30 @@ export default function AdminProductPage() {
 
       {/* FAB 검색 버튼 */}
       <button
+        type="button"
         onClick={search ? clearSearch : openSearchModal}
-        className={`fixed bottom-4 right-4 z-[60] bg-white text-gray-800 rounded-full shadow-lg flex items-center gap-2 px-4 py-3 transition-all duration-200 hover:scale-105 active:scale-95 ${search ? 'border border-blue-500' : 'border-2 border-blue-500'
-          }`}
         aria-label={search ? "필터 초기화" : "상품 검색"}
+        className="fixed bottom-4 right-4 z-[60] bg-white rounded-full shadow-lg border-2 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+        style={{
+          borderColor: 'var(--color-primary-500)',
+          width: search ? 'auto' : '48px',
+          height: '48px',
+          paddingLeft: search ? '16px' : '0',
+          paddingRight: search ? '16px' : '0',
+          gap: search ? '6px' : '0',
+        }}
       >
         {search ? (
-          // 필터 초기화 아이콘 (필터)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
             <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46 22,3" />
           </svg>
         ) : (
-          // 검색 아이콘 (돋보기)
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
         )}
-        <span className="text-sm font-bold text-gray-900">
-          {search ? '초기화' : ''}
-        </span>
+        {search && <span className="text-sm font-bold text-gray-900">초기화</span>}
       </button>
 
       {/* 검색 모달 */}
@@ -791,7 +823,8 @@ export default function AdminProductPage() {
                     }
                   }}
                   placeholder="상품명을 입력하세요 (예: 토마토, 사과)"
-                  className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm bg-white"
+                  className="w-full h-12 pl-10 pr-10 rounded-lg border-2 border-gray-300 outline-none text-sm bg-white"
+                  style={{ ['--tw-ring-color' as any]: 'var(--color-primary-500)' }}
                   autoFocus
                 />
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
@@ -808,37 +841,57 @@ export default function AdminProductPage() {
               </div>
             </div>
 
-            {/* 검색 결과 날짜별 미리보기 */}
+            {/* 날짜별 검색 결과 */}
             {tempSearch && (
               <div className="px-4 pb-4">
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {getAvailableDates(tempSearch).map(sellDate => {
-                    const count = getFilteredCountByDate(sellDate, tempSearch);
-                    if (count === 0) return null;
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                  {getAvailableDates(tempSearch).map(date => {
+                    const productsForDate = getFilteredProductsForDate(date, tempSearch);
+                    if (productsForDate.length === 0) return null;
 
-                    const status = getSellDateStatus(sellDate);
+                    const status = getSellDateStatus(date);
 
                     return (
-                      <div
-                        key={sellDate}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => {
-                          setSearch(tempSearch);
-                          setFilteredSellDate(sellDate);
-                          setSearchModalOpen(false);
-                          setTempSearch('');
-                        }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="text-sm font-medium text-gray-800">
-                            {formatSellDate(sellDate)}
+                      <div key={date}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-800">
+                              {formatSellDate(date)}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${status.color}`}>
+                              {status.text}
+                            </span>
                           </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
-                            {status.text}
+                          <span className="text-xs font-medium" style={{ color: 'var(--color-primary-600)' }}>
+                            {productsForDate.length}개 상품
                           </span>
                         </div>
-                        <div className="text-sm text-orange-600 font-semibold">
-                          {count}개 상품
+                        <div className="space-y-2">
+                          {productsForDate.map(product => (
+                            <div
+                              key={product.id}
+                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                              onClick={() => {
+                                setSearch(tempSearch);
+                                setFilteredSellDate(date);
+                                setSearchModalOpen(false);
+                                setTempSearch('');
+                                setExpandedGroups(new Set([date]));
+                              }}
+                            >
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="w-12 h-12 rounded object-cover border flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium text-gray-800 truncate">
+                                  {highlightSearchTerm(product.name, tempSearch)}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-0.5">{product.price.toLocaleString()}원</div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
@@ -846,10 +899,10 @@ export default function AdminProductPage() {
                 </div>
 
                 {/* 검색 결과 없음 */}
-                {getAvailableDates(tempSearch).every(sellDate => getFilteredCountByDate(sellDate, tempSearch) === 0) && (
+                {getAvailableDates(tempSearch).every(date => getFilteredCountByDate(date, tempSearch) === 0) && (
                   <div className="text-center text-gray-500 py-6">
                     <div className="text-sm">
-                      <span className="font-medium text-orange-600">"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
+                      <span className="font-medium" style={{ color: 'var(--color-primary-600)' }}>"{tempSearch}"</span>에 대한 검색 결과가 없습니다.
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
                       다른 검색어를 시도해보세요.
@@ -869,7 +922,8 @@ export default function AdminProductPage() {
               </button>
               <button
                 onClick={applySearch}
-                className="flex-1 h-10 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
+                className="flex-1 h-10 rounded-lg text-white font-medium transition-colors hover:opacity-90"
+                style={{ backgroundColor: 'var(--color-primary-500)' }}
               >
                 검색 적용
               </button>
