@@ -675,7 +675,7 @@ export const markMessageAsRead = async (messageId: number) => {
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getUserMe = async (): Promise<{ nickname: string; restricted: boolean; restrictedUntil: string | null }> => {
+export const getUserMe = async (): Promise<{ nickname: string; changeName: boolean; restricted: boolean; restrictedUntil: string | null }> => {
   const res = await userFetch('/api/auth/users/me');
   if (!res.ok) {
     throw new Error('사용자 정보를 불러올 수 없습니다.');
@@ -683,6 +683,7 @@ export const getUserMe = async (): Promise<{ nickname: string; restricted: boole
   const data = await res.json();
   return {
     nickname: data.nickname || '',
+    changeName: data.change_name !== false,
     restricted: Boolean(data.restricted),
     restrictedUntil: data.restrictedUntil || data.restricted_until || null,
   };
@@ -2508,11 +2509,14 @@ export function getTrackingUrl(courierCompany: string | null, trackingNumber: st
 
 // ===== Courier Tracking Upload API =====
 
-export type CourierCompany = 'HANJIN' | 'LOGEN';
+export type CourierCompany = 'HANJIN' | 'LOGEN' | 'CJ' | 'LOTTE' | 'EPOST';
 
 export const COURIER_COMPANY_LABELS: Record<CourierCompany, string> = {
   LOGEN: '로젠택배',
   HANJIN: '한진택배',
+  CJ: 'CJ대한통운',
+  LOTTE: '롯데택배',
+  EPOST: '우체국택배',
 };
 
 export function getCourierCompanyLabel(company: string | null): string {
@@ -3005,12 +3009,14 @@ export const getPointHistory = async (page = 0, size = 20): Promise<PointHistory
   } catch (e) { incrementApiRetryCount(key); throw e; }
 };
 
-export const getAdminPointUsers = async (keyword = ''): Promise<AdminPointUserResponse[]> => {
+export const getAdminPointUsers = async (keyword = '', offset = 0, limit = 20): Promise<AdminPointUserResponse[]> => {
   const key = 'getAdminPointUsers';
   if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
   try {
     const params = new URLSearchParams();
     if (keyword) params.append('keyword', keyword);
+    params.append('offset', String(offset));
+    params.append('limit', String(limit));
     const res = await adminFetch(`/api/admin/points/users?${params.toString()}`, {}, true);
     if (!res.ok) throw new Error('사용자 목록 조회에 실패했습니다.');
     const data = await res.json();
@@ -3094,7 +3100,7 @@ export const bulkIssueAdminPoints = async (
     const res = await adminFetch('/api/admin/points/bulk-issue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uids, allUsers, amount, description }),
+      body: JSON.stringify({ uids, all_users: allUsers, amount, description }),
     }, true);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
