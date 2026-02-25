@@ -271,7 +271,7 @@ export default function CourierProductDetailPage({ isOpen, onClose, productId }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
       <div className="bg-[#f6f6f6] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col relative overflow-hidden">
         {/* Dialog header */}
         <div className="bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
