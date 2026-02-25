@@ -6,7 +6,6 @@ import {
   getAdminCourierClaims,
   approveAdminCourierClaim,
   rejectAdminCourierClaim,
-  updateClaimOrderStatus,
   updateClaimReturnStatus,
   type AdminCourierClaimSummary,
   type CourierClaimStatus,
@@ -85,14 +84,6 @@ const RETURN_STATUS_COLORS: Record<string, string> = {
   COLLECTED: 'bg-green-100 text-green-700 border-green-300',
 };
 
-const ORDER_STATUS_CHANGE_OPTIONS = [
-  { value: 'ORDERING', label: '상품준비중' },
-  { value: 'ORDER_COMPLETED', label: '상품준비완료' },
-  { value: 'IN_TRANSIT', label: '배송중' },
-  { value: 'DELIVERED', label: '배송완료' },
-  { value: 'CANCELED', label: '주문취소' },
-];
-
 const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '전체' },
   { value: 'REQUESTED', label: '접수' },
@@ -121,10 +112,6 @@ export default function AdminCourierClaimsPage() {
 
   // Detail expand
   const [expandedId, setExpandedId] = useState<number | null>(null);
-
-  // Order status change per expanded row
-  const [orderStatusSelections, setOrderStatusSelections] = useState<Record<number, string>>({});
-  const [orderStatusSubmitting, setOrderStatusSubmitting] = useState<number | null>(null);
 
   // Action modal
   const [modalMode, setModalMode] = useState<ModalMode>(null);
@@ -229,25 +216,6 @@ export default function AdminCourierClaimsPage() {
       show(getSafeErrorMessage(err, '클레임 거부에 실패했습니다.'), { variant: 'error' });
     } finally {
       setActionSubmitting(false);
-    }
-  };
-
-  const handleOrderStatusChange = async (claim: AdminCourierClaimSummary) => {
-    const selectedStatus = orderStatusSelections[claim.id];
-    if (!selectedStatus) {
-      show('변경할 상태를 선택해주세요.', { variant: 'error' });
-      return;
-    }
-    try {
-      setOrderStatusSubmitting(claim.id);
-      await updateClaimOrderStatus(claim.id, selectedStatus);
-      show('주문 상태가 변경되었습니다.', { variant: 'success' });
-      fetchClaims(statusFilter, currentPage);
-    } catch (err) {
-      safeErrorLog(err, 'AdminCourierClaimsPage - updateClaimOrderStatus');
-      show(getSafeErrorMessage(err, '주문 상태 변경에 실패했습니다.'), { variant: 'error' });
-    } finally {
-      setOrderStatusSubmitting(null);
     }
   };
 
@@ -496,32 +464,6 @@ export default function AdminCourierClaimsPage() {
                                   <span className="text-gray-800">{formatDateTime(claim.resolvedAt)}</span>
                                 </div>
                               )}
-
-                              {/* Order status change */}
-                              <div className="pt-2 border-t border-gray-200">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-500 w-20 flex-shrink-0">주문 상태 변경</span>
-                                  <select
-                                    value={orderStatusSelections[claim.id] ?? ''}
-                                    onChange={e => setOrderStatusSelections(prev => ({ ...prev, [claim.id]: e.target.value }))}
-                                    className="h-8 border border-gray-300 rounded px-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
-                                    onClick={e => e.stopPropagation()}
-                                  >
-                                    <option value="">상태 선택</option>
-                                    {ORDER_STATUS_CHANGE_OPTIONS.map(opt => (
-                                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    onClick={e => { e.stopPropagation(); handleOrderStatusChange(claim); }}
-                                    disabled={orderStatusSubmitting === claim.id || !orderStatusSelections[claim.id]}
-                                    className="h-8 px-3 rounded text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {orderStatusSubmitting === claim.id ? '변경 중...' : '상태 변경'}
-                                  </button>
-                                </div>
-                              </div>
                             </div>
                           </td>
                         </tr>
