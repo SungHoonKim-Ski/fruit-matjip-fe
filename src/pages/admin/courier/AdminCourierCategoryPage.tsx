@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../../../components/snackbar';
 import AdminCourierHeader from '../../../components/AdminCourierHeader';
 import { safeErrorLog, getSafeErrorMessage } from '../../../utils/environment';
@@ -205,11 +204,10 @@ interface SortableItemProps {
   onDelete: (item: CategoryItem) => void;
   onEdit: (item: CategoryItem) => void;
   onManageProducts: (item: CategoryItem) => void;
-  onGoToProducts: (item: CategoryItem) => void;
   deleting: number | null;
 }
 
-function SortableItem({ item, productCount, onDelete, onEdit, onManageProducts, onGoToProducts, deleting }: SortableItemProps) {
+function SortableItem({ item, productCount, onDelete, onEdit, onManageProducts, deleting }: SortableItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -232,13 +230,7 @@ function SortableItem({ item, productCount, onDelete, onEdit, onManageProducts, 
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-gray-200 text-gray-600">
           {productCount}개
         </span>
-        <button
-          onClick={() => onGoToProducts(item)}
-          className="text-[11px] font-bold px-2.5 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition-colors"
-        >
-          상품 관리
-        </button>
-        <button
+<button
           onClick={() => onManageProducts(item)}
           className="text-[11px] font-bold px-2.5 py-1 rounded bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100 transition-colors"
         >
@@ -266,7 +258,6 @@ function SortableItem({ item, productCount, onDelete, onEdit, onManageProducts, 
 
 export default function AdminCourierCategoryPage() {
   const { show } = useSnackbar();
-  const navigate = useNavigate();
 
   // Categories
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -577,7 +568,6 @@ export default function AdminCourierCategoryPage() {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       onManageProducts={openCategoryDialog}
-                      onGoToProducts={i => navigate(`/admin/courier/products?category=${i.id}`)}
                       deleting={deleting}
                     />
                   ))}
