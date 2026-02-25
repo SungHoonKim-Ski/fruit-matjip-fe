@@ -919,10 +919,7 @@ export default function DeliveryPage() {
           <div className="flex gap-2 mt-2">
             <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-green-500 rounded-lg px-3 py-2">
               <input type="radio" checked readOnly className="accent-green-500" />
-              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
-                style={{ backgroundColor: '#FEE500', color: '#3C1E1E' }}>
-                카카오페이
-              </span>
+              <img src="/images/kakaopay.png" alt="카카오페이" className="h-6" />
             </label>
             <button
               type="button"
@@ -930,10 +927,7 @@ export default function DeliveryPage() {
               className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2 opacity-60 hover:opacity-80 transition"
             >
               <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-              <span className="inline-block h-6 px-2 rounded text-xs font-bold leading-6"
-                style={{ backgroundColor: '#03C75A', color: '#fff' }}>
-                네이버페이
-              </span>
+              <img src="/images/naverpay.svg" alt="네이버페이" className="h-6" />
             </button>
           </div>
         </div>
