@@ -30,6 +30,11 @@ export default function AdminCourierHeader() {
       navigate('/admin/courier/claims');
     }
   };
+  const goPoints = () => {
+    if (location !== '/admin/courier/points') {
+      navigate('/admin/courier/points');
+    }
+  };
   const goConfig = () => {
     if (location !== '/admin/courier/config') {
       navigate('/admin/courier/config');
@@ -97,6 +102,15 @@ export default function AdminCourierHeader() {
       menu.remove();
     };
 
+    // 포인트 관리 버튼
+    const pointsBtn = document.createElement('button');
+    pointsBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
+    pointsBtn.innerHTML = '🎁 포인트 관리';
+    pointsBtn.onclick = () => {
+      goPoints();
+      menu.remove();
+    };
+
     // 카테고리 관리 버튼
     const categoriesBtn = document.createElement('button');
     categoriesBtn.className = 'w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2';
@@ -123,6 +137,7 @@ export default function AdminCourierHeader() {
     menu.appendChild(productOrderBtn);
     menu.appendChild(ordersBtn);
     menu.appendChild(claimsBtn);
+    menu.appendChild(pointsBtn);
     menu.appendChild(categoriesBtn);
     menu.appendChild(configBtn);
 
