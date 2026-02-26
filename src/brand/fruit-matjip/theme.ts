@@ -11,6 +11,7 @@ export interface BrandTheme {
         businessNumber: string;
         phone: string;
         address?: string;
+        corporateAddress?: string;
     };
     links: {
         kakaoOpenChat?: string;
@@ -61,13 +62,14 @@ export const theme: BrandTheme = {
     displayName: '과일맛집1995',
     tagline: '🎁과일맛집1995 현장예약🎁',
     description: '더욱 혜택넘치는 가격으로\n우리들끼리 예약하고 먹자구요🤣',
-    companyName: '과일맛집1995',
-    copyright: '© 과일맛집1995',
+    companyName: '주식회사 과일맛집에프앤비',
+    copyright: '© 주식회사 과일맛집에프앤비',
     contact: {
         representative: '김지훈',
-        businessNumber: '131-47-00411',
+        businessNumber: '451-86-03892',
         phone: '02-2666-7412',
         address: '서울특별시 강서구 강서로341, 1동 1층 15호 과일맛집(내발산동, 창대교회)',
+        corporateAddress: '서울특별시 강서구 공항대로36길 73, 1층 104호(내발산동, 문성빌라)',
     },
     links: {
         kakaoOpenChat: 'https://open.kakao.com/o/gX73w4Yg',

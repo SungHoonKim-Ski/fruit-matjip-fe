@@ -172,6 +172,7 @@ export default function PrivacyPage() {
             <p><span className="font-medium">책임자:</span> {theme.contact.representative}</p>
             <p><span className="font-medium">연락처:</span> {theme.contact.phone}</p>
             <p><span className="font-medium">주소:</span> {theme.contact.address}</p>
+            {theme.contact.corporateAddress && <p><span className="font-medium">법인소재지:</span> {theme.contact.corporateAddress}</p>}
             <p><span className="font-medium">사업자등록번호:</span> {theme.contact.businessNumber}</p>
           </div>
           <p className="leading-relaxed text-xs text-gray-500">
