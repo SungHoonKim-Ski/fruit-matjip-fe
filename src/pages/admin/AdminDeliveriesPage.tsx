@@ -375,7 +375,7 @@ export default function AdminDeliveriesPage() {
         show('배달 설정 값은 0 이상이어야 합니다.', { variant: 'error' });
         return;
       }
-      if (startHour < 0 || startHour > 23 || endHour < 0 || endHour > 23 || startMinute < 0 || startMinute > 59 || endMinute < 0 || endMinute > 59) {
+      if (startHour < 0 || startHour > 27 || endHour < 0 || endHour > 27 || startMinute < 0 || startMinute > 59 || endMinute < 0 || endMinute > 59) {
         show('배달 시간 범위를 확인해주세요.', { variant: 'error' });
         return;
       }

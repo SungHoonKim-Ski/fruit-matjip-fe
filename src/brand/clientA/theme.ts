@@ -10,6 +10,7 @@ export interface BrandTheme {
         representative: string;
         businessNumber: string;
         phone: string;
+        address?: string;
     };
     links: {
         kakaoOpenChat?: string;
@@ -22,6 +23,12 @@ export interface BrandTheme {
         redirectUri: string;
         gaKey: string;
         imgUrl: string;
+        hideTagline?: boolean;
+        reservationDeadline?: string;
+        cancellationDeadline?: string;
+        pickupDeadline?: string;
+        deliveryStart?: string;
+        deliveryEnd?: string;
     };
     colors: {
         primary: {

@@ -71,12 +71,15 @@ export default function AdminSalesPage() {
   };
 
   const [rows, setRows] = useState<SalesRow[]>([]);
-  const [summaryByDate, setSummaryByDate] = useState<Record<string, number>>({}); // YYYY-MM-DD -> revenue
+  const [summaryByDate, setSummaryByDate] = useState<Record<string, number>>({}); // YYYY-MM-DD -> total revenue (amount + deliveryFee)
+  const [deliveryByDate, setDeliveryByDate] = useState<Record<string, { deliveryAmount: number; deliveryFee: number; deliveryOrderCount: number }>>({}); // YYYY-MM-DD -> delivery info
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [monthTotalQty, setMonthTotalQty] = useState(0);
   const [monthTotalRev, setMonthTotalRev] = useState(0);
+  const [monthDeliveryRev, setMonthDeliveryRev] = useState(0);
+  const [monthStoreRev, setMonthStoreRev] = useState(0);
 
   // 요약 데이터 로드(집계 테이블) - 이번달 1일~어제 + 오늘 합쳐서
   const loadSummary = async (rangeFrom: string, rangeTo: string) => {
@@ -119,17 +122,33 @@ export default function AdminSalesPage() {
       const list1 = Array.isArray(body1.summary) ? body1.summary : [];
   
       const map: Record<string, number> = {};
+      const dMap: Record<string, { deliveryAmount: number; deliveryFee: number; deliveryOrderCount: number }> = {};
       let mQty = 0;
       let mRev = 0;
-  
+      let mDeliveryRev = 0;
+      let mStoreRev = 0;
+
       // 이번달 1일~어제 데이터(집계 테이블)
       list1.forEach((r: any) => {
         const date = r.date || r.sell_date || r.sellDate || r.pickup_date || r.pickupDate || '';
         const qty = Number(r.quantity ?? r.sum_quantity ?? 0);
-        const rev = Number(r.revenue ?? r.amount ?? r.sum_amount ?? 0);
-        if (date) map[date] = (map[date] || 0) + rev;
+        const amt = Number(r.revenue ?? r.amount ?? r.sum_amount ?? 0);
+        const dAmt = Number(r.deliveryAmount ?? 0);
+        const dFee = Number(r.deliveryFee ?? 0);
+        const dCnt = Number(r.deliveryOrderCount ?? 0);
+        const total = amt + dFee;
+        if (date) {
+          map[date] = (map[date] || 0) + total;
+          dMap[date] = {
+            deliveryAmount: (dMap[date]?.deliveryAmount || 0) + dAmt,
+            deliveryFee: (dMap[date]?.deliveryFee || 0) + dFee,
+            deliveryOrderCount: (dMap[date]?.deliveryOrderCount || 0) + dCnt,
+          };
+        }
         mQty += qty;
-        mRev += rev;
+        mRev += total;
+        mDeliveryRev += dAmt + dFee;
+        mStoreRev += amt - dAmt;
       });
   
       // 🔁 폴백: 2일 이후인데 1일 요약이 비어있다면 상세로 보강
@@ -188,8 +207,11 @@ export default function AdminSalesPage() {
       }
   
       setSummaryByDate(map);
+      setDeliveryByDate(dMap);
       setMonthTotalQty(mQty);
       setMonthTotalRev(mRev);
+      setMonthDeliveryRev(mDeliveryRev);
+      setMonthStoreRev(mStoreRev);
     } catch (e: any) {
       safeErrorLog(e, 'AdminSalesPage - loadSummary');
       show(getSafeErrorMessage(e, '매출 요약을 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
@@ -202,6 +224,8 @@ export default function AdminSalesPage() {
     setRows([]);
     setMonthTotalQty(0);
     setMonthTotalRev(0);
+    setMonthDeliveryRev(0);
+    setMonthStoreRev(0);
     loadSummary(from, to);
   }, [from, to]);
 const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
@@ -241,6 +265,22 @@ const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
     if (!selectedDate) return 0;
     return Number(summaryByDate[selectedDate] || 0);
   }, [selectedDate, summaryByDate]);
+  const selectedDayDelivery = useMemo(() => {
+    if (!selectedDate) return { deliveryAmount: 0, deliveryFee: 0, deliveryOrderCount: 0 };
+    return deliveryByDate[selectedDate] || { deliveryAmount: 0, deliveryFee: 0, deliveryOrderCount: 0 };
+  }, [selectedDate, deliveryByDate]);
+  const selectedDayStoreRev = useMemo(() => {
+    if (!selectedDate) return 0;
+    const amt = Number(summaryByDate[selectedDate] || 0);
+    const dFee = selectedDayDelivery.deliveryFee;
+    const dAmt = selectedDayDelivery.deliveryAmount;
+    // store revenue = (total - deliveryFee) - deliveryAmount = amount - deliveryAmount
+    // but total = amount + deliveryFee, so amount = total - deliveryFee
+    return amt - dFee - dAmt;
+  }, [selectedDate, summaryByDate, selectedDayDelivery]);
+  const selectedDayDeliveryRev = useMemo(() => {
+    return selectedDayDelivery.deliveryAmount + selectedDayDelivery.deliveryFee;
+  }, [selectedDayDelivery]);
 
   // 선택일 MM/DD만 추출 (라벨 스타일링용)
   const selectedDayMD = useMemo(() => {
@@ -366,17 +406,25 @@ const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
       {/* 상단 월 입력 제거됨 (달력 내 네비게이션 사용) */}
 
       {/* 요약 */}
-      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-3">
-      <div className="rounded border bg-white p-2 text-center">
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-1">
+        <div className="rounded border bg-white p-2 text-center">
           <p className="text-[11px] text-gray-500">{displayMonthNum}월 판매수량</p>
           <p className="text-sm font-semibold">{totalQty.toLocaleString()}개</p>
         </div>
-      <div className="rounded border bg-white p-2 text-center">
-          <p className="text-[11px] text-gray-500">{displayMonthNum}월 매출</p>
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">{displayMonthNum}월 합계</p>
           <p className="text-sm font-semibold text-orange-600">{`₩${totalRev.toLocaleString('ko-KR')}`}</p>
-        </div>        
-        
-
+        </div>
+      </div>
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-3">
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">{displayMonthNum}월 매장 매출</p>
+          <p className="text-sm font-semibold text-sky-600">{`₩${monthStoreRev.toLocaleString('ko-KR')}`}</p>
+        </div>
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">{displayMonthNum}월 배달 매출</p>
+          <p className="text-sm font-semibold text-emerald-600">{`₩${monthDeliveryRev.toLocaleString('ko-KR')}`}</p>
+        </div>
       </div>
 
       {/* 캘린더(월) - 요약 매출 표시 */}
@@ -478,9 +526,8 @@ const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
         </div>
       </div>
       {/* 선택 일 요약 (품목 하단) */}
-      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mt-3 mb-">
-
-      <div className="rounded border bg-white p-2 text-center">
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mt-3 mb-1">
+        <div className="rounded border bg-white p-2 text-center">
           <p className="text-[11px] text-gray-500">
             {selectedDayMD ? (
               <>
@@ -496,12 +543,40 @@ const [sortType, setSortType] = useState<'revenue' | 'quantity'>('revenue');
             {selectedDayMD ? (
               <>
                 <span className="font-semibold text-gray-800">{selectedDayMD}</span>
-                <span className="ml-1">매출</span>
+                <span className="ml-1">합계</span>
               </>
-            ) : '선택일 매출'}
+            ) : '선택일 합계'}
+          </p>
+          <p className="text-sm font-semibold text-orange-600">
+            {selectedDate ? `₩${selectedDayRev.toLocaleString('ko-KR')}` : '—'}
+          </p>
+        </div>
+      </div>
+      <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2 mb-">
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">
+            {selectedDayMD ? (
+              <>
+                <span className="font-semibold text-gray-800">{selectedDayMD}</span>
+                <span className="ml-1">매장 매출</span>
+              </>
+            ) : '선택일 매장 매출'}
           </p>
           <p className="text-sm font-semibold text-sky-600">
-            {selectedDate ? `₩${selectedDayRev.toLocaleString('ko-KR')}` : '—'}
+            {selectedDate ? `₩${selectedDayStoreRev.toLocaleString('ko-KR')}` : '—'}
+          </p>
+        </div>
+        <div className="rounded border bg-white p-2 text-center">
+          <p className="text-[11px] text-gray-500">
+            {selectedDayMD ? (
+              <>
+                <span className="font-semibold text-gray-800">{selectedDayMD}</span>
+                <span className="ml-1">배달 매출</span>
+              </>
+            ) : '선택일 배달 매출'}
+          </p>
+          <p className="text-sm font-semibold text-emerald-600">
+            {selectedDate ? `₩${selectedDayDeliveryRev.toLocaleString('ko-KR')}` : '—'}
           </p>
         </div>
       </div>

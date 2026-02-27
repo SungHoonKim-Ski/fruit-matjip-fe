@@ -5,7 +5,7 @@ import BottomNav from '../../components/BottomNav';
 import { USE_MOCKS } from '../../config';
 import { listProducts } from '../../mocks/products';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords, getUserMe, getDeliveryConfig } from '../../utils/api';
+import { getProducts, modifyName, checkNameExists, createReservation, getServerTime, getUserMessage, markMessageAsRead, getProductKeywords, getUserMe, getDeliveryConfig, getStoreTimeConfig, StoreTimeConfig } from '../../utils/api';
 import ProductDetailPage from './ProductDetailPage';
 import Footer from '../../components/Footer';
 import { theme, logoText, defaultKeywordImage } from '../../brand';
@@ -73,17 +73,28 @@ function formatKstYmd(kstDate: Date): string {
 }
 
 // 마감 시간 이후에는 다음날을 시작으로 10일간 날짜 생성
-function getNext10Days(): string[] {
+function getNext10Days(deadlineHour: number = 19, deadlineMinute: number = 30): string[] {
   const arr: string[] = [];
   const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const start = new Date(kstNow);
-  const [dh, dm] = (theme.config.reservationDeadline ?? '19:30').split(':').map(Number);
-  if (kstNow.getHours() > dh || (kstNow.getHours() === dh && kstNow.getMinutes() >= dm)) {
-    start.setDate(start.getDate() + 1);
+  // cross-midnight: hour >= 24이면 실제 시간은 hour - 24 (익일)
+  const effectiveHour = deadlineHour >= 24 ? deadlineHour - 24 : deadlineHour;
+  const isNextDay = deadlineHour >= 24;
+  if (isNextDay) {
+    // 자정 넘김: 현재가 익일 effectiveHour:minute 이전이면 아직 전날 영업중
+    if (kstNow.getHours() < effectiveHour || (kstNow.getHours() === effectiveHour && kstNow.getMinutes() < deadlineMinute)) {
+      // 자정~마감 사이: 어제부터 시작 (전날 영업일이 아직 유효)
+      start.setDate(start.getDate() - 1);
+    }
+    // 마감 지남: 오늘부터 시작 (기본값)
+  } else {
+    if (kstNow.getHours() > deadlineHour || (kstNow.getHours() === deadlineHour && kstNow.getMinutes() >= deadlineMinute)) {
+      start.setDate(start.getDate() + 1);
+    }
   }
   for (let i = 0; i < MAX_DAYS; i++) {
     const d = new Date(start);
-    d.setDate(start.getDate() + i); // setUTCDate 대신 setDate 사용
+    d.setDate(start.getDate() + i);
     arr.push(formatKstYmd(d));
   }
   return arr;
@@ -226,8 +237,22 @@ export default function ReservePage() {
     return () => window.removeEventListener('popstate', onPopState);
   }, [detailDialog.isOpen, nickModalOpen, searchModalOpen, messageDialog.isOpen]);
 
+  const [storeConfig, setStoreConfig] = useState<StoreTimeConfig | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getStoreTimeConfig().then(config => {
+      if (alive && config) setStoreConfig(config);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   // 날짜 탭
-  const dates = useMemo(() => getNext10Days(), []);
+  const dates = useMemo(() => {
+    const dh = storeConfig?.reservationDeadlineHour ?? 19;
+    const dm = storeConfig?.reservationDeadlineMinute ?? 30;
+    return getNext10Days(dh, dm);
+  }, [storeConfig]);
   const [activeDate, setActiveDate] = useState<string>(dates[0]);
 
   // 검색어 (상품명)
@@ -346,9 +371,17 @@ export default function ReservePage() {
           // 한국 시간(KST) 기준 마감 시간 이후면 다음날부터 10일 범위 요청
           const kstNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
           const start = new Date(kstNow);
-          const [dh, dm] = (theme.config.reservationDeadline ?? '19:30').split(':').map(Number);
-          if (kstNow.getHours() > dh || (kstNow.getHours() === dh && kstNow.getMinutes() >= dm)) {
-            start.setDate(start.getDate() + 1);
+          const dh = storeConfig?.reservationDeadlineHour ?? 19;
+          const dm = storeConfig?.reservationDeadlineMinute ?? 30;
+          if (dh >= 24) {
+            const effectiveHour = dh - 24;
+            if (kstNow.getHours() < effectiveHour || (kstNow.getHours() === effectiveHour && kstNow.getMinutes() < dm)) {
+              start.setDate(start.getDate() - 1);
+            }
+          } else {
+            if (kstNow.getHours() > dh || (kstNow.getHours() === dh && kstNow.getMinutes() >= dm)) {
+              start.setDate(start.getDate() + 1);
+            }
           }
           const fromStr = formatKstYmd(start);
           const toDate = new Date(start);
@@ -649,12 +682,21 @@ export default function ReservePage() {
 
   const handleQuantity = (id: number, diff: number) => {
     // 수정/취소 제한 시간 이후 경고
-    const { timeStr } = getKstNowStrings(timeOffsetMs);
-    const deadline = theme.config.cancellationDeadline?.slice(0, 5) ?? '19:00';
+    const cdh = storeConfig?.cancellationDeadlineHour ?? 19;
+    const cdm = storeConfig?.cancellationDeadlineMinute ?? 0;
+    const deadlineStr = `${String(cdh >= 24 ? cdh - 24 : cdh).padStart(2, '0')}:${String(cdm).padStart(2, '0')}`;
     const product = products.find(p => p.id === id);
-    if (product && product.sellDate === getKstNowStrings(timeOffsetMs).dateStr && timeStr >= deadline) {
-      show(`${deadline} 이후에는 예약 수정이 불가합니다.`, { variant: 'error' });
-      return;
+    const { dateStr: nowDateStr } = getKstNowStrings(timeOffsetMs);
+    if (product && product.sellDate === nowDateStr) {
+      // cross-midnight: cdh >= 24이면 비교를 24시간 기준이 아닌 실제 시각으로
+      const kstNow = getKstNowDate(timeOffsetMs);
+      const nowTotal = kstNow.getHours() * 60 + kstNow.getMinutes();
+      // 같은 날의 마감(cdh < 24)이면 nowTotal과 직접 비교
+      // cross-midnight(cdh >= 24)이면 당일에는 항상 가능 (마감은 익일이므로)
+      if (cdh < 24 && nowTotal >= cdh * 60 + cdm) {
+        show(`${deadlineStr} 이후에는 예약 수정이 불가합니다.`, { variant: 'error' });
+        return;
+      }
     }
     setProducts(prev =>
       prev.map(p => {
@@ -1061,9 +1103,9 @@ export default function ReservePage() {
         >
           <div className="flex items-center justify-between px-3 py-2.5">
             <div className="flex items-center gap-2 text-xs font-medium text-gray-700">
-              <span>⏰ 19:30 마감</span>
+              <span>⏰ {storeConfig ? `${storeConfig.reservationDeadlineHour}:${String(storeConfig.reservationDeadlineMinute).padStart(2,'0')}` : (theme.config.reservationDeadline ?? '19:30')} 마감</span>
               <span className="text-gray-300">·</span>
-              <span>🏪 ~20시까지 수령</span>
+              <span>🏪 ~{storeConfig ? `${storeConfig.pickupDeadlineHour >= 24 ? storeConfig.pickupDeadlineHour - 24 : storeConfig.pickupDeadlineHour}시` : `${(theme.config.pickupDeadline ?? '20:00').split(':')[0]}시`}까지 수령</span>
               <span className="text-gray-300">·</span>
               <span className="text-red-500">⚠ 노쇼시 이용제한</span>
             </div>
@@ -1079,11 +1121,11 @@ export default function ReservePage() {
               <ul className="mt-2 space-y-1.5 text-xs text-gray-600">
                 <li className="flex items-start gap-1.5">
                   <span className="text-orange-500 mt-0.5">•</span>
-                  <span><strong className="text-gray-800">{theme.config.pickupDeadline.split(':')[0]}시</strong>까지 미방문 시 예약이 <strong className="text-gray-800">자동 취소</strong>됩니다</span>
+                  <span><strong className="text-gray-800">{storeConfig ? `${storeConfig.pickupDeadlineHour >= 24 ? storeConfig.pickupDeadlineHour - 24 : storeConfig.pickupDeadlineHour}` : (theme.config.pickupDeadline ?? '20:00').split(':')[0]}시</strong>까지 미방문 시 예약이 <strong className="text-gray-800">자동 취소</strong>됩니다</span>
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-orange-500 mt-0.5">•</span>
-                  <span><strong className="text-gray-800">{theme.config.cancellationDeadline}</strong> 이후 예약 수정/취소가 <strong className="text-gray-800">불가</strong>합니다</span>
+                  <span><strong className="text-gray-800">{storeConfig ? `${storeConfig.cancellationDeadlineHour}:${String(storeConfig.cancellationDeadlineMinute).padStart(2,'0')}` : (theme.config.cancellationDeadline ?? '19:00')}</strong> 이후 예약 수정/취소가 <strong className="text-gray-800">불가</strong>합니다</span>
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-red-500 mt-0.5">•</span>

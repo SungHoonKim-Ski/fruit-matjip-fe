@@ -556,6 +556,65 @@ export const cancelReservation = async (code: string) => {
 };
 
 
+// === 매장 시간 설정 ===
+export type StoreTimeConfig = {
+  reservationDeadlineHour: number;
+  reservationDeadlineMinute: number;
+  cancellationDeadlineHour: number;
+  cancellationDeadlineMinute: number;
+  pickupDeadlineHour: number;
+  pickupDeadlineMinute: number;
+};
+
+export const getStoreTimeConfig = async (): Promise<StoreTimeConfig | null> => {
+  const key = 'getStoreTimeConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await userFetch('/api/store/auth/reservations/config');
+    if (!res.ok) {
+      incrementApiRetryCount(key);
+      return null;
+    }
+    const data = await res.json();
+    resetApiRetryCount(key);
+    if (!data) return null;
+    return {
+      reservationDeadlineHour: Number(data.reservationDeadlineHour ?? 19),
+      reservationDeadlineMinute: Number(data.reservationDeadlineMinute ?? 30),
+      cancellationDeadlineHour: Number(data.cancellationDeadlineHour ?? 19),
+      cancellationDeadlineMinute: Number(data.cancellationDeadlineMinute ?? 0),
+      pickupDeadlineHour: Number(data.pickupDeadlineHour ?? 20),
+      pickupDeadlineMinute: Number(data.pickupDeadlineMinute ?? 0),
+    };
+  } catch (e) {
+    incrementApiRetryCount(key);
+    throw e;
+  }
+};
+
+export const getAdminStoreConfig = async () => {
+  const key = 'getAdminStoreConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/shop/reservations/config', {}, true);
+    if (res.ok) resetApiRetryCount(key);
+    return validateJsonResponse(res);
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
+export const updateAdminStoreConfig = async (payload: StoreTimeConfig) => {
+  const key = 'updateAdminStoreConfig';
+  if (!canRetryApi(key)) throw new Error('서버 에러입니다. 관리자에게 문의 바랍니다.');
+  try {
+    const res = await adminFetch('/api/admin/shop/reservations/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }, true);
+    if (res.ok) resetApiRetryCount(key);
+    return res;
+  } catch (e) { incrementApiRetryCount(key); throw e; }
+};
+
 export type DeliveryInfo = {
   phone: string;
   postalCode: string;
@@ -2606,10 +2665,19 @@ export const downloadAdminCourierWaybillExcelByFilter = async (
 
 // 배송 추적 URL 생성
 export function getTrackingUrl(courierCompany: string | null, trackingNumber: string): string {
-  if (courierCompany === 'HANJIN') {
-    return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${trackingNumber}`;
+  switch (courierCompany) {
+    case 'HANJIN':
+      return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&schLang=KR&wblnumText2=${trackingNumber}`;
+    case 'CJ':
+      return `https://trace.cjlogistics.com/next/tracking.html?wblNo=${trackingNumber}`;
+    case 'LOTTE':
+      return `https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=${trackingNumber}`;
+    case 'EPOST':
+      return `https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?displayHeader=N&sid1=${trackingNumber}`;
+    case 'LOGEN':
+    default:
+      return `https://www.ilogen.com/m/personal/trace.pop/${trackingNumber}`;
   }
-  return `https://www.ilogen.com/web/personal/trace/${trackingNumber}`;
 }
 
 // ===== Courier Tracking Upload API =====

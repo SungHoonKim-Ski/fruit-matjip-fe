@@ -4,7 +4,7 @@ import { useSnackbar } from '../../components/snackbar';
 import { USE_MOCKS } from '../../config';
 import { listReservations } from '../../mocks/reservations';
 import { safeErrorLog, getSafeErrorMessage } from '../../utils/environment';
-import { updateReservationStatus, getAdminReservations, warnReservation, updateReservationsStatusBulk } from '../../utils/api';
+import { updateReservationStatus, getAdminReservations, warnReservation, updateReservationsStatusBulk, getAdminStoreConfig, updateAdminStoreConfig } from '../../utils/api';
 import AdminHeader from '../../components/AdminHeader';
 
 type ReservationRow = {
@@ -80,6 +80,19 @@ export default function AdminReservationsPage() {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   // 롱프레스 임계시간(ms)
   const MOBILE_LONG_PRESS_MS = 500;
+
+  // 매장 시간 설정
+  const [storeConfigOpen, setStoreConfigOpen] = useState(false);
+  const [storeConfigLoading, setStoreConfigLoading] = useState(false);
+  const [storeConfigSaving, setStoreConfigSaving] = useState(false);
+  const [storeConfigForm, setStoreConfigForm] = useState({
+    reservationDeadlineHour: '19',
+    reservationDeadlineMinute: '30',
+    cancellationDeadlineHour: '19',
+    cancellationDeadlineMinute: '0',
+    pickupDeadlineHour: '20',
+    pickupDeadlineMinute: '0',
+  });
 
   // 모바일 카드 롱프레스 진입
   const handleMobileCardPressStart = (id: number) => {
@@ -243,6 +256,35 @@ export default function AdminReservationsPage() {
     };
     loadReservations();
   }, [selectedDate, show]);
+
+  useEffect(() => {
+    if (!storeConfigOpen) return;
+    let alive = true;
+    const loadStoreConfig = async () => {
+      try {
+        setStoreConfigLoading(true);
+        const res = await getAdminStoreConfig();
+        if (!res.ok) throw new Error('매장 시간 설정을 불러오지 못했습니다.');
+        const data = await res.json();
+        if (!alive) return;
+        setStoreConfigForm({
+          reservationDeadlineHour: String(data.reservationDeadlineHour ?? 19),
+          reservationDeadlineMinute: String(data.reservationDeadlineMinute ?? 30),
+          cancellationDeadlineHour: String(data.cancellationDeadlineHour ?? 19),
+          cancellationDeadlineMinute: String(data.cancellationDeadlineMinute ?? 0),
+          pickupDeadlineHour: String(data.pickupDeadlineHour ?? 20),
+          pickupDeadlineMinute: String(data.pickupDeadlineMinute ?? 0),
+        });
+      } catch (e) {
+        safeErrorLog(e, 'AdminReservationsPage - loadStoreConfig');
+        show('매장 시간 설정을 불러오는 중 오류가 발생했습니다.', { variant: 'error' });
+      } finally {
+        if (alive) setStoreConfigLoading(false);
+      }
+    };
+    loadStoreConfig();
+    return () => { alive = false; };
+  }, [storeConfigOpen, show]);
 
   // 다중 선택 토글
   const toggleSelect = (id: number) => {
@@ -546,6 +588,70 @@ export default function AdminReservationsPage() {
       show(getSafeErrorMessage(e, '경고 등록에 실패했습니다.'), { variant: 'error' });
     } finally {
       setWarningId(null);
+    }
+  };
+
+  const saveStoreConfig = async () => {
+    try {
+      setStoreConfigSaving(true);
+      const rh = Number(storeConfigForm.reservationDeadlineHour);
+      const rm = Number(storeConfigForm.reservationDeadlineMinute);
+      const ch = Number(storeConfigForm.cancellationDeadlineHour);
+      const cm = Number(storeConfigForm.cancellationDeadlineMinute);
+      const ph = Number(storeConfigForm.pickupDeadlineHour);
+      const pm = Number(storeConfigForm.pickupDeadlineMinute);
+
+      if ([rh, rm, ch, cm, ph, pm].some(v => Number.isNaN(v))) {
+        show('숫자 값을 확인해주세요.', { variant: 'error' });
+        return;
+      }
+      if (rh < 0 || rh > 27 || ch < 0 || ch > 27 || ph < 0 || ph > 27) {
+        show('시간은 0~27 범위여야 합니다.', { variant: 'error' });
+        return;
+      }
+      if (rm < 0 || rm > 59 || cm < 0 || cm > 59 || pm < 0 || pm > 59) {
+        show('분은 0~59 범위여야 합니다.', { variant: 'error' });
+        return;
+      }
+      const cTotal = ch * 60 + cm;
+      const rTotal = rh * 60 + rm;
+      const pTotal = ph * 60 + pm;
+      if (cTotal > rTotal) {
+        show('취소 마감이 예약 마감보다 늦을 수 없습니다.', { variant: 'error' });
+        return;
+      }
+      if (rTotal > pTotal) {
+        show('예약 마감이 수령 마감보다 늦을 수 없습니다.', { variant: 'error' });
+        return;
+      }
+
+      const res = await updateAdminStoreConfig({
+        reservationDeadlineHour: rh,
+        reservationDeadlineMinute: rm,
+        cancellationDeadlineHour: ch,
+        cancellationDeadlineMinute: cm,
+        pickupDeadlineHour: ph,
+        pickupDeadlineMinute: pm,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || '매장 시간 설정 저장에 실패했습니다.');
+      }
+      const data = await res.json();
+      setStoreConfigForm({
+        reservationDeadlineHour: String(data.reservationDeadlineHour ?? rh),
+        reservationDeadlineMinute: String(data.reservationDeadlineMinute ?? rm),
+        cancellationDeadlineHour: String(data.cancellationDeadlineHour ?? ch),
+        cancellationDeadlineMinute: String(data.cancellationDeadlineMinute ?? cm),
+        pickupDeadlineHour: String(data.pickupDeadlineHour ?? ph),
+        pickupDeadlineMinute: String(data.pickupDeadlineMinute ?? pm),
+      });
+      show('매장 시간 설정이 저장되었습니다.');
+    } catch (e) {
+      safeErrorLog(e, 'AdminReservationsPage - saveStoreConfig');
+      show(getSafeErrorMessage(e, '매장 시간 설정 저장 중 오류가 발생했습니다.'), { variant: 'error' });
+    } finally {
+      setStoreConfigSaving(false);
     }
   };
 
@@ -1081,6 +1187,71 @@ export default function AdminReservationsPage() {
           </div>
         </div>
       )}
+
+      {/* 매장 시간 설정 */}
+      <div className="bg-white rounded-xl shadow p-4 mt-4">
+        <button
+          onClick={() => setStoreConfigOpen(!storeConfigOpen)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <h3 className="text-sm font-semibold text-gray-800">매장 시간 설정</h3>
+          <svg
+            className={`w-4 h-4 text-gray-400 transition-transform ${storeConfigOpen ? 'rotate-180' : ''}`}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {storeConfigOpen && (
+          <div className="mt-3 space-y-3">
+            {storeConfigLoading ? (
+              <p className="text-sm text-gray-500">불러오는 중...</p>
+            ) : (
+              <>
+                {[
+                  { label: '예약 마감', hKey: 'reservationDeadlineHour', mKey: 'reservationDeadlineMinute' },
+                  { label: '취소 마감', hKey: 'cancellationDeadlineHour', mKey: 'cancellationDeadlineMinute' },
+                  { label: '수령 마감', hKey: 'pickupDeadlineHour', mKey: 'pickupDeadlineMinute' },
+                ].map(({ label, hKey, mKey }) => {
+                  const hour = Number(storeConfigForm[hKey as keyof typeof storeConfigForm] || '0');
+                  return (
+                    <div key={hKey}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        {label}
+                        {hour >= 24 && <span className="ml-1 text-orange-500">(익일 {hour - 24}시)</span>}
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number" min={0} max={27}
+                          value={storeConfigForm[hKey as keyof typeof storeConfigForm]}
+                          onChange={e => setStoreConfigForm(prev => ({ ...prev, [hKey]: e.target.value }))}
+                          className="w-16 h-9 border rounded px-2 text-sm text-center"
+                        />
+                        <span className="text-sm text-gray-500">시</span>
+                        <input
+                          type="number" min={0} max={59}
+                          value={storeConfigForm[mKey as keyof typeof storeConfigForm]}
+                          onChange={e => setStoreConfigForm(prev => ({ ...prev, [mKey]: e.target.value }))}
+                          className="w-16 h-9 border rounded px-2 text-sm text-center"
+                        />
+                        <span className="text-sm text-gray-500">분</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-gray-400">24 이상 입력 시 익일로 처리됩니다 (예: 25시 = 익일 1시)</p>
+                <button
+                  onClick={saveStoreConfig}
+                  disabled={storeConfigSaving}
+                  className="w-full h-10 rounded bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium disabled:opacity-50"
+                >
+                  {storeConfigSaving ? '저장 중...' : '시간 설정 저장'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 노쇼 경고 확인 다이얼로그 */}
       {warningDialog.isOpen && (
