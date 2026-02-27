@@ -378,9 +378,9 @@ export default function AdminCourierOrderDetailPage() {
                 <div className="flex gap-2">
                   <span className="text-gray-500 w-20 flex-shrink-0">현재 위치</span>
                   <div>
-                    <span>{order.trackingLocation}</span>
+                    <div>{order.trackingLocation}</div>
                     {order.trackingUpdatedAt && (
-                      <span className="text-xs text-gray-400 ml-2">{formatDateTime(order.trackingUpdatedAt)}</span>
+                      <div className="text-xs text-gray-400 mt-0.5">{formatDateTime(order.trackingUpdatedAt)}</div>
                     )}
                   </div>
                 </div>

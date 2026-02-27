@@ -327,19 +327,6 @@ export default function CourierOrderDetailPage() {
                           >
                             {step.label}
                           </span>
-                          {step.key === 'IN_TRANSIT' && isCurrent && order.trackingLocation && (
-                            <div className="mt-1 text-center">
-                              <div className="text-[10px] font-medium text-gray-700">{order.trackingLocation}</div>
-                              {order.trackingUpdatedAt && (
-                                <div className="text-[9px] text-gray-400">{formatDateTime(order.trackingUpdatedAt)}</div>
-                              )}
-                            </div>
-                          )}
-                          {step.key === 'DELIVERED' && isCurrent && order.deliveredAt && (
-                            <div className="mt-1 text-center">
-                              <div className="text-[9px] text-gray-400">{formatDateTime(order.deliveredAt)}</div>
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -347,6 +334,26 @@ export default function CourierOrderDetailPage() {
                 </div>
               );
             })()}
+
+            {/* Current tracking status */}
+            {order.status === 'IN_TRANSIT' && order.trackingLocation && (
+              <div className="mt-3 bg-indigo-50 rounded-lg px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-indigo-800">{order.trackingLocation}</span>
+                  {order.trackingUpdatedAt && (
+                    <span className="text-xs text-indigo-400 flex-shrink-0">{formatDateTime(order.trackingUpdatedAt)}</span>
+                  )}
+                </div>
+              </div>
+            )}
+            {order.status === 'DELIVERED' && order.deliveredAt && (
+              <div className="mt-3 bg-green-50 rounded-lg px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-green-700">배송 완료</span>
+                  <span className="text-xs text-green-500">{formatDateTime(order.deliveredAt)}</span>
+                </div>
+              </div>
+            )}
 
             {/* Tracking details below progress bar */}
             {(order.trackingNumber || order.courierCompany) && (
