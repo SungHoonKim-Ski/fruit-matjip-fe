@@ -2643,10 +2643,13 @@ export const downloadAdminCourierWaybillExcel = async (id: number): Promise<Blob
 
 // 관리자 택배 운송장 Excel 다운로드 (다건)
 export const downloadAdminCourierWaybillExcelBulk = async (orderIds: number[]): Promise<Blob> => {
+  const token = await fetchAdminCsrfToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers[ADMIN_CSRF_HEADER] = token;
   const res = await fetch(`${API_BASE}/api/admin/courier/orders/waybill/excel/bulk`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ orderIds }),
   });
   if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
@@ -2663,10 +2666,13 @@ export const downloadAdminCourierWaybillExcelByFilter = async (
   const body: Record<string, any> = { start_date: startDate, end_date: endDate };
   if (productId != null) body.product_id = productId;
   if (status) body.status = status;
+  const token = await fetchAdminCsrfToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers[ADMIN_CSRF_HEADER] = token;
   const res = await fetch(`${API_BASE}/api/admin/courier/orders/waybill/excel/filter`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error('Excel 다운로드에 실패했습니다.');
@@ -2729,9 +2735,13 @@ export const uploadTracking = async (file: File, courierCompany: CourierCompany)
     const formData = new FormData();
     formData.append('file', file);
     formData.append('courierCompany', courierCompany);
+    const csrfToken = await fetchAdminCsrfToken();
+    const uploadHeaders: Record<string, string> = {};
+    if (csrfToken) uploadHeaders[ADMIN_CSRF_HEADER] = csrfToken;
     const res = await fetch(`${API_BASE}/api/admin/courier/orders/upload-tracking`, {
       method: 'POST',
       credentials: 'include',
+      headers: uploadHeaders,
       body: formData,
     });
     if (!res.ok) {
