@@ -55,6 +55,8 @@ export default function AdminCourierEditProductPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const { show } = useSnackbar();
+  const showRef = useRef(show);
+  useEffect(() => { showRef.current = show; }, [show]);
 
   const [form, setForm] = useState<ProductEdit | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,13 +163,13 @@ export default function AdminCourierEditProductPage() {
         }
       } catch (e: any) {
         safeErrorLog(e, 'AdminCourierEditProductPage - load');
-        show(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
+        showRef.current(getSafeErrorMessage(e, '상품 정보를 불러오는 중 오류가 발생했습니다.'), { variant: 'error' });
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [id, show]);
+  }, [id]);
 
   const handleMainImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -255,10 +257,10 @@ export default function AdminCourierEditProductPage() {
         }
       } catch (err) {
         safeErrorLog(err, 'imageHandler');
-        show('이미지 업로드에 실패했습니다.', { variant: 'error' });
+        showRef.current('이미지 업로드에 실패했습니다.', { variant: 'error' });
       }
     };
-  }, [show]);
+  }, []);
 
   const quillModules = useMemo(() => ({
     toolbar: {
