@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../components/snackbar';
 import { getCurrentEnvironment, safeErrorLog, getSafeErrorMessage } from '../utils/environment';
+import { REDIRECT_AFTER_LOGIN_KEY } from '../utils/api';
 import { logo, theme } from '../brand';
 
 declare global { interface Window { Kakao: any } }
@@ -197,6 +198,17 @@ export default function MainPage() {
       }
     })();
   }, [params]);
+
+  // Redirect after login (e.g., from Kakao notification link)
+  useEffect(() => {
+    if (authState !== 'authenticated') return;
+    if (forceNicknameChange) return;
+    const redirectUrl = sessionStorage.getItem(REDIRECT_AFTER_LOGIN_KEY);
+    if (redirectUrl) {
+      sessionStorage.removeItem(REDIRECT_AFTER_LOGIN_KEY);
+      nav(redirectUrl, { replace: true });
+    }
+  }, [authState, forceNicknameChange, nav]);
 
   // Kakao login button handler
   const startKakao = useCallback(async () => {

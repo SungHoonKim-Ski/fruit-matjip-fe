@@ -163,7 +163,17 @@ const getAdminRedirectUrl = (apiUrl: string): string => {
   if (apiUrl.includes('/api/admin/courier')) return '/admin/courier/login';
   return '/admin/shop/login';
 };
+export const REDIRECT_AFTER_LOGIN_KEY = 'redirect_after_login';
+
 const setAuthErrorAndRedirect = (status: number, scope: ErrorScope, message: string, redirectUrl?: string) => {
+  if (scope === 'user' && status === 401) {
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== '/' && !currentPath.startsWith('/401')) {
+      sessionStorage.setItem(REDIRECT_AFTER_LOGIN_KEY, currentPath);
+    }
+    window.location.href = '/';
+    return;
+  }
   localStorage.setItem('error-message', message);
   localStorage.setItem('error-type', scope);
   localStorage.setItem('error-redirect', redirectUrl ?? (scope === 'admin' ? '/admin/shop/login' : '/'));
