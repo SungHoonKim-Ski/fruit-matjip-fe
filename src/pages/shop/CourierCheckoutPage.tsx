@@ -468,7 +468,7 @@ export default function CourierCheckoutPage() {
           <div className="flex gap-2">
             <label className="flex-1 flex items-center gap-2 cursor-pointer border-2 border-orange-500 rounded-lg px-3 py-2.5">
               <input type="radio" checked readOnly className="accent-orange-500" />
-              <img src="/images/kakaopay.png" alt="카카오페이" className="h-6" />
+              <img src={`${process.env.PUBLIC_URL}/images/kakaopay.png`} alt="카카오페이" className="h-6" />
             </label>
             <button
               type="button"
@@ -476,7 +476,7 @@ export default function CourierCheckoutPage() {
               className="flex-1 flex items-center gap-2 border-2 border-gray-200 rounded-lg px-3 py-2.5 opacity-60 hover:opacity-80 transition"
             >
               <span className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-              <img src="/images/naverpay.svg" alt="네이버페이" className="h-6" />
+              <img src={`${process.env.PUBLIC_URL}/images/naverpay.svg`} alt="네이버페이" className="h-6" />
             </button>
           </div>
         </div>

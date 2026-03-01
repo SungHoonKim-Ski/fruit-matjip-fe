@@ -2383,7 +2383,7 @@ export const getCourierOrders = async (year?: number, month?: number): Promise<C
       items: Array.isArray(o.items) ? o.items.map((i: any) => ({
         courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
         productName: String(i.product_name ?? i.productName ?? ''),
-        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        imageUrl: addImgPrefix(i.image_url ?? i.imageUrl ?? ''),
         unitPrice: Number(i.product_price ?? i.productPrice ?? i.unit_price ?? i.unitPrice ?? 0),
         quantity: Number(i.quantity ?? 0),
         subtotal: Number(i.amount ?? i.subtotal ?? 0),
@@ -2407,7 +2407,7 @@ export const getCourierOrder = async (displayCode: string): Promise<CourierOrder
       items: Array.isArray(d.items) ? d.items.map((i: any) => ({
         courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
         productName: String(i.product_name ?? i.productName ?? ''),
-        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        imageUrl: addImgPrefix(i.image_url ?? i.imageUrl ?? ''),
         unitPrice: Number(i.product_price ?? i.productPrice ?? i.unit_price ?? i.unitPrice ?? 0),
         quantity: Number(i.quantity ?? 0),
         subtotal: Number(i.amount ?? i.subtotal ?? 0),
@@ -2564,7 +2564,7 @@ export const getAdminCourierOrder = async (id: number): Promise<AdminCourierOrde
       items: Array.isArray(d.items) ? d.items.map((i: any) => ({
         courierProductId: Number(i.courier_product_id ?? i.courierProductId ?? 0),
         productName: String(i.product_name ?? i.productName ?? ''),
-        imageUrl: String(i.image_url ?? i.imageUrl ?? ''),
+        imageUrl: addImgPrefix(i.image_url ?? i.imageUrl ?? ''),
         unitPrice: Number(i.product_price ?? i.productPrice ?? i.unit_price ?? i.unitPrice ?? 0),
         quantity: Number(i.quantity ?? 0),
         subtotal: Number(i.amount ?? i.subtotal ?? 0),
